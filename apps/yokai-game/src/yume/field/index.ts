@@ -2,7 +2,7 @@
 
 import * as THREE from 'three'
 import { aoUniforms, applyBend, inkRimUniforms } from '../bend'
-import type { FieldData, RoadData } from '../data'
+import { type FieldData, inRect, type RoadData } from '../data'
 import { bboxOf, densify, pointInPolygon, type XZ } from '../geom2d'
 import type { PerQuality, ScenePalette } from '../hikari'
 import { Walkability } from '../walk'
@@ -40,7 +40,14 @@ export class Field {
   readonly hf: HeightField
   readonly walk: Walkability
   readonly spots: SpotMarkers
-  readonly stats: { trees: number; lineSegments: number; ribbonTriangles: number }
+  readonly stats: {
+    trees: number
+    lineSegments: number
+    ribbonTriangles: number
+    buildings: number
+    placeholders: number
+    windows: number
+  }
   private readonly ground: GroundTexture
   private readonly outer: OuterLand
   private readonly roads: RibbonSet
@@ -57,8 +64,9 @@ export class Field {
     readonly data: FieldData,
     opts: FieldOptions,
   ) {
-    const half = data.half
-    this.hf = new HeightField(data.dem, 2)
+    const rect = data.rect
+    // 標高の格子が粗い（6m 以上）ときだけ、なめらかに2分割する。5m の格子はそのまま（三角形の数を抑える）
+    this.hf = new HeightField(data.dem, data.dem.step > 5.5 ? 2 : 1)
     this.walk = new Walkability(data, this.hf)
     this.textureSize = opts.textureSize
     const lines = new InkLineBuilder()
@@ -68,8 +76,8 @@ export class Field {
 
     // 地面
     this.ground = new GroundTexture(data, opts.textureSize)
-    this.group.add(createTerrainMesh(this.hf, half, this.ground.texture))
-    this.outer = new OuterLand(this.hf, half)
+    this.group.add(createTerrainMesh(this.hf, rect, this.ground.texture))
+    this.outer = new OuterLand(this.hf, rect)
     this.group.add(this.outer.mesh)
     addContours(this.hf, lines, 2)
 
@@ -143,7 +151,7 @@ export class Field {
     }
 
     // 建物（お休みの範囲にかかるものは、データの段階で外してある）
-    this.buildings = new Buildings(data.buildings, this.hf, lines)
+    this.buildings = new Buildings(data.buildings, data.platforms, this.hf, lines)
     this.group.add(this.buildings.group)
 
     // 木
@@ -163,7 +171,7 @@ export class Field {
     this.group.add(lineMesh)
 
     // お休みの範囲の霧
-    this.group.add(new RestMist(data.restZones, this.hf, half, opts.maxPuffs).group)
+    this.group.add(new RestMist(data.restZones, this.hf, rect, opts.maxPuffs).group)
 
     // 妖怪の気配
     this.spots = new SpotMarkers(data.spots, this.hf)
@@ -173,6 +181,9 @@ export class Field {
       trees: this.trees.count,
       lineSegments: lines.segments,
       ribbonTriangles: this.roads.triangleCount + this.waters.triangleCount,
+      buildings: data.buildings.length,
+      placeholders: data.buildings.filter((b) => b.placeholder).length,
+      windows: this.buildings.windowCount,
     }
   }
 
@@ -254,10 +265,9 @@ export class Field {
     alpha: number,
     skipBorder: boolean,
   ): void {
-    const half = this.data.half
     const ring = [...poly, poly[0]]
     const pts = densify(ring, 2.5)
-    const onBorder = (p: XZ) => Math.abs(p[0]) > half - 0.6 || Math.abs(p[1]) > half - 0.6
+    const onBorder = (p: XZ) => !inRect(this.data.rect, p[0], p[1], 0.6)
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1]
       const b = pts[i]
@@ -272,6 +282,15 @@ export class Field {
         alpha,
       )
     }
+  }
+
+  /** カメラの前をふさぎうる物（家の壁と屋根・木・灯りの柱）。会話のときの向き選びの当たり判定に使う */
+  get occluders(): THREE.Object3D[] {
+    const out: THREE.Object3D[] = []
+    for (const m of this.buildings.group.children) if (m.name !== 'windows') out.push(m)
+    out.push(...this.trees.group.children)
+    for (const m of this.lamps.group.children) if (m.name === 'lamps') out.push(m)
+    return out
   }
 
   setAnisotropy(n: number): void {
@@ -304,6 +323,7 @@ export class Field {
     mistUniforms.uPulseSec.value = p.restGlow.pulseSec
     this.lamps.setPalette(p)
     this.motes.setPalette(p)
+    this.spots.setTime(p.time)
   }
 
   /** 画質ごとの数（灯りの輪・粒・紅葉） */

@@ -1,5 +1,5 @@
-// 夢の旅（家の3D箱庭）の入口。段階1a「夢の旅の骨組み」。
-// 地域パックの 400m 四方を、OSM と標高タイルから組み立てて、アバターとましろで歩く。
+// 夢の旅（家の3D箱庭）の入口。段階1a「夢の旅の骨組み」、段階2「出会いと会話」（yume/encounter、core/story）。
+// 地域パックの範囲（段階1b: 東西 700m × 南北 400m）を、OSM と標高タイルから組み立てて、アバターとましろで歩く。
 // 画面に出す地域の名前は、地域パックの name（了承が出るまでは仮の呼び方）だけを使う。
 
 import * as THREE from 'three'
@@ -7,12 +7,17 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { browserStorage, ProgressStore } from '../core/story/progress'
+import { loadStoryPack } from '../data/story-pack'
 import { bendDrop, fogShapeUniforms, inkRimUniforms } from './bend'
 import { CameraRig, cameraTune } from './camera'
 import { Controls } from './controls'
-import { loadFieldData } from './data'
+import { clampToRect, inRect, loadFieldData } from './data'
+import { Encounters } from './encounter'
+import { Sound } from './encounter/sound'
 import { Field } from './field'
 import { backdropUniforms, updateBackdropDepth } from './field/backdrop'
+import { windowUniforms } from './field/buildings'
 import { inkLineUniforms } from './field/ink-lines'
 import { lampUniforms } from './field/lamps'
 import { moteUniforms } from './field/motes'
@@ -32,6 +37,8 @@ const SHOW_PERF = (() => {
   }
 })()
 const STORE_KEY = 'yume.v1'
+/** 物語の進み具合（会った・札・ピース・縁）。見た目などの設定（STORE_KEY）とは分ける */
+const STORY_KEY = 'yume.story.v1'
 
 interface Quality {
   id: 'low' | 'std' | 'high'
@@ -69,6 +76,7 @@ interface Saved {
   time?: TimeId
   quality?: Quality['id']
   hintSeen?: boolean
+  sound?: boolean
 }
 
 function loadSaved(): Saved {
@@ -87,6 +95,9 @@ function save(s: Saved): void {
   }
 }
 
+/** 止まっているときの移動の意図 */
+const STILL = { x: 0, z: 0, run: false }
+
 function start(): void {
   const host = document.getElementById('app')!
   const saved = loadSaved()
@@ -103,7 +114,11 @@ function start(): void {
     cycleTime: () => cycleTime(),
     cycleQuality: () => setQuality(QUALITIES[(QUALITIES.indexOf(quality) + 1) % QUALITIES.length]),
     toggleSpeed: () => setSpeed(speed === 'fast' ? 'normal' : 'fast'),
+    toggleSound: () => setSound(!sound.enabled),
+    openMandala: () => encounters?.openMandala(),
   }, SHOW_PERF)
+  const sound = new Sound(saved.sound !== false)
+  let encounters: Encounters | null = null
   let speed: 'normal' | 'fast' = saved.speed === 'fast' ? 'fast' : 'normal'
 
   let renderer: THREE.WebGLRenderer
@@ -206,9 +221,27 @@ function start(): void {
   // アバターとましろ
   const player = new Player(field.walk)
   scene.add(player.avatar, player.mashiro)
-  const startAt = startPoint(data, field)
+  const startAt = startPoint(data, field, window.innerWidth / Math.max(1, window.innerHeight))
   player.place(startAt.x, startAt.z, startAt.heading)
   rig.yaw = rig.yawTarget = 90
+
+  // 出会いと会話（段階2）。進み具合は端末に保存し、再読み込みしても続きから
+  const story = loadStoryPack()
+  const progress = new ProgressStore(browserStorage(), STORY_KEY)
+  encounters = new Encounters({
+    field,
+    hud,
+    player,
+    rig,
+    scene,
+    story,
+    progress,
+    sound,
+    respawn: () => {
+      player.place(startAt.x, startAt.z, startAt.heading)
+      rig.yawTarget = 90
+    },
+  })
 
   // 歩く先の印
   const marker = new THREE.Mesh(
@@ -274,15 +307,17 @@ function start(): void {
     fogShapeUniforms.uFogMax.value = p.fogMax
     fogShapeUniforms.uFogShape.value = p.fogShape
     inkLineUniforms.uWidth.value = p.lineWidth * renderer.getPixelRatio()
-    // 光と霞では空を広く見せる（書き割りの裾を下げ、山を低めに）
-    cameraTune.horizonDrop = look === 'hikari' ? 0.1 : 0
-    cameraTune.ridgeFill = look === 'hikari' ? 0.62 : 0.92
+    // 光と霞では空を広く見せる（書き割りの裾を下げ、山を低めに）。
+    // 白描も夕と夜は月と空を見せるので、光と霞と同じ空の帯にする（昼の白描は段階1の構図のまま）
+    const wideSky = look === 'hikari' || p.time !== 'day'
+    cameraTune.horizonDrop = wideSky ? 0.1 : 0
+    cameraTune.ridgeFill = wideSky ? 0.62 : 0.92
     // 縦長の画面（スマホ）では、空が右上のボタンの下に隠れないよう、さらに下げる
-    cameraTune.portraitHorizonLift = look === 'hikari' ? -0.15 : 0.3
-    cameraTune.portraitRidgeCut = look === 'hikari' ? 0.6 : 0
+    cameraTune.portraitHorizonLift = wideSky ? -0.15 : 0.3
+    cameraTune.portraitRidgeCut = wideSky ? 0.6 : 0
     // 横長の画面（PC）は空の帯が細いので、裾を少し下げ、山を少し低くして、月の入る空を広げる
-    cameraTune.wideHorizonDrop = look === 'hikari' ? 0.08 : 0
-    cameraTune.wideRidgeCut = look === 'hikari' ? 0.25 : 0
+    cameraTune.wideHorizonDrop = wideSky ? 0.08 : 0
+    cameraTune.wideRidgeCut = wideSky ? 0.25 : 0
     // 星のまたたきと雲海の細かさは「軽い」で止める
     backdropUniforms.uTwinkle.value = quality.id === 'low' ? 0 : 1
     backdropUniforms.uCloudDetail.value = quality.id === 'low' ? 0 : 1
@@ -296,6 +331,8 @@ function start(): void {
     hud.setLook(LOOK_LABEL[look])
     hud.setTime(TIMES.find((t) => t.id === timeOfDay)!.label)
     hud.setCreditColors(p.credit.bg, p.credit.text)
+    encounters?.setPalette(p, look)
+    encounters?.setBloomThreshold(quality.bloom && p.bloom.strength > 0 ? p.bloom.threshold : null)
     hud.setTheme(look === 'hikari' ? p.time : p.time === 'night' ? 'night' : 'day')
   }
 
@@ -346,6 +383,14 @@ function start(): void {
     save(saved)
   }
 
+  function setSound(on: boolean): void {
+    sound.unlock()
+    sound.setEnabled(on)
+    hud.setSound(on)
+    saved.sound = on
+    save(saved)
+  }
+
   function setQuality(q: Quality): void {
     const shadowChanged = q.shadows !== renderer.shadowMap.enabled
     quality = q
@@ -360,6 +405,7 @@ function start(): void {
         bloomPass.radius = palette.bloom.radius
       }
     } else disposeComposer()
+    encounters?.setBloomThreshold(q.bloom && palette.bloom.strength > 0 ? palette.bloom.threshold : null)
     backdropUniforms.uTwinkle.value = q.id === 'low' ? 0 : 1
     backdropUniforms.uCloudDetail.value = q.id === 'low' ? 0 : 1
     field.setQualityLevel(q.id)
@@ -406,10 +452,8 @@ function start(): void {
   }
 
   /** 見た目の地面の高さ（曲げ込み。箱庭の外は縁の高さ） */
-  const groundLim = data.half
   const groundSeen = (x: number, z: number): number => {
-    const cx = Math.max(-groundLim, Math.min(groundLim, x))
-    const cz = Math.max(-groundLim, Math.min(groundLim, z))
+    const [cx, cz] = clampToRect(data.rect, x, z)
     return field.hf.heightAt(cx, cz) - bendDrop(x, z)
   }
 
@@ -440,10 +484,8 @@ function start(): void {
         }
         const x = o.x + d.x * hi
         const z = o.z + d.z * hi
-        const lim = data.half - 1
-        if (Math.abs(x) > lim + 30 || Math.abs(z) > lim + 30) return null
-        const cx = Math.max(-lim, Math.min(lim, x))
-        const cz = Math.max(-lim, Math.min(lim, z))
+        if (!inRect(data.rect, x, z, -29)) return null
+        const [cx, cz] = clampToRect(data.rect, x, z, 1)
         return new THREE.Vector3(cx, field.hf.heightAt(cx, cz), cz)
       }
       prev = t
@@ -456,13 +498,17 @@ function start(): void {
   const controls = new Controls(renderer.domElement, {
     pickGround,
     walkTo: (p) => {
+      if (encounters?.busy) return
       player.walkTarget = new THREE.Vector2(p.x, p.z)
       markerAge = 0
     },
     zoom: (f) => rig.zoomBy(f),
     rotate: (dir) => rig.rotateStep(dir),
     toggleSpeed: () => setSpeed(speed === 'fast' ? 'normal' : 'fast'),
-    firstInput: () => hud.hideHint(),
+    firstInput: () => {
+      hud.hideHint()
+      sound.unlock()
+    },
     stickVisual: (show, ox, oy, kx, ky) => hud.setStick(show, ox, oy, kx, ky),
   })
 
@@ -474,12 +520,14 @@ function start(): void {
   saved.time = timeOfDay
   save(saved)
   setSpeed(speed)
-  // T キーで時間帯（昼 → 夕 → 夜）
+  hud.setSound(sound.enabled)
+  // T キーで時間帯（昼 → 夕 → 夜）、M キーで曼荼羅帳
   window.addEventListener('keydown', (e) => {
-    if (e.code !== 'KeyT' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
     const t = e.target as HTMLElement | null
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
-    cycleTime()
+    if (e.code === 'KeyT') cycleTime()
+    if (e.code === 'KeyM') encounters?.openMandala()
   })
   window.addEventListener('resize', resize)
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host)
@@ -505,6 +553,7 @@ function start(): void {
     hud.showHint(isTouch, () => {
       saved.hintSeen = true
       save(saved)
+      sound.unlock()
     })
   }
 
@@ -530,7 +579,10 @@ function start(): void {
     time += dt
 
     rig.forward(fwd)
-    const ev = player.update(dt, time, controls.intent(fwd.x, fwd.y))
+    // 会話・曼荼羅帳を開いている間は、アバターを止める
+    const busy = encounters?.busy ?? false
+    if (busy) player.walkTarget = null
+    const ev = player.update(dt, time, busy ? STILL : controls.intent(fwd.x, fwd.y))
     if (ev.hitRest && time - lastRestToast > 8) {
       lastRestToast = time
       hud.toast('ここから先は、祈りの場所。妖怪は外で待っている')
@@ -539,7 +591,7 @@ function start(): void {
       lastEdgeToast = time
       hud.toast('この先は、まだ夢がつながっていない')
     }
-    rig.update(dt, player.pos)
+    rig.update(dt, encounters?.cameraFocus ?? player.pos)
     hud.setCompass(rig.yaw)
     // 遠景の板の深さ（行ごとに、見える地面の手前）と、お休みの範囲の方位
     rig.camera.updateMatrixWorld()
@@ -558,12 +610,16 @@ function start(): void {
     }
 
     const fog = scene.fog as THREE.Fog
-    fog.near = rig.fogNear * palette.fogNearK
-    fog.far = Math.max(fog.near + 20, rig.fogFar * palette.fogFarK)
+    // 耳を澄ますと、霞が寄る（霧の近い側・遠い側を縮める）
+    const pull = encounters?.fogPull ?? 0
+    fog.near = rig.fogNear * palette.fogNearK * (1 - 0.4 * pull)
+    fog.far = Math.max(fog.near + 20, rig.fogFar * palette.fogFarK * (1 - 0.3 * pull))
     inkLineUniforms.uFogNear.value = fog.near
     inkLineUniforms.uFogFar.value = fog.far
     lampUniforms.uFogNear.value = moteUniforms.uFogNear.value = fog.near
     lampUniforms.uFogFar.value = moteUniforms.uFogFar.value = fog.far
+    windowUniforms.uFogNear.value = fog.near
+    windowUniforms.uFogFar.value = fog.far
     updateFogColor()
     // 逆光のふち: 光源へ向かう向きをビュー座標で
     lightView.copy(sunDir).transformDirection(rig.camera.matrixWorldInverse)
@@ -581,7 +637,7 @@ function start(): void {
 
     field.update(time, player.pos.x, player.pos.z)
     const near = field.spots.update(time, dt, player.pos.x, player.pos.z)
-    hud.showPrompt(near !== null)
+    encounters?.update(dt, time, near)
 
     if (player.walkTarget) {
       markerAge += dt
@@ -625,6 +681,7 @@ function start(): void {
           `\nにじみ ${debug.post ? `あり（後処理 ${debug.post}）` : 'なし'}` +
           `\n灯り ${field.lamps.count}` +
           `\n木 ${field.stats.trees}  線 ${field.stats.lineSegments}` +
+          `\n家 ${field.stats.buildings}（仮 ${field.stats.placeholders}）  窓 ${field.stats.windows}` +
           `\n位置 ${player.pos.x.toFixed(1)}, ${player.pos.z.toFixed(1)}` +
           `\nズーム ${rig.dist.toFixed(0)}m`
       }
@@ -656,6 +713,9 @@ function start(): void {
     sun,
     setLook,
     setTime,
+    encounters,
+    progress,
+    sound,
     setQuality: (id: Quality['id']) => setQuality(QUALITIES.find((q) => q.id === id) ?? quality),
     get look() {
       return look
@@ -673,10 +733,13 @@ function start(): void {
 }
 
 /**
- * はじめの位置: 1つ目の地点から 15〜60m の所で、東（立山の方角）を向いたとき、
- * 前方に家並みと気配の印がなるべく多く入る所（道の上を少し優先）。
+ * はじめの位置: 1つ目の地点から 15〜60m の道の上で、東（立山の方角）を向いたとき、
+ * 前方に家並みと気配の印がなるべく多く入る所。道の上に良い所がなければ、道の外も見る。
+ * 1つ目の地点（光蔵坊）までは最大 60m（歩いて 20 秒ほど）。
  */
-function startPoint(data: ReturnType<typeof loadFieldData>, field: Field): { x: number; z: number; heading: number } {
+function startPoint(data: ReturnType<typeof loadFieldData>, field: Field, aspect = 1.6): { x: number; z: number; heading: number } {
+  // 縦長の画面（スマホ）は横の画角が狭いので、画面に入る左右の幅を縦横比に合わせて狭める
+  const side = aspect >= 1 ? 0.7 : Math.max(0.16, 0.7 * (aspect - 0.25))
   const s = data.spots[0]
   if (!s) return { x: 0, z: 0, heading: Math.PI / 2 }
   const centroids = data.buildings.map((b) => {
@@ -699,16 +762,23 @@ function startPoint(data: ReturnType<typeof loadFieldData>, field: Field): { x: 
   for (const c of candidates) {
     const d = Math.hypot(c.x - s.x, c.z - s.z)
     if (d < 15 || d > 60) continue
-    // 東を向いた画面に入るおおよその範囲（前方 8〜60m、左右は前方の距離の 0.8 倍まで）
+    // 東を向いた画面に入るおおよその範囲（前方 15〜65m、左右は前方の距離に比例。縦長では狭い。横長は段階1b と同じ）
     const inView = (x: number, z: number) => {
       const ahead = x - c.x
-      return ahead > 15 && ahead < 65 && Math.abs(z - c.z) < 10 + ahead * 0.7
+      return ahead > 15 && ahead < 65 && Math.abs(z - c.z) < (aspect >= 1 ? 10 : 3) + ahead * side
     }
     // 建物のすぐ横は避ける（アバターが隠れないように）
-    if (centroids.some(([cx, cz]) => Math.hypot(cx - c.x, cz - c.z) < 16)) continue
-    let score = c.road ? 1.5 : 0
+    if (centroids.some(([cx, cz]) => Math.hypot(cx - c.x, cz - c.z) < 9)) continue
+    let score = c.road ? 8 : 0
     for (const [cx, cz] of centroids) if (inView(cx, cz)) score += 1
-    if (inView(s.x, s.z)) score += 4
+    if (aspect >= 1) {
+      if (inView(s.x, s.z)) score += 4
+    } else {
+      // 縦長の画面は横の画角が狭い（ズーム 62m でアバターの左右 約16m まで）。
+      // 気配の印（墨のにじみ）がアバターの左右 9m 以内・前後の近くに入ることを、家並みより重く見る（ヒントの「墨のにじみ」が見えるように）
+      const ahead = s.x - c.x
+      if (Math.abs(s.z - c.z) < 9 && ahead > -6 && ahead < 20) score += 10
+    }
     score -= d * 0.03
     if (score > bestScore && !field.walk.isInsideRest(c.x, c.z) && field.walk.isWalkable(c.x, c.z)) {
       bestScore = score

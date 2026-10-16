@@ -2,7 +2,7 @@
 // 道の上なら、用水や池の上でも歩ける（橋・暗渠の代わり）。線路は踏切のまわりだけ渡れる。
 // 足元の高さは、地面と、道の帯（橋なら橋板）の高い方。
 
-import type { FieldData } from './data'
+import { clampToRect, type FieldData, type FieldRect, inRect } from './data'
 import { bboxOf, type Box2, inBox, nearestOnPolyline, nearestOnRing, pointInPolygon, type XZ } from './geom2d'
 import type { HeightField } from './field/heightfield'
 
@@ -30,7 +30,7 @@ export interface ResolveResult {
 }
 
 export class Walkability {
-  readonly half: number
+  readonly rect: FieldRect
   private readonly polys: PolyObstacle[] = []
   private readonly waterLines: LineObstacle[] = []
   private readonly roads: LineObstacle[] = []
@@ -42,8 +42,10 @@ export class Walkability {
     data: FieldData,
     private readonly hf: HeightField,
   ) {
-    this.half = data.half
+    this.rect = data.rect
     for (const b of data.buildings) this.polys.push({ poly: b.polygon, box: bboxOf(b.polygon), kind: 'building' })
+    // 駅のホームには上がらない（線路の側なので）
+    for (const p of data.platforms) this.polys.push({ poly: p, box: bboxOf(p), kind: 'building' })
     for (const z of data.restZones) this.polys.push({ poly: z.polygon, box: bboxOf(z.polygon), kind: 'rest' })
     for (const a of data.waterAreas) {
       if (a.kind === 'river') continue // 河原は歩ける（川の流れは waterLines で止める）
@@ -109,11 +111,9 @@ export class Walkability {
     let hitRest = false
     let hitEdge = false
     for (let iter = 0; iter < 3; iter++) {
-      const lim = this.half - 1
-      if (Math.abs(x) > lim || Math.abs(z) > lim) {
+      if (!inRect(this.rect, x, z, 1)) {
         hitEdge = true
-        x = Math.max(-lim, Math.min(lim, x))
-        z = Math.max(-lim, Math.min(lim, z))
+        ;[x, z] = clampToRect(this.rect, x, z, 1)
       }
       let road: boolean | null = null
       const isRoad = () => (road ??= this.onRoad(x, z))

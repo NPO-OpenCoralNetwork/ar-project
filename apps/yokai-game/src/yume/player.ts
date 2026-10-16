@@ -296,6 +296,8 @@ export class Player {
   speed = 0
   /** 速さの倍率（1 = ふつう、FAST_SCALE = はやい） */
   speedScale = 1
+  /** 止まっている間に、この向き（方位、ラジアン）へゆっくり向き直る（会話の相手の方へ）。null で何もしない */
+  faceHeading: number | null = null
 
   /** 向き（y 軸の回転）と大きさ */
   private readonly body: THREE.Group
@@ -562,6 +564,10 @@ export class Player {
       let dh = targetHeading - this.heading
       dh = Math.atan2(Math.sin(dh), Math.cos(dh))
       this.heading += dh * (1 - Math.exp(-dt * 12))
+    } else if (this.faceHeading !== null) {
+      let dh = this.faceHeading - this.heading
+      dh = Math.atan2(Math.sin(dh), Math.cos(dh))
+      this.heading += dh * (1 - Math.exp(-dt * 4))
     }
     if (this.speed > 0.01) {
       const mx = Math.sin(this.heading)

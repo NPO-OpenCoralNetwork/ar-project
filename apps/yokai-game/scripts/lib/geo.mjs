@@ -36,3 +36,15 @@ export function boundsAround(origin, halfM) {
 
 /** 0.1 m に丸める */
 export const r1 = (v) => Math.round(v * 10) / 10
+
+/** ローカル座標の矩形 {minX, maxX, minZ, maxZ}（m）を、緯度経度の矩形にする */
+export function rectBounds(origin, rect) {
+  const ne = toLatLon({ x: rect.maxX, z: rect.minZ }, origin)
+  const sw = toLatLon({ x: rect.minX, z: rect.maxZ }, origin)
+  return { south: sw.lat, west: sw.lon, north: ne.lat, east: ne.lon }
+}
+
+/** 矩形を外へ m 広げる（負なら内へ狭める） */
+export function expandRect(rect, m) {
+  return { minX: rect.minX - m, maxX: rect.maxX + m, minZ: rect.minZ - m, maxZ: rect.maxZ + m }
+}

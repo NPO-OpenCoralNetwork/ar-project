@@ -4,7 +4,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { applyBend } from '../bend'
-import type { FieldData } from '../data'
+import { type FieldData, inRect } from '../data'
 import { bboxOf, inBox, makeRandom, nearestOnPolyline, nearestOnRing, pointInPolygon, type XZ } from '../geom2d'
 import type { Palette } from '../palette'
 import type { HeightField } from './heightfield'
@@ -107,7 +107,6 @@ function addHeightAO(g: THREE.BufferGeometry, y0: number, y1: number, lo: number
 function placeTrees(data: FieldData, hf: HeightField, maxTrees: number): TreeSpec[] {
   const rnd = makeRandom(1234)
   const out: TreeSpec[] = []
-  const half = data.half - 3
   const buildings = data.buildings.map((b) => ({ poly: b.polygon, box: bboxOf(b.polygon, 2) }))
   // 境内（お休みの範囲）の中には木を置かない（作り込まず、霧だけにする）。
   // 境内の道（inRestZone）はよけない（よけると、隠した参道の形が木のない筋として見えてしまう）
@@ -116,7 +115,7 @@ function placeTrees(data: FieldData, hf: HeightField, maxTrees: number): TreeSpe
   const waters = data.waterLines.filter((w) => !w.tunnel && !w.inRestZone)
   const waterAreas = data.waterAreas.filter((a) => a.kind !== 'river')
   const blocked = (x: number, z: number, clear: number) => {
-    if (Math.abs(x) > half || Math.abs(z) > half) return true
+    if (!inRect(data.rect, x, z, 3)) return true
     for (const r of rests) {
       if (!inBox(r.box, x, z)) continue
       if (pointInPolygon(x, z, r.poly) || nearestOnRing(x, z, r.poly).dist < 1) return true
@@ -164,9 +163,9 @@ function placeTrees(data: FieldData, hf: HeightField, maxTrees: number): TreeSpe
     }
   }
 
-  // 屋敷林（家のまわりに数本）
+  // 屋敷林（家のまわりに数本）。仮の家は家が密なので 0〜1 本（三角形の数も抑える）
   data.buildings.forEach((b, idx) => {
-    const n = 1 + Math.floor(rnd() * 3)
+    const n = b.placeholder ? (rnd() < 0.45 ? 1 : 0) : 1 + Math.floor(rnd() * 3)
     let cx = 0
     let cz = 0
     for (const [x, z] of b.polygon) {

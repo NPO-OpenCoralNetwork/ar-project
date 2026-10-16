@@ -10,7 +10,8 @@
     "build:artifact": "vite build --config vite.artifact.config.ts",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "fetch:osm": "node scripts/fetch-osm.mjs"
+    "fetch:osm": "node scripts/fetch-osm.mjs",
+    "make:houses": "node scripts/make-placeholder-houses.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

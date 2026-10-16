@@ -49,8 +49,9 @@ export class CameraRig {
   /** 向き（方位。北=0°、東=90°）。既定は東＝立山の方角 */
   yaw = 90
   yawTarget = 90
-  dist = 78
-  distTarget = 78
+  /** 既定のズーム（m）。段階1b で 78 → 62（家並みを近くで見せる）。範囲は ZOOM_MIN〜ZOOM_MAX のまま */
+  dist = 62
+  distTarget = 62
   readonly target = new THREE.Vector3()
   /** 霧の範囲（scene.fog に写す） */
   fogNear = 60
@@ -77,6 +78,27 @@ export class CameraRig {
 
   zoomBy(factor: number): void {
     this.distTarget = THREE.MathUtils.clamp(this.distTarget * factor, ZOOM_MIN, ZOOM_MAX)
+  }
+
+  /**
+   * 向き yawDeg・距離 dist で target を追い終えたときのカメラの位置と、見る点（update と同じ式）。
+   * 会話の前に、手前の物がふさがない向きを選ぶのに使う（yume/encounter）
+   */
+  poseFor(yawDeg: number, dist: number, target: THREE.Vector3, outPos: THREE.Vector3, outLook: THREE.Vector3): void {
+    const tune = cameraTune
+    const t = (dist - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)
+    const portrait = Math.min(1, Math.max(0, 1 - this.aspect))
+    const pitch = Math.min(66, THREE.MathUtils.lerp(tune.pitchNear, tune.pitchFar, t) + portrait * tune.portraitPitchBoost) * DEG
+    const h = dist * Math.sin(pitch)
+    const c = dist * Math.cos(pitch)
+    const a = yawDeg * DEG
+    const fx = Math.sin(a)
+    const fz = -Math.cos(a)
+    const ahead = dist * tune.lookAhead
+    const lx = target.x + fx * ahead
+    const lz = target.z + fz * ahead
+    outPos.set(lx - fx * c, target.y + h, lz - fz * c)
+    outLook.set(lx, target.y, lz)
   }
 
   /** 画面の上が向いている方角の、水平の単位ベクトル（x = 東, z = 南） */

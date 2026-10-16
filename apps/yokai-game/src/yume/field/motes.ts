@@ -165,7 +165,7 @@ export class Motes {
           if (vKind < 0.5) {
             vColor = aAttr.z > 0.5 ? uColorB : uColorA;
             vA = uAlpha * tw * aLife * fade;
-            // 芯の直径が CSS px で uSize（既定のズーム 78m のとき）。外の輪を含めて 3 倍の板
+            // 芯の直径が CSS px で uSize（ズーム 78m のとき。基準の距離。既定のズームは 62m）。外の輪を含めて 3 倍の板
             px = mix(uSize.x, uSize.y, aAttr.x) * 3.0 * uPixelRatio * clamp(78.0 / max(depth, 1.0), 0.6, 2.2);
           } else {
             vColor = aAttr.z > 0.5 ? uLeafB : uLeafA;

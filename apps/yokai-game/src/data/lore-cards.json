@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "note": "伝承の札。中身は docs/yokai-game/03-tateyama-folklore-research.md（確度「確認済」）だけから書く。言い換えない。公開前に監修を通す（02 F-71）。社寺名・由緒は入れない（04 §5.2）。",
+  "cards": [
+    {
+      "id": "kozobo-1",
+      "number": "札①",
+      "yokaiId": "kozobo",
+      "title": "おごり高ぶって、天狗になった",
+      "body": "おごり高ぶった智明坊が天狗になり、光蔵坊と名乗って市ノ谷に棲んだ。",
+      "source": {
+        "work": "『和漢三才図会』",
+        "year": 1712,
+        "checkedIn": [
+          { "label": "細木2019（立山博物館 研究紀要）", "url": "https://tatehaku.jp/wp-content/themes/tatehaku/common/images/pdf/bulletin/2019/26_2019_04.pdf" },
+          { "label": "国際日本文化研究センター 怪異・妖怪伝承データベース", "url": "https://www.nichibun.ac.jp/YoukaiCard/0030432.html" }
+        ]
+      },
+      "confidence": "確認済",
+      "researchRef": "03 #8",
+      "review": "下書き"
+    }
+  ]
+}

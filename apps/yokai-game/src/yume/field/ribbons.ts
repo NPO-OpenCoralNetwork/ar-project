@@ -32,6 +32,8 @@ const TONE_INDEX: Record<RibbonTone, number> = { road: 0, path: 1, water: 2, bal
 
 /** 橋板の高さ（両端の地面を結んだ線 + 0.6m）。walk の高さと帯の見た目で同じ式を使う */
 const BRIDGE_DECK_LIFT = 0.6
+/** 帯の中心線に点を足す間隔（m）。箱庭を 700m に広げたとき、三角形を抑えるため 2 → 4 にした */
+const RIBBON_STEP = 4
 
 interface SurfaceItem {
   pts: XZ[]
@@ -60,7 +62,8 @@ export class RibbonSet {
     const nrm: number[] = []
     const tones: number[] = []
     for (const inp of inputs) {
-      const pts = densify(extendEnds(inp.points, inp.width * 0.3), 2)
+      // 帯は地面の三角形で切り分けるので、高さを合わせるための細分は要らない。曲がりと縁の線のために 4m ごとに点を足す
+      const pts = densify(extendEnds(inp.points, inp.width * 0.3), RIBBON_STEP)
       if (pts.length < 2) {
         this.edges.push({ left: [], right: [] })
         continue

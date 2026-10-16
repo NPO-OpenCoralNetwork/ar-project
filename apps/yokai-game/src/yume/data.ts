@@ -6,6 +6,7 @@ import type { RegionPack } from '../core/region-pack'
 import demJson from '../data/iwakuraji-dem.json'
 import osmJson from '../data/iwakuraji-osm.json'
 import { iwakurajiPack } from '../data/iwakuraji-pack'
+import housesJson from '../data/iwakuraji-placeholder-houses.json'
 import skylineJson from '../data/tateyama-skyline.json'
 import { openRing, type XZ } from './geom2d'
 
@@ -34,6 +35,18 @@ export interface AreaData {
   inRestZone?: boolean
 }
 
+export interface BuildingData {
+  polygon: XZ[]
+  areaM2: number
+  /** OSM の building の値（house, garage, train_station など） */
+  kind?: string
+  levels?: number
+  /** 'gabled'（切妻）/ 'hipped'（寄棟）。無ければ形と番号から決める */
+  roofShape?: string
+  /** 仮の家（scripts/make-placeholder-houses.mjs が足した、実在しない家） */
+  placeholder?: boolean
+}
+
 export interface DemData {
   cols: number
   rows: number
@@ -58,19 +71,45 @@ export interface SpotLocal {
   label: string
   x: number
   z: number
+  /** この地点の妖怪（地域パックの yokaiId） */
+  yokaiId?: string
+}
+
+/** 箱庭の範囲（ローカル座標 m の矩形。原点は範囲の中心とは限らない） */
+export interface FieldRect {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+}
+
+/** 点が矩形の内側か（inset だけ内へ狭めて見る） */
+export function inRect(r: FieldRect, x: number, z: number, inset = 0): boolean {
+  return x >= r.minX + inset && x <= r.maxX - inset && z >= r.minZ + inset && z <= r.maxZ - inset
+}
+
+/** 点を矩形の中（inset だけ内側）へ寄せる */
+export function clampToRect(r: FieldRect, x: number, z: number, inset = 0): [number, number] {
+  return [
+    Math.max(r.minX + inset, Math.min(r.maxX - inset, x)),
+    Math.max(r.minZ + inset, Math.min(r.maxZ - inset, z)),
+  ]
 }
 
 export interface FieldData {
   pack: RegionPack
-  /** 箱庭の半分の幅（m）。範囲は x, z とも -half〜+half */
-  half: number
+  /** 箱庭の範囲（m） */
+  rect: FieldRect
   roads: RoadData[]
   rails: { points: XZ[]; bridge?: boolean; tunnel?: boolean }[]
+  /** 駅のホーム（名前なし。低い台として描く） */
+  platforms: XZ[][]
   /** 踏切（線路を渡れる所） */
   railCrossings: XZ[]
   waterLines: WaterLine[]
   waterAreas: AreaData[]
-  buildings: { polygon: XZ[]; areaM2: number }[]
+  /** OSM の建物と、仮の家（placeholder） */
+  buildings: BuildingData[]
   landuse: AreaData[]
   restZones: { id: string; polygon: XZ[] }[]
   spots: SpotLocal[]
@@ -100,7 +139,7 @@ export function loadFieldData(): FieldData {
 
   const spots = pack.spots.map((s) => {
     const l = toLocal(s.position, origin)
-    return { id: s.id, label: s.label, x: l.x, z: l.z }
+    return { id: s.id, label: s.label, x: l.x, z: l.z, yokaiId: s.yokaiId }
   })
 
   const roads: RoadData[] = osm.roads.map((r) => {
@@ -141,7 +180,21 @@ export function loadFieldData(): FieldData {
     return { kind: a.kind, polygon: ring(a.polygon), inRestZone: aa.inRestZone }
   })
 
-  const buildings = osm.buildings.map((b) => ({ polygon: ring(b.polygon), areaM2: b.areaM2 }))
+  const buildings: BuildingData[] = [
+    ...osm.buildings.map((b) => {
+      const bb = b as typeof b & { levels?: number; roofShape?: string }
+      return { polygon: ring(b.polygon), areaM2: b.areaM2, kind: b.kind, levels: bb.levels, roofShape: bb.roofShape }
+    }),
+    ...housesJson.houses.map((h) => ({
+      polygon: ring(h.polygon),
+      areaM2: h.areaM2,
+      kind: h.kind,
+      levels: h.levels,
+      roofShape: h.roofShape,
+      placeholder: h.placeholder,
+    })),
+  ]
+  const platforms = (osm.rails.platforms ?? []).map((p) => ring(p.polygon))
 
   const g = demJson.grid
   const dem: DemData = {
@@ -167,9 +220,10 @@ export function loadFieldData(): FieldData {
 
   return {
     pack,
-    half: osm.meta.halfSizeM,
+    rect: { ...osm.meta.rect },
     roads,
     rails,
+    platforms,
     railCrossings,
     waterLines,
     waterAreas,

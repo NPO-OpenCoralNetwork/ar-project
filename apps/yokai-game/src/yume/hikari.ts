@@ -77,6 +77,8 @@ export interface SceneExtras {
   leaves: { a: number; b: number; count: PerQuality } | null
   /** 道沿いの小さな灯り。intensity 0 で消灯 */
   lamps: { core: number; halo: number; outer: number; pool: number; paper: number; post: number; intensity: number; max: PerQuality }
+  /** 家の窓のほのかな灯り（加算の小さな板）。intensity 0 で消す。無ければ消灯 */
+  windows?: { color: number; intensity: number }
   /** お休みの範囲の霧のほのかな光 */
   restGlow: {
     color: number
@@ -252,6 +254,8 @@ export const HIKARI: Record<TimeId, ScenePalette> = {
     motes: { a: 0xffc79a, b: 0xf7a8b8, mixB: 0.4, count: { low: 24, std: 80, high: 140 }, sizePx: [2, 4], alpha: 0.6, twinkleHz: [0.3, 0.7] },
     leaves: { a: 0xc2412d, b: 0xd9773a, count: { low: 0, std: 16, high: 28 } },
     lamps: { core: 0xffd89a, halo: 0xff9a48, outer: 0xc4402c, pool: 0xffae5c, paper: 0xf0dcc8, post: 0x5a4048, intensity: 0.5, max: LAMP_MAX },
+    // 夕の終わり: 灯りはじめた窓が少し
+    windows: { color: 0xffb46a, intensity: 0.45 },
     restGlow: { color: 0xf6c9a8, strength: 0.15, edge: 0xd9775a, edgeStrength: 0.06, pulseSec: 10 },
     glowRim: { color: 0xffb48a, strength: 0.4, treeScale: 0.5 },
     mashiroGlow: { color: 0xfff1d6, alpha: 0.36, poolAlpha: 0.12 },
@@ -332,6 +336,7 @@ export const HIKARI: Record<TimeId, ScenePalette> = {
     motes: { a: 0xcfe6ff, b: 0xffb866, mixB: 0.6, count: { low: 24, std: 70, high: 110 }, sizePx: [2, 3.5], alpha: 0.6, cluster: 0.5, twinkleHz: [0.4, 1.2] },
     leaves: { a: 0xb8322a, b: 0xc8502e, count: { low: 0, std: 12, high: 20 } },
     lamps: { core: 0xffd89a, halo: 0xff9a48, outer: 0xc4402c, pool: 0xffae5c, paper: 0xffe2b0, post: 0x2a2430, intensity: 1, max: LAMP_MAX },
+    windows: { color: 0xffbb70, intensity: 0.9 },
     restGlow: { color: 0xe89a52, strength: 0.55, edge: 0xb84a34, edgeStrength: 0.2, pulseSec: 9, horizon: 0.25 },
     glowRim: { color: 0xff9a8a, strength: 0.55, treeScale: 0.5 },
     mashiroGlow: { color: 0xffe2b0, alpha: 0.6, poolAlpha: 0.16 },
@@ -395,10 +400,11 @@ const HAKUBYO_TIME: Record<TimeId, Partial<ScenePalette>> = {
     hemiIntensity: 1.25,
     sun: 0xe8dcf0,
     sunIntensity: 0.55,
-    // 白描は山が空の帯いっぱいに高いので、月は小さめにして稜線から昇るように
-    moon: HIKARI.night.moon && { ...HIKARI.night.moon, radius: 0.045, clearance: 0.35 },
+    // 白描の夜も光と霞と同じ空の帯にした（main.ts の wideSky）ので、月も同じ大きさ・高さ
+    moon: HIKARI.night.moon,
     stars: HIKARI.night.stars,
     lamps: { ...HIKARI.night.lamps, paper: 0xfbf6ea, post: 0x4a4540 },
+    windows: { color: 0xffd9a0, intensity: 0.8 },
     mashiroGlow: { color: 0xffe2b0, alpha: 0.35, poolAlpha: 0.1 },
     restGlow: { ...HIKARI.night.restGlow, strength: 0.18, edgeStrength: 0.05 },
     // 白描の夜は後処理をしない（灯りの輪の板だけで見せる）

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // 箱庭「岩峅寺」の地形（高さの格子）と、立山連峰の稜線（書き割り用）を国土地理院の標高タイルから作る。依存なし。
 //
-//   node scripts/fetch-dem.mjs [--cache-dir <dir>] [--offline] [--grid 65] [--skip-skyline]
+//   node scripts/fetch-dem.mjs [--cache-dir <dir>] [--offline] [--step 5] [--skip-skyline]
 //
 //   --cache-dir   取得したタイル（PNG）を置く場所。既定は OS の一時ディレクトリ/yokai-game-dem
 //   --offline     取得せず、キャッシュだけで作る
-//   --grid        格子の点の数（一辺）。既定 65（400m / 64 = 6.25m 間隔）
+//   --step        格子の間隔（m）。既定 5（DEM5A の解像度。700m × 400m なら 141 × 81 点）
 //   --skip-skyline 稜線（src/data/tateyama-skyline.json）を作らない
 //
 // 出力:
@@ -20,7 +20,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { toLatLon } from './lib/geo.mjs'
 import { createDemSource, DEM_LAYERS } from './lib/gsi-dem.mjs'
-import { ORIGIN, HALF_SIZE_M, BOUNDS, REGION_ID } from './lib/region.mjs'
+import { ORIGIN, RECT, BOUNDS, REGION_ID } from './lib/region.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const APP = resolve(HERE, '..')
@@ -31,7 +31,7 @@ const argVal = (name, def) => {
 }
 const CACHE = resolve(argVal('--cache-dir', join(tmpdir(), 'yokai-game-dem')))
 const OFFLINE = args.includes('--offline')
-const N = Number(argVal('--grid', '65'))
+const STEP = Number(argVal('--step', '5'))
 const SKIP_SKYLINE = args.includes('--skip-skyline')
 const OUT_DEM = join(APP, 'src/data/iwakuraji-dem.json')
 const OUT_SKY = join(APP, 'src/data/tateyama-skyline.json')
@@ -44,13 +44,18 @@ const r2 = (v) => Math.round(v * 100) / 100
 const dem5a = createDemSource('dem5a', 15, CACHE, { offline: OFFLINE })
 const dem10b = createDemSource('dem10b', 14, CACHE, { offline: OFFLINE })
 
-const step = (HALF_SIZE_M * 2) / (N - 1)
+const COLS = Math.round((RECT.maxX - RECT.minX) / STEP) + 1
+const ROWS = Math.round((RECT.maxZ - RECT.minZ) / STEP) + 1
+const stepX = (RECT.maxX - RECT.minX) / (COLS - 1)
+const stepZ = (RECT.maxZ - RECT.minZ) / (ROWS - 1)
+if (Math.abs(stepX - stepZ) > 1e-6) throw new Error(`範囲が --step ${STEP} で割り切れない（${stepX} / ${stepZ}）`)
+const step = stepX
 /** @type {{lat:number, lon:number, x:number, z:number}[]} */
 const pts = []
-for (let row = 0; row < N; row++) {
-  for (let col = 0; col < N; col++) {
-    const x = -HALF_SIZE_M + col * step
-    const z = -HALF_SIZE_M + row * step
+for (let row = 0; row < ROWS; row++) {
+  for (let col = 0; col < COLS; col++) {
+    const x = RECT.minX + col * step
+    const z = RECT.minZ + row * step
     pts.push({ ...toLatLon({ x, z }, ORIGIN), x, z })
   }
 }
@@ -86,16 +91,16 @@ for (let pass = 0; pass < 200; pass++) {
   const next = Float64Array.from(abs)
   for (let i = 0; i < pts.length; i++) {
     if (!Number.isNaN(abs[i])) continue
-    const row = Math.floor(i / N)
-    const col = i % N
+    const row = Math.floor(i / COLS)
+    const col = i % COLS
     let s = 0
     let k = 0
     let lo = Infinity
     for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) {
       const r = row + dr
       const c = col + dc
-      if (r < 0 || r >= N || c < 0 || c >= N) continue
-      const v = abs[r * N + c]
+      if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue
+      const v = abs[r * COLS + c]
       if (!Number.isNaN(v)) {
         s += v
         k++
@@ -122,15 +127,15 @@ for (let i = 0; i < pts.length; i++) {
 const fillCheck = []
 for (let i = 0; i < pts.length; i++) {
   if (src[i] === 'a') continue
-  const row = Math.floor(i / N)
-  const col = i % N
+  const row = Math.floor(i / COLS)
+  const col = i % COLS
   let s = 0
   let k = 0
   for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
     const r = row + dr
     const c = col + dc
-    if (r < 0 || r >= N || c < 0 || c >= N || src[r * N + c] !== 'a') continue
-    s += abs[r * N + c]
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS || src[r * COLS + c] !== 'a') continue
+    s += abs[r * COLS + c]
     k++
   }
   if (k) fillCheck.push(abs[i] - s / k)
@@ -183,7 +188,8 @@ const demOut = {
     originElevationM: r2(originAbs),
     originElevationSource: originSource,
     bounds: BOUNDS,
-    note: 'heights は原点の標高を 0 とした相対の高さ（m）。row 0 が北端（z = -half）、col 0 が西端（x = -half）。heights[row * cols + col]。sourceMask: a = DEM5A, b = DEM10B, f = まわりの DEM5A から補間（水面など。低い方に寄せる）',
+    rect: RECT,
+    note: 'heights は原点の標高を 0 とした相対の高さ（m）。row 0 が北端（z = rect.minZ）、col 0 が西端（x = rect.minX）。heights[row * cols + col]。sourceMask: a = DEM5A, b = DEM10B, f = まわりの DEM5A から補間（水面など。低い方に寄せる）',
     stats: {
       cells: pts.length,
       dem5aCells: count5a,
@@ -197,7 +203,7 @@ const demOut = {
       tiles: { dem5a: dem5a.stats, dem10b: dem10b.stats },
     },
   },
-  grid: { cols: N, rows: N, x0: -HALF_SIZE_M, z0: -HALF_SIZE_M, stepM: r2(step) },
+  grid: { cols: COLS, rows: ROWS, x0: RECT.minX, z0: RECT.minZ, stepM: r2(step) },
   heights: rel,
   sourceMask: src.join(''),
 }

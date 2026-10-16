@@ -97,15 +97,21 @@ export function circle(cx, cz, r, n = 24) {
   return out
 }
 
-/** 折れ線を矩形 [-h, h]^2 で切る（Liang–Barsky）。切れた部分ごとの折れ線の配列を返す */
-export function clipPolyline(line, h) {
+/** 矩形の指定（数 h なら [-h, h]^2、または {minX, maxX, minZ, maxZ}）をそろえる */
+function asRect(h) {
+  return typeof h === 'number' ? { minX: -h, maxX: h, minZ: -h, maxZ: h } : h
+}
+
+/** 折れ線を矩形で切る（Liang–Barsky）。切れた部分ごとの折れ線の配列を返す。rect は asRect と同じ */
+export function clipPolyline(line, rect) {
+  const R = asRect(rect)
   const pieces = []
   let cur = []
-  const inside = (p) => p[0] >= -h && p[0] <= h && p[1] >= -h && p[1] <= h
+  const inside = (p) => p[0] >= R.minX && p[0] <= R.maxX && p[1] >= R.minZ && p[1] <= R.maxZ
   for (let i = 1; i < line.length; i++) {
     const a = line[i - 1]
     const b = line[i]
-    const seg = clipSegment(a, b, h)
+    const seg = clipSegment(a, b, R)
     if (!seg) {
       if (cur.length > 1) pieces.push(cur)
       cur = []
@@ -123,16 +129,16 @@ export function clipPolyline(line, h) {
   return pieces
 }
 
-function clipSegment(a, b, h) {
+function clipSegment(a, b, R) {
   let t0 = 0
   let t1 = 1
   const dx = b[0] - a[0]
   const dz = b[1] - a[1]
   const tests = [
-    [-dx, a[0] + h],
-    [dx, h - a[0]],
-    [-dz, a[1] + h],
-    [dz, h - a[1]],
+    [-dx, a[0] - R.minX],
+    [dx, R.maxX - a[0]],
+    [-dz, a[1] - R.minZ],
+    [dz, R.maxZ - a[1]],
   ]
   for (const [p, q] of tests) {
     if (p === 0) {
@@ -154,19 +160,20 @@ function clipSegment(a, b, h) {
   ]
 }
 
-/** 多角形を矩形 [-h, h]^2 で切る（Sutherland–Hodgman）。凹多角形では細い縮退辺が残ることがある */
-export function clipPolygon(poly, h) {
+/** 多角形を矩形で切る（Sutherland–Hodgman）。凹多角形では細い縮退辺が残ることがある。rect は asRect と同じ */
+export function clipPolygon(poly, rect) {
+  const R = asRect(rect)
   const edges = [
-    (p) => p[0] >= -h,
-    (p) => p[0] <= h,
-    (p) => p[1] >= -h,
-    (p) => p[1] <= h,
+    (p) => p[0] >= R.minX,
+    (p) => p[0] <= R.maxX,
+    (p) => p[1] >= R.minZ,
+    (p) => p[1] <= R.maxZ,
   ]
   const isect = [
-    (a, b) => lerpAt(a, b, 0, -h),
-    (a, b) => lerpAt(a, b, 0, h),
-    (a, b) => lerpAt(a, b, 1, -h),
-    (a, b) => lerpAt(a, b, 1, h),
+    (a, b) => lerpAt(a, b, 0, R.minX),
+    (a, b) => lerpAt(a, b, 0, R.maxX),
+    (a, b) => lerpAt(a, b, 1, R.minZ),
+    (a, b) => lerpAt(a, b, 1, R.maxZ),
   ]
   let out = poly
   for (let e = 0; e < 4; e++) {

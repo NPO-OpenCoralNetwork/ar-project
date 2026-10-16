@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "id": "kozobo",
+  "yokaiId": "kozobo",
+  "creative": true,
+  "review": "下書き",
+  "note": "夢の旅（家）で光蔵坊とはじめて会う台本。台詞はすべて【創作】（性格: 威張るが昔のおごりを恥じている。呼び方は「人の子」。04 §3.3・§4.1）。伝承の事実は札 kozobo-1（03 #8、04 §3.5 の札①）でだけ出す。神仏の名は出さず、姿も描かない（光蔵坊は「あのお方」とだけ呼ぶ。04 §3.5）。家で上がる縁は「顔見知り」まで（この台本）。富山弁の監修までは「〜じゃ」程度の古風な言い方にとどめる。",
+  "speakers": {
+    "kozobo": { "name": "光蔵坊", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
+    { "label": "札の前で途切れた", "when": [{ "card": "kozobo-1", "opened": false }], "node": "resume" },
+    { "label": "また会う", "when": [{ "piece": "fumoto-kozobo", "atLeast": "hakubyo" }], "node": "again" },
+    { "label": "札のあとで途切れた", "node": "resume_end" }
+  ],
+  "nodes": {
+    "first": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……いる。耳を澄ましたら、ほんとうに見えた。" },
+        { "speaker": "kozobo", "text": "……夢の中まで来おったか。" }
+      ],
+      "effects": [{ "meet": true }],
+      "next": "first2"
+    },
+    "first2": {
+      "lines": [{ "speaker": "kozobo", "text": "ふむ。わしの姿が見えるとは、耳のよい人の子じゃ。" }],
+      "choices": [
+        { "text": "あなたは、だれ？", "next": "ask_name" },
+        { "text": "ここで、なにをしているの？", "next": "ask_doing" }
+      ]
+    },
+    "ask_name": {
+      "lines": [{ "speaker": "kozobo", "text": "名を問うか。……光蔵坊じゃ。見てのとおり、天狗よ。" }],
+      "effects": [{ "bond": "kaomishiri" }],
+      "next": "rivals"
+    },
+    "ask_doing": {
+      "lines": [
+        { "speaker": "kozobo", "text": "なにも。ここで山を眺めておった。昔のことを思い出しての。" },
+        { "speaker": "kozobo", "text": "……おお、名乗っておらなんだ。わしは光蔵坊。天狗じゃ。" }
+      ],
+      "effects": [{ "bond": "kaomishiri" }],
+      "next": "rivals"
+    },
+    "rivals": {
+      "lines": [
+        { "speaker": "mashiro", "text": "天狗？　空を飛ぶのなら、ぼくだって負けないよ。" },
+        { "speaker": "kozobo", "text": "ほう、紙の鳥が言うわ。羽ばたきの年季がちがうぞ。" }
+      ],
+      "choices": [
+        { "text": "天狗には、どうしてなったの？", "next": "past" },
+        { "text": "えらい天狗なの？", "next": "proud" }
+      ]
+    },
+    "proud": {
+      "lines": [
+        { "speaker": "kozobo", "text": "えらいかと問われれば……。" },
+        { "speaker": "kozobo", "text": "……いや。えらいと思いこんでおった頃が、いちばんいけなんだ。" }
+      ],
+      "next": "past"
+    },
+    "past": {
+      "lines": [{ "speaker": "kozobo", "text": "わしの昔のことは、古い書物に残っておる。……恥ずかしいことにな。" }],
+      "effects": [{ "openCard": "kozobo-1" }],
+      "next": "after_card"
+    },
+    "after_card": {
+      "lines": [
+        { "speaker": "kozobo", "text": "そういうことじゃ。わしは、鼻が高すぎた。" },
+        { "speaker": "mashiro", "text": "天狗だから、鼻が高いの？" },
+        { "speaker": "kozobo", "text": "それもある。……が、そういう意味ではない。" }
+      ],
+      "choices": [
+        { "text": "いまは、どう思っているの？", "next": "regret" },
+        { "text": "その先の話も、聞きたい", "next": "more" }
+      ]
+    },
+    "regret": {
+      "lines": [{ "speaker": "kozobo", "text": "思い出すと、羽の先までむずがゆくなる。……それだけじゃ。" }],
+      "next": "farewell"
+    },
+    "more": {
+      "lines": [
+        { "speaker": "kozobo", "text": "欲ばるでない。今日はここまでじゃ。" },
+        { "speaker": "kozobo", "text": "あのお方のことも……いや、また会うたときにしよう。" }
+      ],
+      "next": "farewell"
+    },
+    "farewell": {
+      "lines": [
+        { "speaker": "kozobo", "text": "人の子。いつか本当にこの道を歩く日が来たら……そのときは、色のついたわしを見せてやろう。" },
+        { "speaker": "mashiro", "text": "曼荼羅帳に、線がひとつ増えたよ。" }
+      ],
+      "effects": [{ "piece": "fumoto-kozobo", "state": "hakubyo" }],
+      "next": "close"
+    },
+    "close": {
+      "lines": [{ "speaker": "kozobo", "text": "……では、また夢で。" }],
+      "end": true
+    },
+    "resume": {
+      "lines": [{ "speaker": "kozobo", "text": "……また来おったか、人の子。話の途中じゃったな。" }],
+      "effects": [{ "bond": "kaomishiri" }],
+      "next": "past"
+    },
+    "resume_end": {
+      "lines": [{ "speaker": "kozobo", "text": "……また来おったか。さっきの話の、しまいがまだじゃったな。" }],
+      "next": "farewell"
+    },
+    "again": {
+      "lines": [{ "speaker": "kozobo", "text": "また来たか、人の子。" }],
+      "choices": [
+        { "text": "札を、もう一度読みたい", "next": "reread" },
+        { "text": "あいさつに来ただけ", "next": "greet" }
+      ]
+    },
+    "reread": {
+      "lines": [{ "speaker": "kozobo", "text": "物好きじゃの。……ほれ。" }],
+      "effects": [{ "openCard": "kozobo-1" }],
+      "next": "reread_after"
+    },
+    "reread_after": {
+      "lines": [{ "speaker": "kozobo", "text": "何度読んでも、むずがゆいわい。" }],
+      "next": "again_close"
+    },
+    "greet": {
+      "lines": [{ "speaker": "kozobo", "text": "ふん。……悪い気はせんの。" }],
+      "next": "again_close"
+    },
+    "again_close": {
+      "lines": [{ "speaker": "kozobo", "text": "夢の中でも、歩きすぎるでないぞ。" }],
+      "end": true
+    }
+  }
+}

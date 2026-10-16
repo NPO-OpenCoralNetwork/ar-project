@@ -1,6 +1,7 @@
 // 画面の表示（HTML のオーバーレイ）。左上に題、右上に回転・速さ・見た目・時間・画質、右下に出典（いつも表示）。
 // 左下の fps と描画命令数は、URL に ?debug を付けたときだけ出す。板の色は時間帯に合わせる（夜は暗い地に明るい文字）。
 // 初回だけ操作のヒント（PC とスマホで出し分け）。safe-area を考える。
+// 段階2: 右上の3段目に「音」と「曼荼羅帳」。出会いと会話の画面は yume/encounter/ui.ts（この root の中に置く）。
 
 const CSS = /* css */ `
 :root {
@@ -42,7 +43,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-prompt { position: absolute; left: 50%; bottom: calc(64px + var(--sab)); transform: translate(-50%, 6px); opacity: 0; transition: opacity 0.6s, transform 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.06em; padding: 8px 16px; background: var(--washi); border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
 .yh-prompt small { font-family: var(--ui-font); font-size: 11px; color: var(--ink-soft); margin-left: 6px; letter-spacing: 0; }
 .yh-prompt.on { opacity: 1; transform: translate(-50%, 0); }
-.yh-toast { position: absolute; left: 50%; top: calc(64px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.8s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.05em; padding: 8px 16px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; max-width: calc(100vw - 32px); text-align: center; }
+.yh-toast { position: absolute; left: 50%; top: calc(64px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.8s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.05em; padding: 8px 16px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; }
 .yh-toast.on { opacity: 1; }
 .yh-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; touch-action: none; background: rgba(241, 236, 226, 0.35); transition: opacity 0.5s; }
 .yh-hint.off { opacity: 0; pointer-events: none; }
@@ -65,8 +66,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
   .yh-panel { gap: 5px; }
   .yh-panel .yh-btn { min-height: 34px; }
   .yh-panel .yh-btn.icon, .yh-compass { width: 36px; height: 36px; }
-  .yh-panel .yh-btn small { display: none; }
+  /* スマホは見出し（音・時間・見た目・速さ・画質）を値の上に小さく重ねる（幅を増やさずに、何のボタンか分かるように） */
+  .yh-panel .yh-btn { line-height: 1.12; padding: 2px 8px; }
+  .yh-panel .yh-btn small { display: block; font-size: 9px; line-height: 1.1; margin: 0 0 1px; }
   .yh-credit { font-size: 9.5px; }
+  /* お知らせは、右上の板（3段）の下に出す（板と重ならないように） */
+  .yh-toast { top: calc(132px + var(--sat)); font-size: 13.5px; }
   /* 開いた性能表示が、右下の出典と重ならないように（行は折り返す） */
   .yh-perf { max-width: calc(100vw - 215px - var(--sal) - var(--sar)); white-space: pre-wrap; word-break: break-all; }
 }
@@ -78,6 +83,8 @@ export interface HudHooks {
   cycleTime(): void
   cycleQuality(): void
   toggleSpeed(): void
+  toggleSound(): void
+  openMandala(): void
 }
 
 export class Hud {
@@ -96,6 +103,10 @@ export class Hud {
   private readonly stick: HTMLDivElement
   private readonly knob: HTMLElement
   private readonly speedBtn: HTMLButtonElement
+  private readonly soundBtn: HTMLButtonElement
+  private readonly mandalaBtn: HTMLButtonElement
+  private mandalaNew = false
+  private promptText = ''
   private hint: HTMLDivElement | null = null
   private perfOpen = false
   private toastTimer = 0
@@ -146,7 +157,14 @@ export class Hud {
     this.speedBtn = button('', '歩く速さを切り替える', '')
     this.speedBtn.onclick = () => hooks.toggleSpeed()
     row2.append(this.speedBtn, this.lookBtn, this.timeBtn, this.qualityBtn)
-    panel.append(row1, row2)
+    const row3 = el('div', 'yh-row')
+    this.soundBtn = button('', '音を切り替える', '')
+    this.soundBtn.onclick = () => hooks.toggleSound()
+    this.mandalaBtn = button('', '曼荼羅帳をひらく（M）', 'mandala')
+    this.mandalaBtn.innerHTML = '曼荼羅帳<span class="ym-badge" aria-hidden="true">新</span>'
+    this.mandalaBtn.onclick = () => hooks.openMandala()
+    row3.append(this.soundBtn, this.mandalaBtn)
+    panel.append(row1, row2, row3)
     this.root.appendChild(panel)
 
     this.perf = button('', '性能の表示（タップで開閉）', '') as HTMLButtonElement
@@ -174,7 +192,6 @@ export class Hud {
     this.root.appendChild(credit)
 
     this.prompt = el('div', 'yh-prompt')
-    this.prompt.innerHTML = 'ここで耳を澄ます<small>（段階2で実装）</small>'
     this.prompt.setAttribute('role', 'status')
     this.root.appendChild(this.prompt)
 
@@ -204,6 +221,7 @@ export class Hud {
 
   /** 板の色を時間帯に合わせる（夜は暗い地に明るい文字。夕は薄いばら色の地） */
   setTheme(time: 'day' | 'dusk' | 'night'): void {
+    this.root.dataset.time = time
     const t = THEMES[time]
     for (const [k, v] of Object.entries(t)) this.root.style.setProperty(k, v)
   }
@@ -265,8 +283,28 @@ export class Hud {
     if (this.perf.textContent !== text) this.perf.textContent = text
   }
 
-  showPrompt(on: boolean): void {
-    this.prompt.classList.toggle('on', on)
+  /** 画面の下の小さな案内（null で隠す） */
+  showPrompt(text: string | null): void {
+    if (text && text !== this.promptText) {
+      this.promptText = text
+      this.prompt.textContent = text
+    }
+    this.prompt.classList.toggle('on', !!text)
+  }
+
+  setSound(on: boolean): void {
+    this.soundBtn.innerHTML = `<small>音</small>${on ? 'あり' : 'なし'}`
+  }
+
+  /** 曼荼羅帳に、まだ見ていないピースがある */
+  setMandalaNew(on: boolean): void {
+    this.mandalaNew = on
+    this.mandalaBtn.classList.toggle('has-new', on)
+    this.mandalaBtn.setAttribute('aria-label', on ? '曼荼羅帳をひらく（新しいピースがある）' : '曼荼羅帳をひらく（M）')
+  }
+
+  get mandalaHasNew(): boolean {
+    return this.mandalaNew
   }
 
   toast(text: string, ms = 3200): void {
@@ -286,6 +324,7 @@ export class Hud {
           ['向きを変える', '右上の ⟲ ⟳'],
           ['速さ', '右上の「速さ」で、ふつう／はやい'],
           ['時間', '右上の「時間」で、昼・夕・夜'],
+          ['耳を澄ます', '気配のそばで、ボタンを長押し（その場で止まっても）'],
         ]
       : [
           ['歩く', 'WASD・矢印キー（Shift で走る）'],
@@ -294,12 +333,13 @@ export class Hud {
           ['向きを変える', 'Q・E、右上の ⟲ ⟳'],
           ['速さ', 'F キー、右上の「速さ」で、ふつう／はやい'],
           ['時間', 'T キー、右上の「時間」で、昼・夕・夜'],
+          ['耳を澄ます', '気配のそばで、ボタンか Space を長押し（その場で止まっても）'],
         ]
     wrap.innerHTML = `
       <div class="yh-card" role="dialog" aria-label="操作のヒント">
         <h2>夢の旅へ</h2>
         <dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
-        <p>墨のにじみは、妖怪の気配です。</p>
+        <p>墨のにじみは、妖怪の気配です。近くで耳を澄ますと、夢の姿が浮かびます。</p>
         <button class="yh-btn" type="button">歩きはじめる</button>
       </div>`
     const close = () => {

@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { BEND_GLSL, bendUniforms } from '../bend'
 import { bboxOf, makeRandom, nearestOnRing, pointInPolygon, polygonArea, type XZ } from '../geom2d'
 import type { HeightField } from './heightfield'
+import type { FieldRect } from '../data'
 import { drapedGeometry, triangulateDraped } from './drape'
 
 export const mistUniforms = {
@@ -30,11 +31,11 @@ float mfbm(vec2 p) { return 0.6 * mnoise(p) + 0.3 * mnoise(p * 2.1 + 3.7) + 0.1 
 export class RestMist {
   readonly group = new THREE.Group()
 
-  constructor(zones: { polygon: XZ[] }[], hf: HeightField, half: number, maxPuffs: number) {
+  constructor(zones: { polygon: XZ[] }[], hf: HeightField, rect: FieldRect, maxPuffs: number) {
     const rnd = makeRandom(4242)
     const inField = zones.filter((z) => {
       const b = bboxOf(z.polygon)
-      return b.maxX > -half && b.minX < half && b.maxZ > -half && b.minZ < half
+      return b.maxX > rect.minX && b.minX < rect.maxX && b.maxZ > rect.minZ && b.minZ < rect.maxZ
     })
     if (!inField.length) return
 

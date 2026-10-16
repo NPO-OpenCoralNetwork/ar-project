@@ -3,7 +3,7 @@
 
 import * as THREE from 'three'
 import type { FieldData } from '../data'
-import { makeRandom, type XZ } from '../geom2d'
+import { convexHull, makeRandom, type XZ } from '../geom2d'
 import type { Palette } from '../palette'
 
 /** 焼き込みの影の向きと長さを決める光（方位は北=0°・東=90°、高度は地平から）。既定は白描の南南西の日 */
@@ -12,6 +12,9 @@ export interface GroundLight {
   elDeg: number
 }
 const DEFAULT_LIGHT: GroundLight = { azDeg: 200, elDeg: 42 }
+/** size は「400m あたりの画素数」。長い辺の画素はこの割合で決め、GPU の上限を超えないよう 4096 で頭打ちにする */
+const REF_M = 400
+const MAX_PX = 4096
 
 export class GroundTexture {
   readonly canvas: HTMLCanvasElement
@@ -27,11 +30,10 @@ export class GroundTexture {
     size: number,
   ) {
     this.canvas = document.createElement('canvas')
-    this.canvas.width = this.canvas.height = size
     const ctx = this.canvas.getContext('2d')
     if (!ctx) throw new Error('canvas 2d が使えません')
     this.ctx = ctx
-    this.scale = size / (data.half * 2)
+    this.scale = this.setSize(size)
     this.paddyAngle = dominantRoadAngle(data)
     this.texture = new THREE.CanvasTexture(this.canvas)
     this.texture.colorSpace = THREE.SRGBColorSpace
@@ -40,17 +42,21 @@ export class GroundTexture {
 
   paint(p: Palette, light: GroundLight = DEFAULT_LIGHT): void {
     const { ctx, data } = this
-    const S = this.canvas.width
-    const half = data.half
+    const rc = data.rect
+    const W = rc.maxX - rc.minX
+    const D = rc.maxZ - rc.minZ
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, S, S)
-    ctx.setTransform(this.scale, 0, 0, this.scale, S / 2, S / 2)
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    // 画素の縦横の比は、範囲の縦横の比と同じ（切り上げで少しずれる分は、x と z で別の倍率にして吸収する）
+    const sx = this.canvas.width / W
+    const sz = this.canvas.height / D
+    ctx.setTransform(sx, 0, 0, sz, -rc.minX * sx, -rc.minZ * sz)
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
 
     // 1. 田（区画・畦）
     ctx.fillStyle = p.paddy
-    ctx.fillRect(-half, -half, half * 2, half * 2)
+    ctx.fillRect(rc.minX, rc.minZ, W, D)
     this.paintPaddies(p)
 
     // 2. 河原と中洲
@@ -96,6 +102,9 @@ export class GroundTexture {
     for (const a of data.landuse) {
       if (a.kind === 'parking' && !a.inRestZone) this.fillPoly(a.polygon)
     }
+    // 駅の構内（ホームと駅舎を囲む凸包）も、田ではなく駐車場と同じ土の色にする
+    const yard = stationYard(data)
+    if (yard) this.fillPoly(yard)
 
     // 6. 道と水の下地
     ctx.strokeStyle = p.roadUnder
@@ -147,7 +156,7 @@ export class GroundTexture {
     ctx.strokeStyle = 'rgba(40,36,30,0.28)'
     ctx.lineWidth = 0.35
     ctx.setLineDash([2.2, 2.8])
-    ctx.strokeRect(-half + 1.2, -half + 1.2, half * 2 - 2.4, half * 2 - 2.4)
+    ctx.strokeRect(rc.minX + 1.2, rc.minZ + 1.2, W - 2.4, D - 2.4)
     ctx.restore()
 
     this.texture.needsUpdate = true
@@ -156,11 +165,12 @@ export class GroundTexture {
   private paintPaddies(p: Palette): void {
     const { ctx, data } = this
     const rnd = makeRandom(7)
-    const half = data.half
     const a = this.paddyAngle
     const ux = Math.cos(a)
     const uz = Math.sin(a)
-    const R = half * 1.5
+    // 原点のまわりに回した区画で、範囲の4隅まで覆う
+    const r = data.rect
+    const R = Math.max(...[r.minX, r.maxX].flatMap((x) => [r.minZ, r.maxZ].map((z) => Math.hypot(x, z)))) + 30
     const W = 42
     const H = 26
     for (let v = -R; v < R; v += H) {
@@ -285,7 +295,8 @@ export class GroundTexture {
   /** 以後の描画を、お休みの範囲の外に限る（範囲が重なっていてもよいよう、1つずつ切り抜く） */
   private clipOutsideRest(): void {
     const { ctx, data } = this
-    const R = data.half * 2
+    const r = data.rect
+    const R = Math.max(Math.abs(r.minX), Math.abs(r.maxX), Math.abs(r.minZ), Math.abs(r.maxZ)) * 2
     for (const z of data.restZones) {
       ctx.beginPath()
       ctx.rect(-R, -R, R * 2, R * 2)
@@ -319,9 +330,20 @@ export class GroundTexture {
 
   /** 解像度を変える（画質の切り替え）。WebGL のテクスチャは大きさを変えられないので作り直させる */
   resize(size: number): void {
-    this.canvas.width = this.canvas.height = size
-    this.scale = size / (this.data.half * 2)
+    this.scale = this.setSize(size)
     this.texture.dispose()
+  }
+
+  /** 画素の大きさを決める。返り値は 1m あたりの画素数（ぼかしの幅に使う） */
+  private setSize(size: number): number {
+    const r = this.data.rect
+    const W = r.maxX - r.minX
+    const D = r.maxZ - r.minZ
+    const pxPerM = Math.min(size / REF_M, MAX_PX / Math.max(W, D))
+    this.canvas.width = Math.ceil(W * pxPerM)
+    this.canvas.height = Math.ceil(D * pxPerM)
+    // ぼかしのずらし（softFill）は x の倍率で測るので、x の実際の倍率を返す
+    return this.canvas.width / W
   }
 
   dispose(): void {
@@ -346,4 +368,14 @@ function dominantRoadAngle(data: FieldData): number {
   let best = 0
   for (let i = 1; i < 18; i++) if (bins[i] > bins[best]) best = i
   return ((best + 0.5) / 18) * (Math.PI / 2)
+}
+
+/** 駅の構内のおおよその形（ホームの面と駅舎を囲む凸包。ホームが無ければ null） */
+function stationYard(data: FieldData): XZ[] | null {
+  if (!data.platforms.length) return null
+  const pts: XZ[] = []
+  for (const pl of data.platforms) pts.push(...pl)
+  for (const b of data.buildings) if (b.kind === 'train_station') pts.push(...b.polygon)
+  const hull = convexHull(pts)
+  return hull.length >= 3 ? hull : null
 }

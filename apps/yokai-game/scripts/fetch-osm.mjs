@@ -8,17 +8,18 @@
 //   --out      出力先。既定は src/data/iwakuraji-osm.json
 //
 // 出力はローカル座標（src/core/geo.ts と同じ式。原点 = scripts/lib/region.mjs の ORIGIN、x = 東, z = 南, m）。
-// 名前（社寺名・家の名前・店名）は出力しない。駅の名前だけは出す。
+// 名前（社寺名・家の名前・店名・駅名）は出力しない。駅は番号（station-1 …）だけ。
+// 駅名には社寺の名と同じもの（岩峅寺・大川寺など）があるので、PO の了承までは出さない（04 §5.2、05 §3）。
 //
 // ライセンス: 出力は OpenStreetMap のデータから作った Derivative Database なので ODbL 1.0 で扱う。
 // 画面には「© OpenStreetMap contributors」を常に表示すること。
 // このスクリプト自体も ODbL 4.6(b) のために手順として公開する前提で書いている。
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { toLocal, toLatLon, distanceM, boundsAround, r1 } from './lib/geo.mjs'
+import { toLocal, toLatLon, distanceM, rectBounds, expandRect, r1 } from './lib/geo.mjs'
 import { parseOsmXml, emptyOsm } from './lib/osm-xml.mjs'
 import {
   area,
@@ -36,7 +37,7 @@ import {
   simplifyRing,
   splitPolylineByPolygons,
 } from './lib/geom.mjs'
-import { ORIGIN, ORIGIN_OSM_NODE, HALF_SIZE_M, BOUNDS, REGION_ID, STATION_SEARCH_HALF_M } from './lib/region.mjs'
+import { ORIGIN, ORIGIN_OSM_NODE, RECT, BOUNDS, REGION_ID, STATION_SEARCH_MARGIN_M, FETCH_MARGIN_M } from './lib/region.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const APP = resolve(HERE, '..')
@@ -91,14 +92,30 @@ async function fetchText(url, init = {}) {
   return res.text()
 }
 
-const FETCH_BOUNDS = boundsAround(ORIGIN, STATION_SEARCH_HALF_M)
+const FETCH_BOUNDS = rectBounds(ORIGIN, expandRect(RECT, FETCH_MARGIN_M))
 const bboxStr = (b) => [b.west, b.south, b.east, b.north].map((v) => v.toFixed(7)).join(',')
+/** OSM API の /map は 0.25 平方度まで（ノード数は 50000 まで）。余裕を見て、これを超えたら東西に分けて取る */
+const API_MAX_AREA_DEG2 = 0.2
+
+/** 取る範囲を、API の上限に収まるよう東西に分ける */
+function fetchPieces(b) {
+  const areaDeg2 = (b.east - b.west) * (b.north - b.south)
+  const n = Math.max(1, Math.ceil(areaDeg2 / API_MAX_AREA_DEG2))
+  const w = (b.east - b.west) / n
+  return Array.from({ length: n }, (_, i) => ({ ...b, west: b.west + i * w, east: i === n - 1 ? b.east : b.west + (i + 1) * w }))
+}
 
 async function fetchMainXml() {
-  const api = `https://api.openstreetmap.org/api/0.6/map?bbox=${bboxStr(FETCH_BOUNDS)}`
+  const pieces = fetchPieces(FETCH_BOUNDS)
   try {
-    console.log(`GET ${api}`)
-    return { xml: await fetchText(api), source: api }
+    const xmls = []
+    for (const p of pieces) {
+      const api = `https://api.openstreetmap.org/api/0.6/map?bbox=${bboxStr(p)}`
+      console.log(`GET ${api}`)
+      xmls.push(await fetchText(api))
+    }
+    const api = `https://api.openstreetmap.org/api/0.6/map?bbox=${bboxStr(FETCH_BOUNDS)}${pieces.length > 1 ? `（${pieces.length} 分割）` : ''}`
+    return { xmls, source: api }
   } catch (e) {
     console.warn(`OSM API に失敗: ${e.message}。Overpass を試す`)
   }
@@ -114,7 +131,7 @@ async function fetchMainXml() {
         method: 'POST',
         body: new URLSearchParams({ data: q }),
       })
-      return { xml, source: ep }
+      return { xmls: [xml], source: ep }
     } catch (e) {
       console.warn(`Overpass に失敗: ${e.message}`)
     }
@@ -132,16 +149,20 @@ async function loadData() {
     if (!existsSync(mainPath)) throw new Error(`${mainPath} がない`)
     if (existsSync(sourcePath)) source = JSON.parse(readFileSync(sourcePath, 'utf8')).source + '（--offline で生データから再生成）'
     parseOsmXml(readFileSync(mainPath, 'utf8'), data)
-    for (const f of readdirSync(RAW_DIR).filter((f) => /^osm-raw-relation-\d+\.xml$/.test(f))) {
+    for (const f of readdirSync(RAW_DIR).filter((f) => /^osm-raw-(part-\d+|relation-\d+)\.xml$/.test(f))) {
       parseOsmXml(readFileSync(join(RAW_DIR, f), 'utf8'), data)
     }
     return { data, source }
   }
   const main = await fetchMainXml()
   source = `${main.source} (${new Date().toISOString().slice(0, 10)})`
-  writeFileSync(mainPath, main.xml)
+  // 1つ目を osm-raw.xml、分けて取ったときの2つ目からを osm-raw-part-<n>.xml に置く
+  for (const f of readdirSync(RAW_DIR).filter((f) => /^osm-raw-(part|relation)-\d+\.xml$/.test(f))) unlinkSync(join(RAW_DIR, f))
+  main.xmls.forEach((xml, i) => {
+    writeFileSync(i === 0 ? mainPath : join(RAW_DIR, `osm-raw-part-${i}.xml`), xml)
+    parseOsmXml(xml, data)
+  })
   writeFileSync(sourcePath, JSON.stringify({ source }) + '\n')
-  parseOsmXml(main.xml, data)
   // 面のリレーション（multipolygon）は、範囲の外にある辺が欠けるので丸ごと取り直す
   for (const rel of data.relations.values()) {
     if (rel.tags.type !== 'multipolygon' || !isAreaOfInterest(rel.tags)) continue
@@ -234,8 +255,8 @@ function makeGeometry(data) {
 }
 
 // ---------- 分類 ----------
-const H = HALF_SIZE_M
-const inBounds = (p, margin = 0) => Math.abs(p[0]) <= H - margin && Math.abs(p[1]) <= H - margin
+const inRect = (p, r) => p[0] >= r.minX && p[0] <= r.maxX && p[1] >= r.minZ && p[1] <= r.maxZ
+const inBounds = (p, margin = 0) => inRect(p, expandRect(RECT, -margin))
 const round2 = (pts) => pts.map((p) => [r1(p[0]), r1(p[1])])
 const num = (v) => {
   if (v === undefined) return undefined
@@ -297,7 +318,8 @@ function build(data) {
     if (a.tags.landuse === 'religious') stats.landuseReligiousAreas++
   }
   // 範囲の外 150m までの社寺も、境界をまたぐおそれがあるのでお休みの範囲にする
-  const nearBounds = (p) => Math.abs(p[0]) <= H + 150 && Math.abs(p[1]) <= H + 150
+  const NEAR_RECT = expandRect(RECT, 150)
+  const nearBounds = (p) => inRect(p, NEAR_RECT)
   for (const a of religiousAreas) {
     if (!a.outer.some(nearBounds)) continue
     restZones.push({ source: 'osm-area', polygon: a.outer })
@@ -394,7 +416,7 @@ function build(data) {
     if (t.area === 'yes') continue
     const pts = g.wayPoints(w)
     // 範囲で切ったあと、お休みの範囲の境界でも切り分ける（境内の中の区間には印を付け、描かない・歩かせない）
-    for (const run of clipPolyline(pts, H).flatMap((piece) => splitPolylineByPolygons(piece, restPolys))) {
+    for (const run of clipPolyline(pts, RECT).flatMap((piece) => splitPolylineByPolygons(piece, restPolys))) {
       const piece = run.points
       const len = polylineLength(piece)
       if (len < 0.5) continue
@@ -427,7 +449,7 @@ function build(data) {
   for (const w of data.ways.values()) {
     const t = w.tags
     if (!['rail', 'light_rail', 'tram', 'narrow_gauge'].includes(t.railway)) continue
-    for (const piece of clipPolyline(g.wayPoints(w), H)) {
+    for (const piece of clipPolyline(g.wayPoints(w), RECT)) {
       const line = { kind: t.railway, points: round2(piece) }
       if (t.bridge && t.bridge !== 'no') line.bridge = true
       if (t.tunnel && t.tunnel !== 'no') line.tunnel = true
@@ -442,8 +464,10 @@ function build(data) {
     const t = n.tags
     if (!(t.railway === 'station' || t.railway === 'halt')) continue
     const p = g.local(n)
+    if (!inRect(p, expandRect(RECT, STATION_SEARCH_MARGIN_M))) continue
     stations.push({
-      name: t.name ?? null,
+      // 駅名は出さない（社寺の名と同じ駅名があるため。PO の了承後に、地名の駅だけ足す）
+      id: `station-${stations.length + 1}`,
       kind: t.railway,
       x: r1(p[0]),
       z: r1(p[1]),
@@ -452,6 +476,16 @@ function build(data) {
       distanceM: Math.round(distanceM(ORIGIN, n)),
       inBounds: inBounds(p),
     })
+  }
+  // 駅のホーム（面）。名前は持たない。箱庭では低い台として描く
+  const platforms = []
+  for (const w of data.ways.values()) {
+    const t = w.tags
+    if (t.railway !== 'platform' && t.public_transport !== 'platform') continue
+    if (!g.isClosed(w) || t.highway) continue
+    const clipped = clipPolygon(simplifyRing(g.wayPoints(w)), RECT)
+    if (clipped.length < 3 || area(clipped) < 4) continue
+    platforms.push({ polygon: round2(simplifyRing(clipped)), areaM2: Math.round(area(clipped)) })
   }
   const crossings = []
   for (const n of data.nodes.values()) {
@@ -465,7 +499,7 @@ function build(data) {
   for (const w of data.ways.values()) {
     const t = w.tags
     if (!['river', 'canal', 'stream', 'ditch', 'drain'].includes(t.waterway)) continue
-    for (const run of clipPolyline(g.wayPoints(w), H).flatMap((piece) => splitPolylineByPolygons(piece, restPolys))) {
+    for (const run of clipPolyline(g.wayPoints(w), RECT).flatMap((piece) => splitPolylineByPolygons(piece, restPolys))) {
       const piece = run.points
       if (polylineLength(piece) < 0.5) continue
       const line = { kind: t.waterway, widthM: num(t.width) ?? WATER_LINE_WIDTH[t.waterway], points: round2(piece) }
@@ -482,10 +516,10 @@ function build(data) {
     const isWater =
       t.natural === 'water' || t.waterway === 'riverbank' || t.landuse === 'reservoir' || t.landuse === 'basin'
     if (!isWater) continue
-    const clipped = clipPolygon(a.outer, H)
+    const clipped = clipPolygon(a.outer, RECT)
     if (clipped.length < 3 || area(clipped) < 1) continue
     const wa = { kind: t.water ?? t.waterway ?? t.landuse ?? 'water', polygon: round2(simplifyRing(clipped)) }
-    const holes = a.inners.map((r) => clipPolygon(r, H)).filter((r) => r.length >= 3 && area(r) >= 1)
+    const holes = a.inners.map((r) => clipPolygon(r, RECT)).filter((r) => r.length >= 3 && area(r) >= 1)
     if (holes.length) wa.holes = holes.map((r) => round2(simplifyRing(r)))
     // 半分以上が境内にあれば境内のもの（一部だけかかる面は、描く側で境内の部分を除く）
     if (fractionInside(clipped, restPolys) > 0.5) wa.inRestZone = true
@@ -505,7 +539,7 @@ function build(data) {
   for (const a of g.areas) {
     const kind = landKind(a.tags)
     if (!kind) continue
-    const clipped = clipPolygon(a.outer, H)
+    const clipped = clipPolygon(a.outer, RECT)
     if (clipped.length < 3 || area(clipped) < 1) continue
     const lu = { kind, polygon: round2(simplifyRing(clipped)) }
     if (fractionInside(clipped, restPolys) > 0.5) lu.inRestZone = true
@@ -552,7 +586,7 @@ function build(data) {
       distToRestZoneM: Math.round(s.restDist),
       distToBuildingM: Math.round(s.bDist),
     })
-    if (spotCandidates.length >= 6) break
+    if (spotCandidates.length >= 10) break
   }
 
   const restOut = restZones.map((z, i) => {
@@ -571,7 +605,7 @@ function build(data) {
 
   return {
     roads,
-    rails: { lines: railLines, stations, levelCrossings: crossings },
+    rails: { lines: railLines, stations, platforms, levelCrossings: crossings },
     waters: { lines: waterLines, areas: waterAreas },
     buildings,
     restZones: restOut,
@@ -596,14 +630,16 @@ const result = {
     origin: ORIGIN,
     originNote: `OSM node ${ORIGIN_OSM_NODE}（社殿付近の点）`,
     bounds: BOUNDS,
-    halfSizeM: HALF_SIZE_M,
+    rect: RECT,
+    rectNote: '箱庭の範囲（ローカル座標 m）。x は minX〜maxX、z は minZ〜maxZ',
     coordinates: 'ローカル座標 [x, z]（m）。x = 東, z = 南。src/core/geo.ts の toLocal と同じ式',
     notes: [
-      '名前（社寺・家・店）は持たない。駅の名前だけ持つ',
+      '名前（社寺・家・店・駅）は持たない。駅は番号（id）だけ（駅名に社寺の名と同じものがあるため。PO の了承待ち）',
       'restZones の source: osm-area = OSM の面、approx-hull = 社殿の点のまわりの社寺のもの（鳥居・灯籠・案内板など）をつないだ凸包に余白を足した近似、small-shrine = 小さな祠を囲む円',
       '境内の建物は buildings に入れない（霧の中にする）。一部だけ境内にかかる建物も入れない',
       '道・水の線は、お休みの範囲の境界で切り分け、中の区間に inRestZone を付けた。面（水・土地利用）は半分以上が中にあれば inRestZone',
       'publicRoadsInRestZones は、お休みの範囲（近似）に入ってしまう公道の区間。範囲は近似なので、了承のあと手で境内の形を直す前提',
+      'rails.platforms は駅のホームの面（名前なし）。rails.stations は駅の位置と番号（名前なし）',
       'spotCandidates は機械的に選んだ候補。歩道の有無と「2分立ち止まっても邪魔にならないか」は現地で確かめること',
     ],
     publicRoadsInRestZones: out.publicRoadsInRest,

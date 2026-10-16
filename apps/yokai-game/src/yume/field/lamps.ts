@@ -8,7 +8,7 @@
 
 import * as THREE from 'three'
 import { applyBend, BEND_GLSL, bendUniforms, fogShapeUniforms } from '../bend'
-import type { FieldData } from '../data'
+import { type FieldData, inRect } from '../data'
 import { bboxOf, densify, inBox, nearestOnPolyline, nearestOnRing, pointInPolygon } from '../geom2d'
 import type { SceneExtras } from '../hikari'
 import type { HeightField } from './heightfield'
@@ -19,7 +19,7 @@ const MIN_GAP = 11
 const POST_H = 0.9
 const BOX_H = 0.3
 const GLOW_Y = POST_H + BOX_H / 2
-/** 輪・外のにじみ・地面の明かりの半径（m）。06 §3.7 の値より少し大きく（既定のズーム 78m で読めるように） */
+/** 輪・外のにじみ・地面の明かりの半径（m）。06 §3.7 の値より少し大きく（ズーム 78m でも読めるように。既定は 62m） */
 const R_HALO = 1.6
 const R_OUTER = 4.2
 const R_POOL = 6.0
@@ -63,9 +63,10 @@ export class Lamps {
 
     // 柱・紙の箱・屋根（aPart: 0 = 柱、1 = 紙の箱、2 = 屋根）。
     // 見下ろすカメラでも紙の箱が屋根に隠れないよう、屋根は箱からわずかに出るだけの大きさに
-    const post = new THREE.BoxGeometry(0.08, POST_H, 0.08).translate(0, POST_H / 2, 0)
-    const box = new THREE.BoxGeometry(0.22, BOX_H, 0.22).translate(0, POST_H + BOX_H / 2, 0)
-    const roof = new THREE.ConeGeometry(0.13, 0.1, 8, 1).translate(0, POST_H + BOX_H + 0.05, 0)
+    // 見えない面（柱の上下・箱の底・屋根の裏）は作らない（灯りの数が多いので、三角形を 1基 40 → 24 に）
+    const post = new THREE.CylinderGeometry(0.057, 0.057, POST_H, 4, 1, true).rotateY(Math.PI / 4).translate(0, POST_H / 2, 0)
+    const box = dropFaces(new THREE.BoxGeometry(0.22, BOX_H, 0.22), [3]).translate(0, POST_H + BOX_H / 2, 0)
+    const roof = new THREE.ConeGeometry(0.13, 0.1, 6, 1, true).translate(0, POST_H + BOX_H + 0.05, 0)
     const parts: [THREE.BufferGeometry, number][] = [
       [post, 0],
       [box, 1],
@@ -308,14 +309,13 @@ export class Lamps {
 
 /** 道沿いに SPACING ごと、道の端から 1.2m 外へ。お休みの範囲・建物・水・ほかの道を避ける */
 function placeLamps(data: FieldData, hf: HeightField, isInsideRest: (x: number, z: number) => boolean): THREE.Vector3[] {
-  const half = data.half - 4
   const out: THREE.Vector3[] = []
   const roads = data.roads.filter((r) => !r.inRestZone && !r.tunnel && !r.bridge && r.kind !== 'steps')
   const buildings = data.buildings.map((b) => ({ poly: b.polygon, box: bboxOf(b.polygon, 4) }))
   const rests = data.restZones.map((z) => z.polygon)
   const waters = data.waterLines.filter((w) => !w.tunnel)
   const blocked = (x: number, z: number) => {
-    if (Math.abs(x) > half || Math.abs(z) > half) return true
+    if (!inRect(data.rect, x, z, 4)) return true
     if (isInsideRest(x, z)) return true
     for (const r of rests) if (nearestOnRing(x, z, r).dist < 10) return true
     for (const b of buildings) {
@@ -328,6 +328,54 @@ function placeLamps(data: FieldData, hf: HeightField, isInsideRest: (x: number, 
     for (const r of data.rails) if (nearestOnPolyline(x, z, r.points).dist < 3) return true
     for (const o of out) if ((o.x - x) ** 2 + (o.z - z) ** 2 < MIN_GAP * MIN_GAP) return true
     return false
+  }
+  // 駅: 夜に駅のありかが分かるよう、ホームの両端（線路の脇の台の上）と駅舎の前に灯りを置く（06 §3.9 の道しるべの行灯と同じ形）
+  for (const plat of data.platforms) {
+    let a = plat[0]
+    let b = plat[0]
+    let best = -1
+    for (const p of plat) for (const q of plat) {
+      const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+      if (d > best) {
+        best = d
+        a = p
+        b = q
+      }
+    }
+    const cx = plat.reduce((s, p) => s + p[0], 0) / plat.length
+    const cz = plat.reduce((s, p) => s + p[1], 0) / plat.length
+    for (const e of [a, b]) {
+      // 端から、ホームの中心の方へ 2.5m 入った所
+      const l = Math.hypot(cx - e[0], cz - e[1]) || 1
+      const x = e[0] + ((cx - e[0]) / l) * 2.5
+      const z = e[1] + ((cz - e[1]) / l) * 2.5
+      if (!pointInPolygon(x, z, plat) || isInsideRest(x, z)) continue
+      if (out.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < MIN_GAP * MIN_GAP)) continue
+      out.push(new THREE.Vector3(x, hf.heightAt(x, z), z))
+    }
+  }
+  for (const b of data.buildings) {
+    if (b.kind !== 'train_station') continue
+    const n = b.polygon.length
+    for (let i = 0; i < n; i++) {
+      const p = b.polygon[i]
+      const q = b.polygon[(i + 1) % n]
+      const len = Math.hypot(q[0] - p[0], q[1] - p[1])
+      if (len < 6) continue
+      const mx = (p[0] + q[0]) / 2
+      const mz = (p[1] + q[1]) / 2
+      let nx = (q[1] - p[1]) / len
+      let nz = -(q[0] - p[0]) / len
+      if (pointInPolygon(mx + nx * 0.5, mz + nz * 0.5, b.polygon)) {
+        nx = -nx
+        nz = -nz
+      }
+      const x = mx + nx * 3.5
+      const z = mz + nz * 3.5
+      if (blocked(x, z)) continue
+      out.push(new THREE.Vector3(x, hf.heightAt(x, z), z))
+      break
+    }
   }
   roads.forEach((r, ri) => {
     const pts = densify(r.points, 1)
@@ -353,4 +401,17 @@ function placeLamps(data: FieldData, hf: HeightField, isInsideRest: (x: number, 
     }
   })
   return out
+}
+
+/** BoxGeometry から面（0: +x, 1: -x, 2: +y, 3: -y, 4: +z, 5: -z）を除く */
+function dropFaces(g: THREE.BoxGeometry, faces: number[]): THREE.BufferGeometry {
+  const idx = g.getIndex()!
+  const keep: number[] = []
+  for (const grp of g.groups) {
+    if (faces.includes(grp.materialIndex ?? 0)) continue
+    for (let i = grp.start; i < grp.start + grp.count; i++) keep.push(idx.getX(i))
+  }
+  g.setIndex(keep)
+  g.clearGroups()
+  return g
 }
