@@ -12,7 +12,7 @@ import { inkLineUniforms } from './field/ink-lines'
 import { densify } from './geom2d'
 import { Hud } from './hud'
 import { type LookId, PALETTES } from './palette'
-import { Player } from './player'
+import { FAST_SCALE, Player } from './player'
 
 const TITLE_PREFIX = '夢の旅 試作'
 const STORE_KEY = 'yume.v1'
@@ -40,6 +40,7 @@ const QUALITIES: Quality[] = [
 ]
 
 interface Saved {
+  speed?: 'normal' | 'fast'
   look?: LookId
   quality?: Quality['id']
   hintSeen?: boolean
@@ -73,7 +74,9 @@ function start(): void {
     rotate: (d) => rig.rotateStep(d),
     toggleLook: () => setLook(look === 'hakubyo' ? 'saishiki' : 'hakubyo'),
     cycleQuality: () => setQuality(QUALITIES[(QUALITIES.indexOf(quality) + 1) % QUALITIES.length]),
+    toggleSpeed: () => setSpeed(speed === 'fast' ? 'normal' : 'fast'),
   })
+  let speed: 'normal' | 'fast' = saved.speed === 'fast' ? 'fast' : 'normal'
 
   let renderer: THREE.WebGLRenderer
   try {
@@ -166,6 +169,14 @@ function start(): void {
     save(saved)
   }
 
+  function setSpeed(next: 'normal' | 'fast'): void {
+    speed = next
+    player.speedScale = next === 'fast' ? FAST_SCALE : 1
+    hud.setSpeed(next === 'fast' ? 'はやい' : 'ふつう')
+    saved.speed = next
+    save(saved)
+  }
+
   function setQuality(q: Quality): void {
     const shadowChanged = q.shadows !== renderer.shadowMap.enabled
     quality = q
@@ -246,12 +257,14 @@ function start(): void {
     },
     zoom: (f) => rig.zoomBy(f),
     rotate: (dir) => rig.rotateStep(dir),
+    toggleSpeed: () => setSpeed(speed === 'fast' ? 'normal' : 'fast'),
     firstInput: () => hud.hideHint(),
     stickVisual: (show, ox, oy, kx, ky) => hud.setStick(show, ox, oy, kx, ky),
   })
 
   setQuality(quality)
   setLook(look)
+  setSpeed(speed)
   window.addEventListener('resize', resize)
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host)
   // devicePixelRatio の変化（別のモニターへ移したときなど。resize が来ない場合がある）

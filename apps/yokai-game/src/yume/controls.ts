@@ -1,4 +1,4 @@
-// 操作。PC: WASD／矢印（カメラの向き基準）、Shift で小走り、地面をクリックでそこへ歩く、ホイールでズーム、Q/E で回転。
+// 操作。PC: WASD／矢印（カメラの向き基準）、Shift で走る、地面をクリックでそこへ歩く、ホイールでズーム、Q/E で回転。
 // スマホ: 画面の下半分をドラッグすると出る仮想スティック、地面のタップでそこへ歩く、2本指でズーム。
 
 import type * as THREE from 'three'
@@ -9,6 +9,8 @@ export interface ControlsHooks {
   walkTo(p: THREE.Vector3): void
   zoom(factor: number): void
   rotate(dir: -1 | 1): void
+  /** 速さの切り替え（F キー） */
+  toggleSpeed(): void
   /** 最初に何か操作したとき（ヒントを閉じるため） */
   firstInput(): void
   stickVisual(show: boolean, ox?: number, oy?: number, kx?: number, ky?: number): void
@@ -78,7 +80,7 @@ export class Controls {
       const m = Math.hypot(f, s)
       if (m < 0.12) {
         f = s = 0
-      } else run = run || m > 0.93
+      } else run = run || m > 0.85
     }
     // 右 = (-forwardZ, forwardX)（x = 東, z = 南）
     const rx = -forwardZ
@@ -118,6 +120,7 @@ export class Controls {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return
     if (e.code === 'KeyQ' && !e.repeat) this.hooks.rotate(-1)
     if (e.code === 'KeyE' && !e.repeat) this.hooks.rotate(1)
+    if (e.code === 'KeyF' && !e.repeat) this.hooks.toggleSpeed()
     if (e.code === 'Equal' || e.code === 'NumpadAdd') this.hooks.zoom(0.85)
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') this.hooks.zoom(1 / 0.85)
     if (e.code.startsWith('Arrow')) e.preventDefault()

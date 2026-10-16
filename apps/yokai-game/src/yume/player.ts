@@ -1,13 +1,18 @@
 // アバター（笠をかぶった絵解き師の見習い・仮の見た目）と、相棒ましろ（白い紙の鳥）。
-// 歩く速さは人の歩行くらい（1.3m/s、小走りで 2.6m/s）。地面の高さに沿って歩く。
+// 夢の旅（家のゲームモード）の歩く速さ。現実の歩行（約1.3m/s）より速くして、箱庭を気持ちよく回れるようにする。
+// 歩く 3m/s、走る 7m/s。HUD の「速さ」で、さらに 1.8 倍にできる。地面の高さに沿って歩く。
 
 import * as THREE from 'three'
 import { applyBend, bendDrop } from './bend'
 import type { Palette } from './palette'
 import type { Walkability } from './walk'
 
-export const WALK_SPEED = 1.3
-export const RUN_SPEED = 2.6
+export const WALK_SPEED = 3
+export const RUN_SPEED = 7
+/** HUD の「速さ: はやい」のときの倍率 */
+export const FAST_SCALE = 1.8
+/** 1回の当たり判定で進む最大の距離（速く動いても壁や線路をすり抜けないように分割する） */
+const MAX_SUBSTEP = 0.25
 const RADIUS = 0.35
 /** 小さすぎると見失うので、箱庭の見せ方として少し大きめに描く */
 const AVATAR_SCALE = 1.35
@@ -33,6 +38,8 @@ export class Player {
   heading = Math.PI / 2
   walkTarget: THREE.Vector2 | null = null
   speed = 0
+  /** 速さの倍率（1 = ふつう、FAST_SCALE = はやい） */
+  speedScale = 1
 
   private readonly body: THREE.Group
   private readonly shadow: THREE.Mesh
@@ -165,7 +172,7 @@ export class Player {
         dirX = dx / d
         dirZ = dz / d
         mag = Math.min(1, d / 0.6)
-        run = run || d > 25
+        run = run || d > 15
         // 進まなくなったら（建物などにぶつかったら）あきらめる
         if (d > this.lastDist - 0.02 * dt * 60) this.stuckTime += dt
         else this.stuckTime = 0
@@ -178,8 +185,8 @@ export class Player {
     }
     if (!this.walkTarget) this.lastDist = Infinity
 
-    const want = mag > 0.05 ? (run ? RUN_SPEED : WALK_SPEED) * Math.max(mag, 0.35) : 0
-    this.speed += (want - this.speed) * (1 - Math.exp(-dt * (want > this.speed ? 8 : 10)))
+    const want = mag > 0.05 ? (run ? RUN_SPEED : WALK_SPEED) * Math.max(mag, 0.35) * this.speedScale : 0
+    this.speed += (want - this.speed) * (1 - Math.exp(-dt * (want > this.speed ? 6 : 10)))
     const ev = this.ev
     ev.hitRest = false
     ev.hitEdge = false
@@ -195,40 +202,47 @@ export class Player {
     if (this.speed > 0.01) {
       const mx = Math.sin(this.heading)
       const mz = -Math.cos(this.heading)
-      const step = this.speed * Math.min(dt, 0.1)
+      const total = this.speed * Math.min(dt, 0.1)
       // 向きを変えている途中は、進みたい方向へ動く（滑らかさのため）
       const vx = mag > 0.05 ? dirX : mx
       const vz = mag > 0.05 ? dirZ : mz
-      let r = this.walk.resolve(this.pos.x + vx * step, this.pos.z + vz * step, RADIUS)
-      // 目的地へ歩いている途中で塀や建物に当たったら、左右に少しそれて回り込む（簡単なよけ方）
-      if (this.walkTarget && step > 1e-4) {
-        const progress = ((r.x - this.pos.x) * vx + (r.z - this.pos.z) * vz) / step
-        if (progress < 0.4) {
-          const tx = this.walkTarget.x
-          const tz = this.walkTarget.y
-          let bestD = Math.hypot(tx - r.x, tz - r.z)
-          for (const ang of [0.8, -0.8, 1.4, -1.4]) {
-            const ca = Math.cos(ang)
-            const sa = Math.sin(ang)
-            const ax = vx * ca - vz * sa
-            const az = vx * sa + vz * ca
-            const alt = this.walk.resolve(this.pos.x + ax * step, this.pos.z + az * step, RADIUS)
-            const moved = Math.hypot(alt.x - this.pos.x, alt.z - this.pos.z)
-            const d = Math.hypot(tx - alt.x, tz - alt.z)
-            if (moved > step * 0.5 && d < bestD + step * 0.6) {
-              bestD = d
-              r = alt
-              break
+      const steps = Math.max(1, Math.ceil(total / MAX_SUBSTEP))
+      const step = total / steps
+      for (let i = 0; i < steps; i++) {
+        let r = this.walk.resolve(this.pos.x + vx * step, this.pos.z + vz * step, RADIUS)
+        // 目的地へ歩いている途中で塀や建物に当たったら、左右に少しそれて回り込む（簡単なよけ方）
+        if (this.walkTarget && step > 1e-4) {
+          const progress = ((r.x - this.pos.x) * vx + (r.z - this.pos.z) * vz) / step
+          if (progress < 0.4) {
+            const tx = this.walkTarget.x
+            const tz = this.walkTarget.y
+            let bestD = Math.hypot(tx - r.x, tz - r.z)
+            for (const ang of [0.8, -0.8, 1.4, -1.4]) {
+              const ca = Math.cos(ang)
+              const sa = Math.sin(ang)
+              const ax = vx * ca - vz * sa
+              const az = vx * sa + vz * ca
+              const alt = this.walk.resolve(this.pos.x + ax * step, this.pos.z + az * step, RADIUS)
+              const moved = Math.hypot(alt.x - this.pos.x, alt.z - this.pos.z)
+              const d = Math.hypot(tx - alt.x, tz - alt.z)
+              if (moved > step * 0.5 && d < bestD + step * 0.6) {
+                bestD = d
+                r = alt
+                break
+              }
             }
           }
         }
+        ev.hitRest = ev.hitRest || r.hitRest
+        ev.hitEdge = ev.hitEdge || r.hitEdge
+        const movedSq = (r.x - this.pos.x) ** 2 + (r.z - this.pos.z) ** 2
+        this.pos.x = r.x
+        this.pos.z = r.z
+        if (movedSq < 1e-8) break
       }
-      ev.hitRest = r.hitRest
-      ev.hitEdge = r.hitEdge
-      this.pos.x = r.x
-      this.pos.z = r.z
-      this.pos.y = this.walk.groundY(r.x, r.z)
-      this.bobPhase += step * 5.2
+      this.pos.y = this.walk.groundY(this.pos.x, this.pos.z)
+      // 走るときは歩幅が大きいので、揺れの周期を少しゆっくりにする
+      this.bobPhase += total * (this.speed > WALK_SPEED * 1.2 ? 3.4 : 4.6)
     }
 
     // アバターの見た目
@@ -258,7 +272,7 @@ export class Player {
     const tz = this.pos.z + rz * 0.8 * s - hz * 0.35 * lag * s + Math.cos(time * 0.7) * 0.15
     const ty = this.pos.y + 1.95 * s + Math.sin(time * 2.1) * 0.08
     const prev = this.birdPrev.copy(this.birdPos)
-    const k = 1 - Math.exp(-dt * 3.5)
+    const k = 1 - Math.exp(-dt * (3.5 + this.speed * 0.6))
     this.birdPos.x += (tx - this.birdPos.x) * k
     this.birdPos.y += (ty - this.birdPos.y) * k
     this.birdPos.z += (tz - this.birdPos.z) * k

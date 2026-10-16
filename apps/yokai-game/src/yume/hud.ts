@@ -69,6 +69,7 @@ export interface HudHooks {
   rotate(dir: -1 | 1): void
   toggleLook(): void
   cycleQuality(): void
+  toggleSpeed(): void
 }
 
 export class Hud {
@@ -81,6 +82,7 @@ export class Hud {
   private readonly compassDial: HTMLElement
   private readonly stick: HTMLDivElement
   private readonly knob: HTMLElement
+  private readonly speedBtn: HTMLButtonElement
   private hint: HTMLDivElement | null = null
   private perfOpen = false
   private toastTimer = 0
@@ -126,7 +128,9 @@ export class Hud {
     this.lookBtn.onclick = () => hooks.toggleLook()
     this.qualityBtn = button('', '画質を切り替える', '')
     this.qualityBtn.onclick = () => hooks.cycleQuality()
-    row2.append(this.lookBtn, this.qualityBtn)
+    this.speedBtn = button('', '歩く速さを切り替える', '')
+    this.speedBtn.onclick = () => hooks.toggleSpeed()
+    row2.append(this.speedBtn, this.lookBtn, this.qualityBtn)
     panel.append(row1, row2)
     this.root.appendChild(panel)
 
@@ -173,6 +177,10 @@ export class Hud {
     this.lookBtn.innerHTML = `<small>見た目</small>${escapeHtml(label)}`
   }
 
+  setSpeed(label: string): void {
+    this.speedBtn.innerHTML = `<small>速さ</small>${escapeHtml(label)}`
+  }
+
   setQuality(label: string): void {
     this.qualityBtn.innerHTML = `<small>画質</small>${escapeHtml(label)}`
   }
@@ -214,16 +222,18 @@ export class Hud {
     const wrap = el('div', 'yh-hint')
     const rows: [string, string][] = touch
       ? [
-          ['歩く', '画面の下半分をなぞる'],
+          ['歩く', '画面の下半分をなぞる（大きく倒すと走る）'],
           ['そこへ歩く', '地面をタップ'],
           ['寄る・引く', '2本指でつまむ'],
           ['向きを変える', '右上の ⟲ ⟳'],
+          ['速さ', '右上の「速さ」で、ふつう／はやい'],
         ]
       : [
-          ['歩く', 'WASD・矢印キー（Shift で小走り）'],
+          ['歩く', 'WASD・矢印キー（Shift で走る）'],
           ['そこへ歩く', '地面をクリック'],
           ['寄る・引く', 'ホイール'],
           ['向きを変える', 'Q・E、右上の ⟲ ⟳'],
+          ['速さ', 'F キー、右上の「速さ」で、ふつう／はやい'],
         ]
     wrap.innerHTML = `
       <div class="yh-card" role="dialog" aria-label="操作のヒント">
