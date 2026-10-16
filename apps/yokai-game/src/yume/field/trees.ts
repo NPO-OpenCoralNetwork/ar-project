@@ -24,6 +24,8 @@ interface TreeSpec {
 export class Trees {
   readonly group = new THREE.Group()
   readonly count: number
+  /** 木の根元の位置と、葉の半径（地面の絵に木の下の陰を描くため） */
+  readonly spots: { x: number; z: number; r: number }[]
   private readonly cedarMat: THREE.MeshLambertMaterial
   private readonly broadMat: THREE.MeshLambertMaterial
   private readonly trunkMat: THREE.MeshLambertMaterial
@@ -31,16 +33,21 @@ export class Trees {
   constructor(data: FieldData, hf: HeightField, maxTrees: number) {
     const specs = placeTrees(data, hf, maxTrees)
     this.count = specs.length
+    this.spots = specs.map((s) => ({ x: s.x, z: s.z, r: s.r }))
 
     const cone1 = new THREE.ConeGeometry(1, 0.6, 8, 1, true).translate(0, 0.3 + 0.28, 0)
     const cone2 = new THREE.ConeGeometry(0.68, 0.6, 8, 1, true).translate(0, 0.3 + 0.62, 0)
     const cedarGeo = mergeGeometries([cone1.toNonIndexed(), cone2.toNonIndexed()])!
     const broadGeo = new THREE.IcosahedronGeometry(1, 0).scale(1, 0.42, 1).translate(0, 0.6, 0)
     const trunkGeo = new THREE.CylinderGeometry(0.1, 0.14, 1, 5, 1, true).translate(0, 0.5, 0)
+    // 葉の塊の下の方と、幹の根元を暗くする（頂点の明るさ。影なしの画質でも、木が地面から立ち上がって見えるように）
+    addHeightAO(cedarGeo, 0.28, 0.95, 0.66)
+    addHeightAO(broadGeo, 0.18, 1.0, 0.7)
+    addHeightAO(trunkGeo, 0, 1, 0.62)
 
-    this.cedarMat = applyBend(new THREE.MeshLambertMaterial({ flatShading: true }), { inkRim: true })
-    this.broadMat = applyBend(new THREE.MeshLambertMaterial({ flatShading: true }), { inkRim: true })
-    this.trunkMat = applyBend(new THREE.MeshLambertMaterial())
+    this.cedarMat = applyBend(new THREE.MeshLambertMaterial({ flatShading: true }), { inkRim: true, glowRimScale: 0.5, ao: true })
+    this.broadMat = applyBend(new THREE.MeshLambertMaterial({ flatShading: true }), { inkRim: true, glowRimScale: 0.5, ao: true })
+    this.trunkMat = applyBend(new THREE.MeshLambertMaterial(), { ao: true })
 
     const cedars = specs.filter((s) => !s.broad)
     const broads = specs.filter((s) => s.broad)
@@ -87,6 +94,14 @@ export class Trees {
     this.broadMat.color.set(p.canopyBroad)
     this.trunkMat.color.set(p.trunk)
   }
+}
+
+/** 高さ y0 で lo、y1 で 1 になる頂点の明るさ（aAO）を付ける */
+function addHeightAO(g: THREE.BufferGeometry, y0: number, y1: number, lo: number): void {
+  const pos = g.getAttribute('position')
+  const ao = new Float32Array(pos.count)
+  for (let i = 0; i < pos.count; i++) ao[i] = lo + (1 - lo) * THREE.MathUtils.smoothstep(pos.getY(i), y0, y1)
+  g.setAttribute('aAO', new THREE.BufferAttribute(ao, 1))
 }
 
 function placeTrees(data: FieldData, hf: HeightField, maxTrees: number): TreeSpec[] {

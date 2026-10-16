@@ -1,4 +1,5 @@
-// 画面の表示（HTML のオーバーレイ）。左上に題、右上に回転・見た目・画質、左下に fps と描画命令数、右下に出典。
+// 画面の表示（HTML のオーバーレイ）。左上に題、右上に回転・速さ・見た目・時間・画質、右下に出典（いつも表示）。
+// 左下の fps と描画命令数は、URL に ?debug を付けたときだけ出す。板の色は時間帯に合わせる（夜は暗い地に明るい文字）。
 // 初回だけ操作のヒント（PC とスマホで出し分け）。safe-area を考える。
 
 const CSS = /* css */ `
@@ -24,9 +25,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-panel { position: absolute; top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; }
 .yh-row { display: flex; gap: 6px; align-items: center; }
 .yh-btn { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 9px; min-height: 36px; min-width: 36px; padding: 0 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-.yh-btn:hover { background: var(--washi-solid); }
+.yh-btn:hover { background: var(--washi-hover, var(--washi-solid)); }
 .yh-btn:active { transform: translateY(1px); }
-.yh-btn:focus-visible { outline: 2px solid rgba(42,38,34,0.5); outline-offset: 1px; }
+.yh-btn:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 1px; }
 .yh-btn.icon { font-size: 17px; padding: 0; width: 38px; line-height: 1; }
 .yh-btn small { color: var(--ink-soft); font-size: 11px; margin-right: 4px; }
 .yh-compass { width: 38px; height: 38px; border-radius: 50%; background: var(--washi); border: 1px solid var(--line); position: relative; flex: none; }
@@ -45,7 +46,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-toast.on { opacity: 1; }
 .yh-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; touch-action: none; background: rgba(241, 236, 226, 0.35); transition: opacity 0.5s; }
 .yh-hint.off { opacity: 0; pointer-events: none; }
-.yh-card { max-width: 360px; width: 100%; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 16px; box-shadow: 0 8px 30px rgba(60, 50, 40, 0.12); }
+.yh-card { --ink: #2a2622; --ink-soft: rgba(42, 38, 34, 0.62); --line: rgba(42, 38, 34, 0.22); --washi-hover: #faf7f0; color: var(--ink); max-width: 360px; width: 100%; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 16px; box-shadow: 0 8px 30px rgba(60, 50, 40, 0.12); }
 .yh-card h2 { margin: 0 0 10px; font-family: var(--title-font); font-weight: 600; font-size: 16px; letter-spacing: 0.08em; }
 .yh-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; }
 .yh-card dt { color: var(--ink-soft); white-space: nowrap; }
@@ -55,9 +56,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-stick { position: absolute; width: 116px; height: 116px; margin: -58px 0 0 -58px; border-radius: 50%; border: 1.5px solid rgba(42, 38, 34, 0.35); background: rgba(250, 247, 240, 0.28); display: none; }
 .yh-stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(42, 38, 34, 0.55); box-shadow: 0 0 0 6px rgba(42, 38, 34, 0.12); }
 .yh-stick.on { display: block; }
-.yh-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; font-family: var(--title-font); font-size: 15px; line-height: 1.8; pointer-events: auto; background: #f1ece2; }
+.yh-veil { position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+.yh-veil.on { opacity: 1; }
+.yh-error { --ink: #2a2622; color: var(--ink); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; font-family: var(--title-font); font-size: 15px; line-height: 1.8; pointer-events: auto; background: #f1ece2; }
 @media (max-width: 520px) {
   .yh-title { font-size: 12px; max-width: calc(100vw - 150px); }
+  /* スマホは板を少し低くして、空の帯を広く見せる */
+  .yh-panel { gap: 5px; }
+  .yh-panel .yh-btn { min-height: 34px; }
+  .yh-panel .yh-btn.icon, .yh-compass { width: 36px; height: 36px; }
   .yh-panel .yh-btn small { display: none; }
   .yh-credit { font-size: 9.5px; }
   /* 開いた性能表示が、右下の出典と重ならないように（行は折り返す） */
@@ -68,6 +75,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 export interface HudHooks {
   rotate(dir: -1 | 1): void
   toggleLook(): void
+  cycleTime(): void
   cycleQuality(): void
   toggleSpeed(): void
 }
@@ -78,6 +86,11 @@ export class Hud {
   private readonly prompt: HTMLDivElement
   private readonly toastEl: HTMLDivElement
   private readonly lookBtn: HTMLButtonElement
+  private readonly timeBtn: HTMLButtonElement
+  private readonly credit: HTMLDivElement
+  private readonly veil: HTMLDivElement
+  private veilTimer = 0
+  private pendingSwap: (() => void) | null = null
   private readonly qualityBtn: HTMLButtonElement
   private readonly compassDial: HTMLElement
   private readonly stick: HTMLDivElement
@@ -88,7 +101,7 @@ export class Hud {
   private toastTimer = 0
   private compassYaw = NaN
 
-  constructor(host: HTMLElement, title: string, attributions: string[], hooks: HudHooks) {
+  constructor(host: HTMLElement, title: string, attributions: string[], hooks: HudHooks, showPerf = false) {
     const style = document.createElement('style')
     style.textContent = CSS
     document.head.appendChild(style)
@@ -126,11 +139,13 @@ export class Hud {
     const row2 = el('div', 'yh-row')
     this.lookBtn = button('', '見た目を切り替える', '')
     this.lookBtn.onclick = () => hooks.toggleLook()
+    this.timeBtn = button('', '時間帯を切り替える（T）', '')
+    this.timeBtn.onclick = () => hooks.cycleTime()
     this.qualityBtn = button('', '画質を切り替える', '')
     this.qualityBtn.onclick = () => hooks.cycleQuality()
     this.speedBtn = button('', '歩く速さを切り替える', '')
     this.speedBtn.onclick = () => hooks.toggleSpeed()
-    row2.append(this.speedBtn, this.lookBtn, this.qualityBtn)
+    row2.append(this.speedBtn, this.lookBtn, this.timeBtn, this.qualityBtn)
     panel.append(row1, row2)
     this.root.appendChild(panel)
 
@@ -139,9 +154,15 @@ export class Hud {
     this.perf.onclick = () => {
       this.perfOpen = !this.perfOpen
     }
-    this.root.appendChild(this.perf)
+    // fps の表示は確認用（?debug のときだけ）
+    if (showPerf) this.root.appendChild(this.perf)
+
+    // 時間帯・見た目を切り替えるとき、一瞬だけ霧の色で画面を覆う（地面の絵を描き直す間）
+    this.veil = el('div', 'yh-veil')
+    this.root.appendChild(this.veil)
 
     const credit = el('div', 'yh-credit')
+    this.credit = credit
     // 出典は、出典元のページへのリンクにする（OSM の帰属表示ガイドライン）
     credit.innerHTML = attributions
       .map((a) => {
@@ -175,6 +196,43 @@ export class Hud {
 
   setLook(label: string): void {
     this.lookBtn.innerHTML = `<small>見た目</small>${escapeHtml(label)}`
+  }
+
+  setTime(label: string): void {
+    this.timeBtn.innerHTML = `<small>時間</small>${escapeHtml(label)}`
+  }
+
+  /** 板の色を時間帯に合わせる（夜は暗い地に明るい文字。夕は薄いばら色の地） */
+  setTheme(time: 'day' | 'dusk' | 'night'): void {
+    const t = THEMES[time]
+    for (const [k, v] of Object.entries(t)) this.root.style.setProperty(k, v)
+  }
+
+  /** 出典表示の地と文字の色（夜は暗い地に明るい文字。いつも表示する） */
+  setCreditColors(bg: string, text: string): void {
+    this.credit.style.background = bg
+    this.credit.style.color = text
+  }
+
+  /**
+   * 霧の色で画面を 0.3 秒で覆い、覆いきったところで swap を呼び、また 0.3 秒で戻す。
+   * 覆いの最中に次の切り替えが来たら、待っている swap を差し替える（最後の要求だけを1回だけ適用する。地面の絵の描き直しも1回）。
+   */
+  veilSwap(color: string, swap: () => void): void {
+    this.veil.style.background = color
+    this.pendingSwap = swap
+    if (this.veilTimer) return
+    this.veil.classList.add('on')
+    this.veilTimer = window.setTimeout(() => {
+      const run = this.pendingSwap
+      this.pendingSwap = null
+      this.veilTimer = 0
+      run?.()
+      // 描き直しの後の1フレームを待ってから戻す（その間に次の切り替えが始まっていたら、覆ったままにする）
+      requestAnimationFrame(() => {
+        if (!this.veilTimer) this.veil.classList.remove('on')
+      })
+    }, 300)
   }
 
   setSpeed(label: string): void {
@@ -227,6 +285,7 @@ export class Hud {
           ['寄る・引く', '2本指でつまむ'],
           ['向きを変える', '右上の ⟲ ⟳'],
           ['速さ', '右上の「速さ」で、ふつう／はやい'],
+          ['時間', '右上の「時間」で、昼・夕・夜'],
         ]
       : [
           ['歩く', 'WASD・矢印キー（Shift で走る）'],
@@ -234,6 +293,7 @@ export class Hud {
           ['寄る・引く', 'ホイール'],
           ['向きを変える', 'Q・E、右上の ⟲ ⟳'],
           ['速さ', 'F キー、右上の「速さ」で、ふつう／はやい'],
+          ['時間', 'T キー、右上の「時間」で、昼・夕・夜'],
         ]
     wrap.innerHTML = `
       <div class="yh-card" role="dialog" aria-label="操作のヒント">
@@ -272,6 +332,30 @@ export class Hud {
     e.textContent = message
     this.root.appendChild(e)
   }
+}
+
+const THEMES: Record<'day' | 'dusk' | 'night', Record<string, string>> = {
+  day: {
+    '--washi': 'rgba(250, 247, 240, 0.86)',
+    '--washi-hover': '#faf7f0',
+    '--ink': '#2a2622',
+    '--ink-soft': 'rgba(42, 38, 34, 0.62)',
+    '--line': 'rgba(42, 38, 34, 0.22)',
+  },
+  dusk: {
+    '--washi': 'rgba(250, 240, 236, 0.6)',
+    '--washi-hover': 'rgba(250, 240, 236, 0.85)',
+    '--ink': '#4a3e48',
+    '--ink-soft': 'rgba(74, 62, 72, 0.66)',
+    '--line': 'rgba(74, 62, 72, 0.2)',
+  },
+  night: {
+    '--washi': 'rgba(16, 20, 40, 0.55)',
+    '--washi-hover': 'rgba(30, 36, 66, 0.75)',
+    '--ink': '#d8d4e4',
+    '--ink-soft': 'rgba(216, 212, 228, 0.66)',
+    '--line': 'rgba(216, 212, 228, 0.18)',
+  },
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string): HTMLElementTagNameMap[K] {

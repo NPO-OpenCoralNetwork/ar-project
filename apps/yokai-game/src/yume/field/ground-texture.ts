@@ -6,7 +6,12 @@ import type { FieldData } from '../data'
 import { makeRandom, type XZ } from '../geom2d'
 import type { Palette } from '../palette'
 
-const SUN_SHADOW_DIR: XZ = [0.34, -0.94] // 日は南南西。影は北北東へ
+/** 焼き込みの影の向きと長さを決める光（方位は北=0°・東=90°、高度は地平から）。既定は白描の南南西の日 */
+export interface GroundLight {
+  azDeg: number
+  elDeg: number
+}
+const DEFAULT_LIGHT: GroundLight = { azDeg: 200, elDeg: 42 }
 
 export class GroundTexture {
   readonly canvas: HTMLCanvasElement
@@ -14,6 +19,8 @@ export class GroundTexture {
   private readonly ctx: CanvasRenderingContext2D
   private scale: number
   private readonly paddyAngle: number
+  /** 木の根元（木の下の陰を描く） */
+  treeSpots: { x: number; z: number; r: number }[] = []
 
   constructor(
     private readonly data: FieldData,
@@ -31,7 +38,7 @@ export class GroundTexture {
     this.texture.wrapS = this.texture.wrapT = THREE.ClampToEdgeWrapping
   }
 
-  paint(p: Palette): void {
+  paint(p: Palette, light: GroundLight = DEFAULT_LIGHT): void {
     const { ctx, data } = this
     const S = this.canvas.width
     const half = data.half
@@ -78,8 +85,10 @@ export class GroundTexture {
       if (a.kind !== 'forest') continue
       ctx.fillStyle = p.forest
       this.fillPoly(a.polygon)
-      this.stipple(a.polygon, [], p.forestDotLight, 0.22, 0.8, 1.6, 21)
-      this.stipple(a.polygon, [], p.forestDot, 0.16, 0.35, 0.8, 22)
+      // 光と霞は、粒を倍の径のやわらかい斑に（数は減らす。水玉に見えないように）
+      const soft = p.id === 'hikari' ? 2 : 1
+      this.stipple(a.polygon, [], p.forestDotLight, 0.22 / (soft * 1.6), 0.8 * soft, 1.6 * soft, 21)
+      this.stipple(a.polygon, [], p.forestDot, 0.16 / (soft * 1.6), 0.35 * soft, 0.8 * soft, 22)
     }
 
     // 5. 駐車場（境内のものは描かない）
@@ -104,12 +113,23 @@ export class GroundTexture {
       ctx.stroke()
     }
 
-    // 7. 焼き込みの影（建物の北北東側と足元）
+    // 7. 焼き込みの影（建物の、光と反対側と足元）。影は光の反対の向きへ、低い光ほど長く
+    const az = THREE.MathUtils.degToRad(light.azDeg)
+    const shadowDir: XZ = [-Math.sin(az), Math.cos(az)]
+    const off = Math.min(6, 2.34 / Math.tan(THREE.MathUtils.degToRad(Math.max(12, light.elDeg))))
     for (const b of data.buildings) {
-      const off = 2.6
-      const shifted = b.polygon.map(([x, z]): XZ => [x + SUN_SHADOW_DIR[0] * off, z + SUN_SHADOW_DIR[1] * off])
+      const shifted = b.polygon.map(([x, z]): XZ => [x + shadowDir[0] * off, z + shadowDir[1] * off])
       this.softFill(shifted, p.shadow, 2.2)
       this.softFill(b.polygon, p.shadow, 1.0)
+    }
+    // 木の下の陰（まとめて1回のぼかし塗り）
+    if (this.treeSpots.length && p.id !== 'hakubyo') {
+      const k = off * 0.35
+      this.softCircles(
+        this.treeSpots.map((t) => ({ x: t.x + shadowDir[0] * k, z: t.z + shadowDir[1] * k, r: t.r * 0.8 })),
+        p.shadow,
+        1.4,
+      )
     }
     ctx.restore()
 
@@ -239,6 +259,25 @@ export class GroundTexture {
     ctx.fillStyle = '#000'
     ctx.translate(-OFF, 0)
     this.pathPoly(poly)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  /** ぼかした丸をまとめて塗る（重なっても濃くならない） */
+  private softCircles(spots: { x: number; z: number; r: number }[], color: string, blurM: number): void {
+    const { ctx } = this
+    const OFF = 10000
+    ctx.save()
+    ctx.shadowColor = color
+    ctx.shadowBlur = blurM * this.scale
+    ctx.shadowOffsetX = OFF * this.scale
+    ctx.fillStyle = '#000'
+    ctx.translate(-OFF, 0)
+    ctx.beginPath()
+    for (const s of spots) {
+      ctx.moveTo(s.x + s.r, s.z)
+      ctx.arc(s.x, s.z, s.r, 0, Math.PI * 2)
+    }
     ctx.fill()
     ctx.restore()
   }

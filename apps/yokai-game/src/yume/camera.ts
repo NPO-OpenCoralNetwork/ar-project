@@ -33,6 +33,15 @@ export const cameraTune = {
   portraitPitchBoost: 18,
   /** 縦長の画面で書き割りの裾を上げる量（NDC。縦横比 0 のときの値） */
   portraitHorizonLift: 0.3,
+  /** 書き割りの裾を下げる量（NDC）。光と霞では空を広く見せる */
+  horizonDrop: 0,
+  /** いちばん高い稜線が、空の帯の高さのどこまで届くか（0..1） */
+  ridgeFill: 0.92,
+  /** 縦長の画面で山を低くする割合（縦横比 0 のときの値。横に縮んだ山が尖りすぎないように） */
+  portraitRidgeCut: 0,
+  /** 横長の画面（縦横比 1.5 以上で全量）で、さらに書き割りの裾を下げる量（NDC）と、山を低くする割合。空の帯を広く見せる */
+  wideHorizonDrop: 0,
+  wideRidgeCut: 0,
 }
 
 export class CameraRig {
@@ -108,7 +117,11 @@ export class CameraRig {
     bendUniforms.uBendCenter.value.set(this.target.x, this.target.z)
 
     // 書き割りと霞
-    const H = Math.min(0.8, THREE.MathUtils.lerp(tune.horizonNear, tune.horizonFar, t) + portrait * tune.portraitHorizonLift)
+    const wide = Math.min(1, Math.max(0, (this.aspect - 1) / 0.5))
+    const H =
+      Math.min(0.8, THREE.MathUtils.lerp(tune.horizonNear, tune.horizonFar, t) + portrait * tune.portraitHorizonLift) -
+      tune.horizonDrop -
+      wide * tune.wideHorizonDrop
     // 縦長の画面では霞の帯を薄くする（同じ NDC でも画面の割合が大きくなるため）
     const mistDepth = tune.mistDepth * Math.min(1, Math.max(0.6, this.aspect * 1.5))
     const bu = backdropUniforms
@@ -119,7 +132,8 @@ export class CameraRig {
     bu.uHalfFovYDeg.value = halfFovY / DEG
     bu.uPxDeg.value = ((halfFovY / DEG) * 2) / Math.max(200, this.viewH)
     bu.uPxNdc.value = 2 / Math.max(200, this.viewH)
-    bu.uExag.value = (0.92 * (1 - H) * (halfFovY / DEG)) / 6.3
+    bu.uAspect.value = this.aspect
+    bu.uExag.value = (tune.ridgeFill * (1 - portrait * tune.portraitRidgeCut) * (1 - wide * tune.wideRidgeCut) * (1 - H) * (halfFovY / DEG)) / 6.3
 
     // 霧: 霞の下端あたりの地面で、ほぼ霞の色になるように
     const yMist = H - mistDepth * 0.7

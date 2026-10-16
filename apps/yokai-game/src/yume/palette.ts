@@ -1,7 +1,8 @@
-// 見た目の2つの調子。「白描」は夢の旅の基本の見た目（和紙と墨）、「彩色（仮）」は淡い色の里山。
-// 派手にしない。色はすべて sRGB の16進数。
+// 見た目の調子。夢の旅の基本の見た目は「光と霞」（hikari.ts。時間帯ごとのパレット）。
+// ここには「白描」（和紙と墨）と、前の試作の「彩色（仮）」（いまは使わない。保存済みの設定は「光と霞」として読む）を置く。
+// 色はすべて sRGB の16進数。
 
-export type LookId = 'hakubyo' | 'saishiki'
+export type LookId = 'hakubyo' | 'saishiki' | 'hikari'
 
 export interface Palette {
   id: LookId
@@ -60,7 +61,7 @@ export interface Palette {
   pack: number
 }
 
-export const PALETTES: Record<LookId, Palette> = {
+export const PALETTES: Record<'hakubyo' | 'saishiki', Palette> = {
   hakubyo: {
     id: 'hakubyo',
     label: '白描',

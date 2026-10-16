@@ -1,4 +1,5 @@
 // お休みの範囲（境内）の霧。建物も社殿も作らず、地面に沿う柔らかい霧の面と、漂う霧のかたまりで「ここは入らない場所」と示す。
+// 光と霞では、霧そのものを内側からほのかに光らせて「中に灯りがある、入らない場所」を示す（06 §3.10。夜は琥珀、縁に朱）。
 
 import * as THREE from 'three'
 import { BEND_GLSL, bendUniforms } from '../bend'
@@ -10,6 +11,11 @@ export const mistUniforms = {
   uTime: { value: 0 },
   uMistColor: { value: new THREE.Color(0xfbf9f4) },
   uMistOpacity: { value: 1 },
+  uGlowColor: { value: new THREE.Color(0xe89a52) },
+  uGlowStrength: { value: 0 },
+  uEdgeColor: { value: new THREE.Color(0xb84a34) },
+  uEdgeStrength: { value: 0 },
+  uPulseSec: { value: 9 },
 }
 
 const NOISE_GLSL = /* glsl */ `
@@ -67,13 +73,25 @@ export class RestMist {
         uniform float uMistOpacity;
         uniform float uSeed;
         uniform float uStrength;
+        uniform vec3 uGlowColor;
+        uniform float uGlowStrength;
+        uniform vec3 uEdgeColor;
+        uniform float uEdgeStrength;
+        uniform float uPulseSec;
         varying float vEdge;
         varying vec2 vXZ;
         ${NOISE_GLSL}
         void main() {
           float n = mfbm(vXZ * 0.03 + vec2(uTime * 0.012 + uSeed, uTime * 0.007 - uSeed));
           float a = smoothstep(0.0, 16.0, vEdge) * smoothstep(0.2, 0.75, n) * uStrength * uMistOpacity;
-          gl_FragColor = vec4(uMistColor, a);
+          // 内側からのほのかな光（ゆっくり明滅）と、縁の朱
+          float pulse = 0.85 + 0.15 * sin(6.2832 * uTime / max(uPulseSec, 1.0) + uSeed);
+          float g = uGlowStrength * smoothstep(2.0, 14.0, vEdge) * pulse * (0.75 + 0.5 * n);
+          vec3 col = mix(uMistColor, uGlowColor, clamp(g, 0.0, 1.0));
+          col = mix(col, uEdgeColor, uEdgeStrength * (1.0 - smoothstep(4.0, 14.0, vEdge)));
+          // 光っている所は霧も少し濃く見せる
+          a = min(1.0, a * (1.0 + g * 0.6));
+          gl_FragColor = vec4(col, a);
           #include <colorspace_fragment>
         }
       `,
@@ -153,14 +171,18 @@ export class RestMist {
       fragmentShader: /* glsl */ `
         uniform vec3 uMistColor;
         uniform float uMistOpacity;
+        uniform vec3 uGlowColor;
+        uniform float uGlowStrength;
         varying vec2 vUv;
         varying float vFade;
         void main() {
           float r2 = dot(vUv, vUv);
           if (r2 > 1.0) discard;
           float a = (1.0 - r2);
+          // 芯を光の色へ寄せる
+          vec3 col = mix(uMistColor, uGlowColor, 0.3 * a * min(1.0, uGlowStrength * 4.0));
           a = a * a * 0.5 * vFade * uMistOpacity;
-          gl_FragColor = vec4(uMistColor, a);
+          gl_FragColor = vec4(col, a);
           #include <colorspace_fragment>
         }
       `,

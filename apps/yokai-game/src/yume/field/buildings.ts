@@ -15,6 +15,10 @@ const EAVE = 0.55
 interface Acc {
   pos: number[]
   col: number[]
+  /** 頂点の明るさ（建物の根元を暗くする。06「建物の根元や木の下を少し暗く」） */
+  ao: number[]
+  /** この建物の地面の高さ（ao の基準） */
+  base: number
 }
 
 export interface BuildingInfo {
@@ -22,6 +26,9 @@ export interface BuildingInfo {
   floors: number
   wallTop: number
 }
+
+/** 平らな屋根の縁の立ち上がり（m） */
+const PARAPET = 0.3
 
 export class Buildings {
   readonly group = new THREE.Group()
@@ -31,9 +38,9 @@ export class Buildings {
   private readonly flatMat: THREE.MeshLambertMaterial
 
   constructor(polys: { polygon: XZ[]; levels?: number }[], hf: HeightField, lines: InkLineBuilder) {
-    const walls: Acc = { pos: [], col: [] }
-    const roofs: Acc = { pos: [], col: [] }
-    const flats: Acc = { pos: [], col: [] }
+    const walls: Acc = { pos: [], col: [], ao: [], base: 0 }
+    const roofs: Acc = { pos: [], col: [], ao: [], base: -1e9 }
+    const flats: Acc = { pos: [], col: [], ao: [], base: -1e9 }
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z)
 
     polys.forEach((b, idx) => {
@@ -53,6 +60,7 @@ export class Buildings {
         return y
       })
       const y0 = gMin - 0.4
+      walls.base = gMin
       const top = gMax + wallH
       const shade = 0.93 + hash01(idx * 13 + 1) * 0.1
       const roofShade = 0.9 + hash01(idx * 17 + 5) * 0.16
@@ -127,11 +135,18 @@ export class Buildings {
         lines.polyline([c1, c2, c3, c4], LineKind.Building, 1.1, 1, true)
         if (ridgeHalf > 0.01) lines.segment(r0, r1, LineKind.Building, 1.25)
       } else {
-        // 平らな屋根（L字など）
+        // 平らな屋根（L字など）。屋根の面を縁より 0.3m 下げ、縁の内側に一段暗い立ち上がりを付けて厚みを見せる
         const contour = poly.map(([x, z]) => new THREE.Vector2(x, z))
         const faces = THREE.ShapeUtils.triangulateShape(contour, [])
+        const yIn = top - PARAPET
         for (const [i, j, k] of faces) {
-          pushTri(flats, V(poly[i][0], top, poly[i][1]), V(poly[j][0], top, poly[j][1]), V(poly[k][0], top, poly[k][1]), roofShade)
+          pushTri(flats, V(poly[i][0], yIn, poly[i][1]), V(poly[j][0], yIn, poly[j][1]), V(poly[k][0], yIn, poly[k][1]), roofShade)
+        }
+        for (let i = 0; i < poly.length; i++) {
+          const p = poly[i]
+          const q = poly[(i + 1) % poly.length]
+          // 内向きの面（壁と逆回り）。壁の色の 0.85 倍
+          pushQuad(walls, V(q[0], yIn, q[1]), V(p[0], yIn, p[1]), V(p[0], top, p[1]), V(q[0], top, q[1]), shade * 0.85)
         }
         lines.polyline(
           poly.map(([x, z]) => V(x, top + 0.03, z)),
@@ -143,7 +158,7 @@ export class Buildings {
       }
     })
 
-    this.wallMat = applyBend(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }))
+    this.wallMat = applyBend(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), { ao: true })
     this.roofMat = applyBend(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide }))
     this.flatMat = applyBend(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide }))
     for (const [acc, mat, name] of [
@@ -155,6 +170,7 @@ export class Buildings {
       const g = new THREE.BufferGeometry()
       g.setAttribute('position', new THREE.Float32BufferAttribute(acc.pos, 3))
       g.setAttribute('color', new THREE.Float32BufferAttribute(acc.col, 3))
+      if (acc === walls) g.setAttribute('aAO', new THREE.Float32BufferAttribute(acc.ao, 1))
       g.computeVertexNormals()
       const m = new THREE.Mesh(g, mat)
       m.name = name
@@ -175,6 +191,8 @@ export class Buildings {
 function pushTri(acc: Acc, a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, shade: number): void {
   acc.pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z)
   for (let i = 0; i < 3; i++) acc.col.push(shade, shade, shade)
+  // 根元（地面の高さ）で 0.58、2.8m 上で 1 になる
+  for (const v of [a, b, c]) acc.ao.push(0.58 + 0.42 * THREE.MathUtils.smoothstep(v.y, acc.base - 0.4, acc.base + 2.8))
 }
 
 function pushQuad(acc: Acc, a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, shade: number): void {

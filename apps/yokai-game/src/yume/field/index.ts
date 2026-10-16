@@ -1,16 +1,18 @@
 // 箱庭（フィールド）をまとめて組み立てる。
 
 import * as THREE from 'three'
-import { applyBend, inkRimUniforms } from '../bend'
+import { aoUniforms, applyBend, inkRimUniforms } from '../bend'
 import type { FieldData, RoadData } from '../data'
 import { bboxOf, densify, pointInPolygon, type XZ } from '../geom2d'
-import type { Palette } from '../palette'
+import type { PerQuality, ScenePalette } from '../hikari'
 import { Walkability } from '../walk'
 import { backdropUniforms, createBackdrop, setBackdropPalette } from './backdrop'
 import { Buildings } from './buildings'
 import { drapedGeometry, isConvex, subtractConvex, triangulateDraped } from './drape'
 import { GroundTexture } from './ground-texture'
 import { HeightField } from './heightfield'
+import { Lamps } from './lamps'
+import { Motes } from './motes'
 import { createInkLineMaterial, InkLineBuilder, inkLineUniforms, LineKind } from './ink-lines'
 import { RestMist, mistUniforms } from './rest-mist'
 import { clipEdgeRuns, type RibbonInput, RibbonSet } from './ribbons'
@@ -46,7 +48,10 @@ export class Field {
   private readonly pondMat: THREE.MeshLambertMaterial
   private readonly buildings: Buildings
   private readonly trees: Trees
+  readonly lamps: Lamps
+  readonly motes: Motes
   private textureSize: number
+  private palette: ScenePalette | null = null
 
   constructor(
     readonly data: FieldData,
@@ -121,6 +126,10 @@ export class Field {
     }
     if (pondGeos.length) {
       const merged = mergeDraped(pondGeos)
+      // 水面は平らに光らせる（三角形ごとの法線の揺れで、面がガラスのかけらのように見えないように）
+      const nrm = merged.getAttribute('normal') as THREE.BufferAttribute
+      for (let i = 0; i < nrm.count; i++) nrm.setXYZ(i, 0, 1, 0)
+      nrm.needsUpdate = true
       const pond = new THREE.Mesh(merged, this.pondMat)
       pond.frustumCulled = false
       pond.renderOrder = 1
@@ -140,6 +149,13 @@ export class Field {
     // 木
     this.trees = new Trees(data, this.hf, opts.maxTrees)
     this.group.add(this.trees.group)
+    this.ground.treeSpots = this.trees.spots
+
+    // 道沿いの小さな灯りと、光の粒（光と霞）
+    this.lamps = new Lamps(data, this.hf, (x, z) => this.walk.isInsideRest(x, z))
+    this.group.add(this.lamps.group)
+    this.motes = new Motes(this.hf)
+    this.group.add(this.motes.points)
 
     // 墨の線（1回の描画）
     const lineMesh = lines.build(createInkLineMaterial())
@@ -263,8 +279,9 @@ export class Field {
     this.ground.texture.needsUpdate = true
   }
 
-  setPalette(p: Palette): void {
-    this.ground.paint(p)
+  setPalette(p: ScenePalette): void {
+    this.palette = p
+    this.ground.paint(p, p.light)
     this.outer.setPalette(p)
     this.roads.setPalette(p)
     this.waters.setPalette(p)
@@ -276,20 +293,40 @@ export class Field {
     inkLineUniforms.uKindAlpha.value.set(p.lineAlpha.building, p.lineAlpha.edge, p.lineAlpha.contour, p.lineAlpha.rail)
     inkRimUniforms.uRimAmount.value = p.rim
     inkRimUniforms.uRimColor.value.set(p.ink)
+    inkRimUniforms.uGlowRim.value = p.glowRim.strength
+    inkRimUniforms.uGlowRimColor.value.set(p.glowRim.color)
+    aoUniforms.uAOAmount.value = p.ao
     mistUniforms.uMistColor.value.set(p.mist)
+    mistUniforms.uGlowColor.value.set(p.restGlow.color)
+    mistUniforms.uGlowStrength.value = p.restGlow.strength
+    mistUniforms.uEdgeColor.value.set(p.restGlow.edge)
+    mistUniforms.uEdgeStrength.value = p.restGlow.edgeStrength
+    mistUniforms.uPulseSec.value = p.restGlow.pulseSec
+    this.lamps.setPalette(p)
+    this.motes.setPalette(p)
+  }
+
+  /** 画質ごとの数（灯りの輪・粒・紅葉） */
+  setQualityLevel(q: keyof PerQuality): void {
+    const max = this.palette?.lamps.max ?? { low: 10, std: 24, high: 36 }
+    this.lamps.setQuality(max[q], q !== 'low')
+    this.motes.setQuality(q)
   }
 
   /** 地面の絵の解像度を変える（画質の切り替え） */
-  setTextureSize(size: number, p: Palette): void {
+  setTextureSize(size: number, p: ScenePalette): void {
     if (size === this.textureSize) return
     this.textureSize = size
     this.ground.resize(size)
-    this.ground.paint(p)
+    this.ground.paint(p, p.light)
   }
 
-  update(time: number): void {
+  /** x, z はアバターの位置（灯りの輪を近い順に選び、粒をまわりに散らす） */
+  update(time: number, x = 0, z = 0): void {
     mistUniforms.uTime.value = time
     backdropUniforms.uTime.value = time
+    this.lamps.update(time, x, z)
+    this.motes.update(time, x, z, this.lamps)
   }
 }
 

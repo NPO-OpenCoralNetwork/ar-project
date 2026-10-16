@@ -158,7 +158,8 @@ export function createInkLineMaterial(): THREE.ShaderMaterial {
         // 中心からの距離（px）。芯の縁で 1px 幅のぼかし
         float d = abs(vSide) * vHalfQuad;
         float edge = 1.0 - smoothstep(vHalfCore - 0.5, vHalfCore + 0.5, d);
-        float a = vAlpha * edge * (1.0 - vFog);
+        // 遠い線は面より早く消す（霧に溶けた面の上に、線だけが残らないように）
+        float a = vAlpha * edge * (1.0 - vFog) * (1.0 - vFog);
         if (a < 0.01) discard;
         gl_FragColor = vec4(mix(uInk, uFogColor, vFog * 0.6), a);
         #include <colorspace_fragment>
