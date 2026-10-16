@@ -1,0 +1,58 @@
+name: yokai-game pages
+
+# 妖怪ARゲームの試作（apps/yokai-game）をビルドし、GitHub Pages に公開する。
+# 公開には、リポジトリの設定で Pages の Source を「GitHub Actions」にし、
+# github-pages 環境でこのブランチからのデプロイを許可しておく必要がある。
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['apps/yokai-game/**', '.github/workflows/yokai-pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: yokai-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      pages: ${{ steps.pages.outputs.enabled }}
+    defaults:
+      run:
+        working-directory: apps/yokai-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/yokai-game/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      # Pages がまだ有効になっていなければ、公開せずにビルドの確認だけで終える
+      - id: pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/pages")
+          if [ "$code" = "200" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"; else echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "::notice::GitHub Pages is not enabled yet; skipping deploy"; fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/yokai-game/dist
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.pages == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
