@@ -1,0 +1,25 @@
+{
+  "name": "yokai-game",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "妖怪ARゲーム（仮）— 夢の旅（家の3D箱庭）と現の旅（現地GPS）の試作",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "build:artifact": "vite build --config vite.artifact.config.ts",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "fetch:osm": "node scripts/fetch-osm.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/three": "^0.186.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
