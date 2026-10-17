@@ -148,9 +148,9 @@ function safeSet(k: string, v: string): void {
   }
 }
 
-/** 夢の旅の保存を、テスト用・シミュレーター用の保存へ写す（そちらで進めても、本番の保存は変わらない） */
-function copyMainProgress(to: string): void {
-  const s = safeGet(STORY_KEY)
+/** 夢の旅の保存（from を渡せば、その保存）を、テスト用・シミュレーター用の保存へ写す（そちらで進めても、本番の保存は変わらない） */
+function copyMainProgress(to: string, from = STORY_KEY): void {
+  const s = safeGet(from)
   try {
     if (s) localStorage.setItem(to, s)
     else localStorage.removeItem(to)
@@ -306,7 +306,8 @@ let S: Session | null = null
 function startSession(land: Land, kind: 'gps' | 'sim'): void {
   hideSheet()
   const key = kind === 'sim' ? SIM_KEY : land.id === 'test' ? TEST_KEY : STORY_KEY
-  if (kind === 'sim') copyMainProgress(SIM_KEY)
+  // シミュレーターは、その土地の保存を写して始める（テスト用の土地は、家の白描の絵地図と同じ保存から。夢で会っていれば再会になる）
+  if (kind === 'sim') copyMainProgress(SIM_KEY, land.id === 'test' ? TEST_KEY : STORY_KEY)
   const progress = new ProgressStore(browserStorage(), key)
   const engine = new UtsutsuEngine(land.spots, land.rest.map((polygon, i) => ({ id: `rest-${i}`, polygon })), land.origin)
   log(`start ${land.id} ${kind} key=${key}`)
