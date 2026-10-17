@@ -85,7 +85,7 @@ export class GenEncounter {
         choose: (i) => this.onBeat(this.active?.runner.choose(i) ?? { kind: 'end' }),
         close: () => this.end('closed'),
       },
-      { yokaiName: (id) => d.story.yokai[id]?.name ?? id },
+      { yokaiName: (id) => d.story.yokai[id]?.name ?? id, sound: d.sound },
     )
   }
 

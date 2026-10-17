@@ -110,7 +110,7 @@ export class Encounters {
         choose: (i) => this.onBeat(this.active?.runner.choose(i) ?? { kind: 'end' }),
         close: () => this.endTalk('closed'),
       },
-      { yokaiName: (id) => d.story.yokai[id]?.name ?? id },
+      { yokaiName: (id) => d.story.yokai[id]?.name ?? id, sound: d.sound },
     )
     this.mandala = new MandalaView(
       root,
