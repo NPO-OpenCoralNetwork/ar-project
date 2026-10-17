@@ -139,7 +139,7 @@ const CSS = /* css */ `
 `
 
 let styled = false
-function injectStyle(): void {
+export function injectStyle(): void {
   if (styled) return
   styled = true
   const s = document.createElement('style')

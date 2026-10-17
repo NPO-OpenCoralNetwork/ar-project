@@ -8,6 +8,7 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "build:artifact": "vite build --config vite.artifact.config.ts",
+    "build:card": "vite build --config vite.card.config.ts",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "fetch:osm": "node scripts/fetch-osm.mjs",

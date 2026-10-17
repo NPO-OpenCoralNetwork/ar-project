@@ -13,5 +13,5 @@
     "noEmit": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "vite.config.ts", "vite.artifact.config.ts"]
+  "include": ["src", "vite.config.ts", "vite.artifact.config.ts", "vite.card.config.ts"]
 }
