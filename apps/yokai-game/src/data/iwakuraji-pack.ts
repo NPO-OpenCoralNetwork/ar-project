@@ -57,6 +57,26 @@ const spots: Spot[] = [
     placeKind: 'road',
     yokaiId: 'karabozu', // 仮（ガメの親方。04 では里の川沿い）
   },
+  // 調べる地点（光蔵坊の悩み #2。04 §3.4・§3.5）。妖怪はおらず、悩みを頼まれてから気配が出る（clues.json）。
+  // 公道の上で、お休みの範囲から 160m 以上、ほかの地点から 100m 以上、水辺から 190m 以上。OSM の建物からは 100m 以上
+  // （箱庭の仮の家並みからは 14〜18m。村の道はどこも仮の家並みに沿うので、それより離せない）。
+  // 光蔵坊 → 1 → 2 → 光蔵坊 で約 810m（4km/h で約12分）。
+  {
+    // 南の東西の道（集落の南を通る道）の、家並みの切れ目。光蔵坊の地点から南南東へ約100m
+    id: 'iwakuraji-c1',
+    label: 'この地点',
+    position: { lat: 36.6067998, lon: 137.3179279 },
+    placeKind: 'road',
+    clueId: 'kozobo-shirabe-1',
+  },
+  {
+    // 北西の集落の中の細い東西の道、辻の近く（南北の道との角から約8m）。光蔵坊の地点から北西へ約195m
+    id: 'iwakuraji-c2',
+    label: 'この地点',
+    position: { lat: 36.6090399, lon: 137.3161702 },
+    placeKind: 'road',
+    clueId: 'kozobo-shirabe-2',
+  },
 ]
 
 export const iwakurajiPack: RegionPack = {
