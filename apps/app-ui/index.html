@@ -1107,7 +1107,7 @@ const SCREENS = [
             <p class="small muted" style="margin:0">伝承の札（見本の枠）</p>
             <div style="border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;margin:6px 0 10px;background:var(--surface-2)">
               <p style="margin:0;font-family:var(--title-font)">札の本文は、調べ（03）と監修を通ったものだけを入れます。</p>
-              <p class="small muted" style="margin:6px 0 0">出典: ―（監修のあとに入る） ・ 確度: ―</p>
+              <p class="small muted" style="margin:6px 0 0">出典 ―（文献の名前だけ）</p>
             </div>
             <p class="small" style="margin:0 0 10px">帳に${utsu ? '色の' : '白描の'}ピースが入りました。縁が少し近くなりました。</p>
             <div class="btn-col"><button type="button" class="btn primary" data-go="E1">帳を見る</button><button type="button" class="btn ghost" data-act="endTalk" style="color:#2a2622">${utsu ? '地図に戻る' : '箱庭に戻る'}</button></div>`}
@@ -1187,8 +1187,8 @@ const SCREENS = [
         R = `${en.slice(2).map(([n, lv, p, memo]) => `<div style="margin:30px 0 12px"><p style="margin:0;display:flex;justify-content:space-between"><b style="font-family:var(--title-font)">${n}</b><span style="color:#3f5f8f;font-weight:700">${lv}</span></p><div class="thread" style="background:#e6dcc6"><i style="width:${p}%;background:#3f5f8f"></i></div><p class="small" style="margin:4px 0 0;color:rgba(42,38,34,.7)">${memo}</p></div>`).join('')}
           <p class="small" style="margin:14px 0 0;color:rgba(42,38,34,.7)">縁の糸: 気配 → 顔見知り → なじみ → 語り仲間 → えにし。％の数字は出しません。段階は${rei}</p>`;
       } else {
-        L = `<h3>伝承の札</h3><p class="small" style="margin:0;color:rgba(42,38,34,.7)">札には出典と確度の印が必ず付きます。台本の台詞（創作）とは見た目を分けます。</p>
-          <div style="border:1px solid rgba(42,38,34,.38);border-radius:4px;padding:10px;margin-top:10px;background:#f3eee3"><p style="margin:0;font-family:var(--title-font)">（札の本文は監修のあとに入ります）</p><p class="small" style="margin:6px 0 0;color:rgba(42,38,34,.7)">出典 ― ・ 確度 ― ・ 監修: 了承待ち</p></div>`;
+        L = `<h3>伝承の札</h3><p class="small" style="margin:0;color:rgba(42,38,34,.7)">札に出すのは、題・本文・出典だけ。確度や監修の状態は作る側の情報なので、遊ぶ人には見せません。台本の台詞（創作）とは見た目を分けます。</p>
+          <div style="border:1px solid rgba(42,38,34,.38);border-radius:4px;padding:10px;margin-top:10px;background:#f3eee3"><p style="margin:0;font-family:var(--title-font)">（札の本文は監修のあとに入ります）</p><p class="small" style="margin:6px 0 0;color:rgba(42,38,34,.7)">出典 ―</p></div>`;
         R = `<h3>旅印</h3><p class="small" style="margin:0;color:rgba(42,38,34,.7)">現地で節を終えると、日付入りの旅印が入ります。インク1色。売ったり譲ったりできません。</p>
           <div class="stamps" style="grid-template-columns:repeat(2,1fr);gap:8px"><div class="slot" style="border:0">${stampSvg()}</div><div class="slot">まだ</div><div class="slot">まだ</div><div class="slot">まだ</div></div>
           <p class="small" style="margin:10px 0 0;color:rgba(42,38,34,.7)">噂の地の頁 ${rei}: 土地が増えると、ここに頁が足されます。</p>`;

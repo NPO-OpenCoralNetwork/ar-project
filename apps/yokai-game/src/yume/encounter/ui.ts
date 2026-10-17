@@ -2,7 +2,7 @@
 //
 // - 耳を澄ますボタン（長押し。満ちていく輪）
 // - 会話の枠（画面の下。名前・本文・選択肢2〜3）。台本の台詞は「台本・創作」の印つきのふつうの枠
-// - 伝承の札（和紙のカード。出典・確度・03 の番号・監修の状態。台本の枠とは形も書体も分ける。04 §3.2 F-43）
+// - 伝承の札（和紙のカード。プレイヤーには題・本文・出典だけ。確度・調べ・監修の状態は ?debug のときだけ。台本の枠とは形も書体も分ける。04 §3.2 F-43）
 // - 曼荼羅帳（縦長の掛軸。里・麓・山の三段の枠は【創作】の構図）と、最初からやり直す（確認つき）
 //
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
@@ -78,6 +78,7 @@ const CSS = /* css */ `
 .yc-meta dt { color: var(--csoft); white-space: nowrap; }
 .yc-meta dd { margin: 0; }
 .yc-meta a { color: inherit; }
+.yc-source { margin: 2px 0 0; font-size: 12.5px; color: var(--csoft); letter-spacing: 0.02em; }
 .yc-badge { display: inline-block; font-size: 11.5px; padding: 0 7px; border: 1px solid currentColor; border-radius: 3px; }
 .yc-badge.ok { color: #2f5a3a; }
 .yc-badge.draft { color: #8a5a2a; }
@@ -264,23 +265,36 @@ export class MistVeil {
 
 // ---------------------------------------------------------------- 伝承の札
 
+/** 確度・調べ・監修の状態は作る側の情報なので、URL に ?debug を付けたとき（開発・監修の確認）だけ出す */
+const SHOW_PRODUCTION_META = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('debug')
+  } catch {
+    return false
+  }
+})()
+
 export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: string } = {}): string {
   const src = card.source
   const work = `${escapeHtml(src.work)}${src.year ? `（${src.year}）` : ''}`
   const checked = (src.checkedIn ?? [])
     .map((c) => (c.url ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">${escapeHtml(c.label)}</a>` : escapeHtml(c.label)))
     .join('、')
-  return `
-    <div class="yc-kind"><span>伝承の札</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
-    <h3 class="yc-title"><small>${escapeHtml(card.number ?? '')}</small>${escapeHtml(card.title)}</h3>
-    <p class="yc-body">${escapeHtml(card.body)}</p>
+  const meta = SHOW_PRODUCTION_META
+    ? `
     <dl class="yc-meta">
       <dt>出典</dt><dd>${work}</dd>
       <dt>確度</dt><dd><span class="yc-badge ok">${escapeHtml(card.confidence)}</span></dd>
       <dt>調べ</dt><dd>${escapeHtml(card.researchRef)}${checked ? `（${checked}）` : ''}</dd>
-      <dt>監修</dt><dd><span class="yc-badge draft">${escapeHtml(card.review)}</span>（公開前に監修を通します）</dd>
-    </dl>
-    <p class="yc-foot">札は伝承の記録です。会話の台詞は、本作の創作です。</p>
+      <dt>監修</dt><dd><span class="yc-badge draft">${escapeHtml(card.review)}</span></dd>
+    </dl>`
+    : `
+    <p class="yc-source">出典 ${work}</p>`
+  return `
+    <div class="yc-kind"><span>伝承の札</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
+    <h3 class="yc-title"><small>${escapeHtml(card.number ?? '')}</small>${escapeHtml(card.title)}</h3>
+    <p class="yc-body">${escapeHtml(card.body)}</p>${meta}
+    ${opts.first ? '<p class="yc-foot">札は伝承の記録です。会話の台詞は、本作の創作です。</p>' : ''}
     ${opts.button ? `<button class="yc-btn" type="button">${escapeHtml(opts.button)}</button>` : ''}`
 }
 
