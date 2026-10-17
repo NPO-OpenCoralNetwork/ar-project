@@ -370,6 +370,9 @@ function start(): void {
   }
 
   function cycleTime(): void {
+    // 出会いの途中（耳を澄まし終えてから、別れ終わるまで）は、T キーでも右上の「時間」でも変えない
+    // （寄り道の妖怪の出る・出ないは時間帯で決まるので、話の途中で変えない）
+    if (encounters?.engaged) return
     // 覆いの最中に続けて押されたら、確定前の時間帯の次へ進める
     const i = TIMES.findIndex((t) => t.id === pendingTime)
     setTime(TIMES[(i + 1) % TIMES.length].id)
@@ -521,11 +524,12 @@ function start(): void {
   save(saved)
   setSpeed(speed)
   hud.setSound(sound.enabled)
-  // T キーで時間帯（昼 → 夕 → 夜）、M キーで曼荼羅帳
+  // T キーで時間帯（昼 → 夕 → 夜）、M キーで曼荼羅帳。出会いの途中（耳を澄まし終えてから、別れ終わるまで）は、どちらも効かない
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
     const t = e.target as HTMLElement | null
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+    if (encounters?.engaged) return
     if (e.code === 'KeyT') cycleTime()
     if (e.code === 'KeyM') encounters?.openMandala()
   })
