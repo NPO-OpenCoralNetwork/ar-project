@@ -1,4 +1,4 @@
-// 画面の表示（HTML のオーバーレイ）。左上に題、右上に回転・速さ・見た目・時間・画質、右下に出典（いつも表示）。
+// 画面の表示（HTML のオーバーレイ）。左上に入口へ戻るリンクと題、右上に回転・速さ・見た目・時間・画質、右下に出典（いつも表示）。
 // 左下の fps と描画命令数は、URL に ?debug を付けたときだけ出す。板の色は時間帯に合わせる（夜は暗い地に明るい文字）。
 // 初回だけ操作のヒント（PC とスマホで出し分け）。safe-area を考える。
 // 段階2: 右上の3段目に「音」と「曼荼羅帳」。出会いと会話の画面は yume/encounter/ui.ts（この root の中に置く）。
@@ -22,7 +22,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 #app canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; outline: none; }
 .yh { position: absolute; inset: 0; pointer-events: none; font-family: var(--ui-font); color: var(--ink); -webkit-font-smoothing: antialiased; }
 .yh * { box-sizing: border-box; }
-.yh-title { position: absolute; top: calc(10px + var(--sat)); left: calc(12px + var(--sal)); font-family: var(--title-font); font-size: 13px; letter-spacing: 0.08em; padding: 5px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 8px; max-width: calc(100vw - 230px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(12px + var(--sal)); display: flex; align-items: center; gap: 6px; max-width: calc(100vw - 230px); }
+.yh-title { min-width: 0; font-family: var(--title-font); font-size: 13px; letter-spacing: 0.08em; padding: 5px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 入口（index.html）へ戻る。見た目は板のボタンと同じ大きさで、押せる範囲は外側へ 44px まで広げる（枠の内側から測るので 5px） */
+.yh-home { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 2px; pointer-events: auto; text-decoration: none; font-family: var(--title-font); letter-spacing: 0.08em; }
+.yh-home::before { content: ""; position: absolute; inset: -5px; }
+.yh-home span { font-family: var(--ui-font); font-size: 15px; line-height: 1; color: var(--ink-soft); }
+/* 曼荼羅帳・遊びのあいだは、題と一緒に隠す（encounter/ui.ts） */
+.yh.modal-open .yh-home, .yh.yg-playing .yh-home { visibility: hidden; }
 .yh-panel { position: absolute; top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; }
 .yh-row { display: flex; gap: 6px; align-items: center; }
 .yh-btn { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 9px; min-height: 36px; min-width: 36px; padding: 0 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -61,7 +68,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-veil.on { opacity: 1; }
 .yh-error { --ink: #2a2622; color: var(--ink); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; font-family: var(--title-font); font-size: 15px; line-height: 1.8; pointer-events: auto; background: #f1ece2; }
 @media (max-width: 520px) {
-  .yh-title { font-size: 12px; max-width: calc(100vw - 150px); }
+  .yh-tl { max-width: calc(100vw - 150px); }
+  .yh-title { font-size: 12px; }
   /* スマホは板を少し低くして、空の帯を広く見せる */
   .yh-panel { gap: 5px; }
   .yh-panel .yh-btn { min-height: 34px; }
@@ -89,6 +97,8 @@ export interface HudHooks {
 
 export class Hud {
   readonly root: HTMLDivElement
+  /** 左上（入口へ戻るリンクと題） */
+  private readonly topLeft: HTMLDivElement
   private readonly perf: HTMLButtonElement
   private readonly prompt: HTMLDivElement
   private readonly toastEl: HTMLDivElement
@@ -120,9 +130,21 @@ export class Hud {
     this.root = el('div', 'yh')
     host.appendChild(this.root)
 
+    // 左上: 入口へ戻るリンクと題（1つの HTML にまとめた箱庭（vite.artifact.config.ts）には入口が無いので、リンクは出さない）
+    const tl = el('div', 'yh-tl')
+    if (import.meta.env.MODE !== 'artifact') {
+      const home = el('a', 'yh-btn yh-home')
+      home.href = './'
+      home.innerHTML = '<span aria-hidden="true">‹</span>入口'
+      home.setAttribute('aria-label', '入口へ戻る')
+      home.title = '入口へ戻る'
+      tl.appendChild(home)
+    }
     const t = el('div', 'yh-title')
     t.textContent = title
-    this.root.appendChild(t)
+    tl.appendChild(t)
+    this.root.appendChild(tl)
+    this.topLeft = tl
 
     const panel = el('div', 'yh-panel')
     const row1 = el('div', 'yh-row')
@@ -371,6 +393,8 @@ export class Hud {
     const e = el('div', 'yh-error')
     e.textContent = message
     this.root.appendChild(e)
+    // 入口へ戻るリンクは知らせの上に残す（この端末では、もう一つの旅を選び直せるように。Tab の順は変えない）
+    this.topLeft.style.zIndex = '1'
   }
 }
 
