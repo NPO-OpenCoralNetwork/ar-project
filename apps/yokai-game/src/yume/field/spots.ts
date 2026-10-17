@@ -12,7 +12,7 @@ import type { HeightField } from './heightfield'
 
 export const SPOT_NEAR_M = 6
 
-/** 動きを減らす設定のときは、印の揺れ・回りを止める（大きさと濃さの変化だけ残す） */
+/** 動きを減らす設定のときは、印の揺れ・回り・大きさの息づきを止める（濃さのゆらぎと、近づく・耳を澄ますときの変化は残す） */
 const MOTION = (() => {
   try {
     return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 1
@@ -153,10 +153,10 @@ interface SpotView {
   near: number
   /** 耳を澄ます進み具合（0..1） */
   listen: number
-  /** 夢の姿が浮かんでいる間は消す（0..1）。会話の地点でなくなったら、ゆっくり戻す */
+  /** 夢の姿が浮かんでいる間は消す（0..1）。消す方はすぐ、戻す方は update でゆっくり */
   hide: number
-  /** 耳を澄ます・会話の地点か */
-  focused: boolean
+  /** setFocus で決めた hide の行き先（耳を澄ます・会話の地点でなければ 0） */
+  hideTo: number
   /** 会ったあと（淡く小さく） */
   met: number
   /** 調べる地点（小さく淡い霞の帯の印） */
@@ -206,7 +206,7 @@ export class SpotMarkers {
         near: 0,
         listen: 0,
         hide: 0,
-        focused: false,
+        hideTo: 0,
         met: 0,
         quiet,
         visible,
@@ -236,15 +236,15 @@ export class SpotMarkers {
   }
 
   /**
-   * 耳を澄ます進み具合と、夢の姿が浮かんでいる量（0..1）。外れた地点の hide は update でゆっくり戻す
-   * （姿のない会話（調べる地点）を途中でやめたとき、印がぱっと戻らないように）
+   * 耳を澄ます進み具合と、夢の姿が浮かんでいる量（0..1）。hide を下げる方は update でゆっくり戻す
+   * （姿のない会話（調べる地点）を途中でやめたとき、その場に立ったままでも、印がぱっと戻らないように）
    */
   setFocus(id: string | null, listen: number, hide: number): void {
     for (const v of this.views) {
       const on = v.spot.id === id
-      v.focused = on
       v.listen = on ? listen : 0
-      if (on) v.hide = hide
+      v.hideTo = on ? hide : 0
+      if (v.hideTo > v.hide) v.hide = v.hideTo
     }
   }
 
@@ -270,7 +270,7 @@ export class SpotMarkers {
     for (const v of this.views) {
       v.shown += ((v.visible ? 1 : 0) - v.shown) * (1 - Math.exp(-dt * 2.5))
       // 隠す地点（札を拾った調べる地点など）は、会話のあとも hide のまま消えていく（薄く戻ってこないように）
-      if (!v.focused && v.visible && v.hide > 0) v.hide = Math.max(0, v.hide - dt * 1.5)
+      if (v.visible && v.hide > v.hideTo) v.hide = Math.max(v.hideTo, v.hide - dt * 1.5)
       // 隠した地点は、消えきったら描かない
       const drawn = v.visible || v.shown > 0.01
       v.core.visible = v.halo.visible = drawn
@@ -299,7 +299,7 @@ export class SpotMarkers {
       // 霞の帯は、ほとんど傾けない（横長の形のまま見せる）
       cm.rotation = MOTION * Math.sin(t * 0.35) * (v.quiet ? 0.08 : 0.5)
       cm.opacity = (0.7 + 0.15 * Math.sin(t * 2.1) + v.near * 0.15 - v.listen * 0.35) * keep
-      const hs = s * (v.quiet ? 1.35 : 1.7 + 0.15 * Math.sin(t * 0.7))
+      const hs = s * (v.quiet ? 1.35 : 1.7 + MOTION * 0.15 * Math.sin(t * 0.7))
       v.halo.position.set(v.spot.x, y - 0.1, v.spot.z)
       v.halo.scale.set(hs, hs, 1)
       const hm = v.halo.material
