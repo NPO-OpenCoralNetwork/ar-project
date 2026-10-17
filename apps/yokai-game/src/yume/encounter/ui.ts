@@ -4,12 +4,12 @@
 // - 会話の枠（画面の下。名前・本文・選択肢2〜3）。台本の台詞は「台本・創作」の印つきのふつうの枠
 // - 伝承の札（和紙のカード。プレイヤーには題・本文・出典だけ。確度・調べ・監修の状態は ?debug のときだけ。台本の枠とは形も書体も分ける。04 §3.2 F-43）
 // - 曼荼羅帳（縦長の掛軸。里・麓・山の三段の枠は【創作】の構図）と、最初からやり直す（確認つき）
-// - 会話の途中の小さな遊び（いまは「払わずに待つ」= ミノモシ番外。04 §3.4）
+// - 会話の途中の小さな遊び（「払わずに待つ」= ミノモシ番外。04 §3.4。「絵解き鎮め」= 札を話の順に並べる。04 §3.5）
 //
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
 
 import type { Beat, Notice } from '../../core/story/dialogue'
-import type { GameResult, LoreCard, MatsuSpec, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
+import type { EtokiHandCard, EtokiSpec, GameResult, LoreCard, MatsuSpec, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
 import { PIECE_LABEL } from '../../core/story/types'
 import { ARTS, artToSvg } from './art'
 import { stampDate, stampFrameSvg, stampSvg } from './stamp'
@@ -76,9 +76,94 @@ const CSS = /* css */ `
 .yg-wait .disc { fill: var(--washi-solid, #faf7f0); fill-opacity: 0.92; stroke: rgba(42, 38, 34, 0.2); stroke-width: 1; }
 .yg-wait .bg { stroke: rgba(42, 38, 34, 0.18); }
 .yg-wait .fg { stroke: #b0742a; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 23px 23px; }
-.yg-quit { position: absolute; left: calc(12px + var(--sal)); bottom: calc(16px + var(--sab)); font: inherit; font-size: 12px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; min-height: 36px; cursor: pointer; }
+.yg-quit { position: absolute; left: calc(12px + var(--sal)); bottom: calc(16px + var(--sab)); font: inherit; font-size: 12px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; padding: 0 14px; min-height: 44px; cursor: pointer; }
+.yg-quit:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 2px; }
 /* 遊びのあいだは、上の題・ボタン・現地の案内を隠す（光に集中できるように） */
 .yg-playing .yh-title, .yg-playing .yh-panel, .yg-playing .yh-toast, .yg-playing .ue-cam-btn, .yg-playing .ue-note { visibility: hidden; }
+/* 絵解き鎮め: 上から ましろの言葉・題・枠（一 二 三）・手札。墨の渦と藍の帳は後ろに敷く（濃さは渦の強さに合わせて JS が決める） */
+.yg.yge { display: flex; flex-direction: column; align-items: center; gap: 10px; overflow: hidden; touch-action: manipulation; color: #2a2622;
+  padding: calc(14px + var(--sat)) calc(16px + var(--sar)) calc(70px + var(--sab)) calc(16px + var(--sal)); }
+.yge .yg-say { position: relative; left: auto; top: auto; transform: none; flex: none; max-width: 100%; }
+/* 言葉が1行でも2行でも、下の枠と札が動かないように、2行分の高さを取っておく */
+.yge .yg-say p { min-height: 3.4em; }
+.yge .yg-say p.fresh { animation: yge-fresh 0.5s ease-out; }
+@keyframes yge-fresh { from { opacity: 0.45; } }
+.yge-veil { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.4s;
+  background: radial-gradient(ellipse 90% 70% at 50% 44%, rgba(40, 50, 128, 0.55), rgba(16, 22, 74, 0.94)); }
+.yge-swirl { position: absolute; left: 50%; top: 42%; width: min(128vmin, 900px); aspect-ratio: 1; pointer-events: none; opacity: 0;
+  transform: translate(-50%, -50%) scale(var(--s, 1)); transition: opacity 1.4s, transform 1.4s; }
+.yge-swirl svg { position: absolute; inset: 0; width: 100%; height: 100%; animation: yge-spin 70s linear infinite; }
+.yge-swirl svg.in { animation-duration: 40s; animation-direction: reverse; }
+@keyframes yge-spin { to { transform: rotate(360deg); } }
+/* 札を置いて手札が減っても、題と枠が動かないように、上に寄せる（背の高い画面では、少し下げる） */
+.yge-board { position: relative; flex: 1; min-height: 0; width: min(800px, 100%); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px;
+  padding-top: clamp(0px, calc((100vh - 640px) / 3), 110px); }
+.yge-title { margin: 0; flex: none; text-align: center; font-family: var(--title-font); background: rgba(250, 247, 240, 0.92); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 12px; padding: 5px 24px 7px; box-shadow: 0 8px 26px rgba(10, 10, 30, 0.22); }
+.yge-title small { display: block; font-family: var(--ui-font); font-size: 11px; font-weight: 400; letter-spacing: 0.2em; color: rgba(42, 38, 34, 0.68); }
+.yge-title span { display: block; font-size: 27px; font-weight: 600; letter-spacing: 0.24em; line-height: 1.45; margin-right: -0.24em; }
+.yge-slots { display: flex; gap: 8px; justify-content: center; width: 100%; margin: 0; padding: 0; list-style: none; flex: none; }
+.yge-slot { flex: 1 1 0; min-width: 0; max-width: 170px; min-height: 68px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 5px 6px 7px; text-align: center;
+  border: 1.5px dashed rgba(42, 38, 34, 0.5); border-radius: 8px; background: rgba(250, 247, 240, 0.8); transition: background 0.4s, border-color 0.4s; }
+.yge-slot b { font-family: var(--title-font); font-size: 13px; font-weight: 600; line-height: 1.3; color: rgba(42, 38, 34, 0.72); }
+.yge-slot span { font-family: var(--title-font); font-size: 13.5px; line-height: 1.4; word-break: auto-phrase; text-wrap: balance; }
+.yge-slot span:empty::before { content: "　"; }
+.yge-slot.next { border-style: solid; border-width: 2px; border-color: #2a2622; background: rgba(250, 247, 240, 0.92); }
+.yge-slot.next span { font-family: var(--ui-font); font-size: 11.5px; color: rgba(42, 38, 34, 0.7); }
+.yge-slot.filled { border-style: solid; border-color: rgba(43, 36, 32, 0.4); background: linear-gradient(170deg, #fbf6e9, #f3ead6); }
+.yge-slot.filled.blank { background: #fff; color: rgba(42, 38, 34, 0.66); }
+.yge-slot.just { animation: yge-settle 0.5s ease-out; }
+@keyframes yge-settle { from { transform: scale(1.08); } }
+.yge-count { margin: 0; flex: none; font-size: 12.5px; letter-spacing: 0.06em; color: #2a2622; background: rgba(250, 247, 240, 0.86); border-radius: 999px; padding: 2px 12px; }
+.yge-count b { font-weight: 600; margin-left: 4px; }
+/* 手札は1画面に収まる大きさにしてあるが、とても低い画面では手札だけ縦に送れる（影が切れないよう、まわりを空ける） */
+.yge-hand { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 420px; min-height: 0; overflow-y: auto; touch-action: pan-y; padding: 4px 10px 16px; }
+.yge-card { position: relative; flex: none; display: block; width: 100%; min-height: 60px; margin: 0; padding: 10px 16px 11px; text-align: left; font: inherit; color: #2b2420; cursor: pointer;
+  background: linear-gradient(170deg, #fbf6e9, #f3ead6); border: 1px solid rgba(43, 36, 32, 0.3); border-radius: 6px; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 4px 10px rgba(20, 16, 30, 0.2);
+  -webkit-tap-highlight-color: transparent; transition: transform 0.2s, border-color 0.2s; }
+.yge-card b { display: block; font-family: var(--title-font); font-weight: 700; font-size: 17px; line-height: 1.45; letter-spacing: 0.06em; }
+.yge-card span { display: block; margin-top: 2px; font-family: var(--title-font); font-size: 14px; line-height: 1.6; color: rgba(43, 36, 32, 0.86); text-wrap: pretty; word-break: auto-phrase; }
+.yge-card:hover { border-color: rgba(43, 36, 32, 0.6); }
+/* キーボードの位置の枠は、キーボードで操作しているときだけ（タッチでは、枠が「選んだ札」に見えてしまう） */
+.yge-card:focus-visible { outline: none; }
+.yd-keys .yge-card:focus-visible { outline: 2px solid #2b2420; outline-offset: -6px; }
+.yge-card.blank { cursor: default; background: #fff; border: 1.5px dashed rgba(43, 36, 32, 0.42); box-shadow: 0 3px 8px rgba(20, 16, 30, 0.12); color: rgba(43, 36, 32, 0.7); }
+.yge-card.blank span { font-family: var(--ui-font); font-size: 12.5px; color: rgba(43, 36, 32, 0.64); }
+.yge-card.shake { animation: yge-shake 0.42s ease-in-out; }
+@keyframes yge-shake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+/* 広い画面では、手札を横に並べる */
+@media (min-width: 700px) {
+  .yge-hand { flex-direction: row; justify-content: center; align-items: stretch; max-width: none; overflow: visible; }
+  .yge-card { flex: 0 1 240px; padding: 14px 18px 15px; }
+  .yge-card:hover { transform: translateY(-2px); }
+  .yge-title span { font-size: 32px; }
+}
+/* 低い画面では、詰める */
+@media (max-height: 700px) {
+  .yg.yge { gap: 6px; }
+  .yge-board { gap: 8px; }
+  .yge-title span { font-size: 22px; }
+  .yge-slot { min-height: 56px; }
+  .yge-card { min-height: 48px; padding: 7px 14px 8px; }
+  .yge-card b { font-size: 15.5px; }
+  .yge-card span { font-size: 13px; line-height: 1.5; }
+}
+/* 横向きのスマホなど: 言葉の下の案内と題の上の小さな字を外す */
+@media (max-height: 480px) {
+  .yg.yge { padding-top: calc(8px + var(--sat)); padding-bottom: calc(66px + var(--sab)); }
+  .yge .yg-say { padding: 6px 12px; }
+  .yge .yg-say p { min-height: 0; font-size: 15px; line-height: 1.55; }
+  .yge .yg-say small, .yge-title small { display: none; }
+  .yge-title { padding: 2px 18px 3px; }
+  .yge-title span { font-size: 20px; }
+  .yge-slot { min-height: 46px; }
+  .yge-board { gap: 6px; }
+}
+/* 動きを減らす設定: 渦は回さず、揺らさない（濃さだけで伝える） */
+@media (prefers-reduced-motion: reduce) {
+  .yge-swirl svg, .yge-card.shake, .yge-slot.just { animation: none; }
+  .yge-swirl { transform: translate(-50%, -50%); }
+  .yge-card:hover { transform: none; }
+}
 /* 伝承の札（和紙のカード） */
 .yc-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px 16px calc(56px + var(--sab)); background: rgba(30, 26, 22, 0.28); opacity: 0; pointer-events: none; transition: opacity 0.45s; z-index: 40; }
 .yc-wrap.on { opacity: 1; pointer-events: auto; }
@@ -351,7 +436,7 @@ export class DialogueView {
   private readonly cardWrap: HTMLDivElement
   private readonly cardEl: HTMLDivElement
   private beat: Beat | null = null
-  private game: MatsuGame | null = null
+  private game: MatsuGame | EtokiGame | null = null
   private readonly root: HTMLElement
   private openFlag = false
   /** 連打で2拍進まないように、表示してから少し待つ */
@@ -360,7 +445,8 @@ export class DialogueView {
   constructor(
     root: HTMLElement,
     private readonly hooks: DialogueHooks,
-    private readonly notices: { yokaiName(id: string): string },
+    /** お知らせに出す妖怪の名前と、遊びの中で鳴らす鈴（なければ鳴らさない） */
+    private readonly deps: { yokaiName(id: string): string; sound?: { bell(v?: number): void } },
   ) {
     injectStyle()
     this.root = root
@@ -395,8 +481,13 @@ export class DialogueView {
     this.cardWrap.appendChild(this.cardEl)
     root.appendChild(this.cardWrap)
 
+    // キーボードで操作しているか（遊びの札にキーボードの位置の枠を出すのは、そのときだけ）
+    window.addEventListener('keydown', () => root.classList.add('yd-keys'), true)
+    window.addEventListener('pointerdown', () => root.classList.remove('yd-keys'), true)
     window.addEventListener('keydown', (e) => {
       if (!this.openFlag || e.repeat) return
+      // 遊びの間は、Enter・Space を遊びの中のボタン（札・会話をやめる）に任せる。ここで止めると押せなくなる。数字キーも使わない
+      if (this.beat?.kind === 'game') return
       if (e.code === 'Enter' || e.code === 'Space') {
         if (this.beat?.kind === 'choices') return
         e.preventDefault()
@@ -443,22 +534,16 @@ export class DialogueView {
       this.cardWrap.classList.remove('on')
       this.wrap.style.visibility = 'hidden'
       this.game?.dispose()
-      if (beat.game.type !== 'matsu') {
-        // 絵解き鎮めの画面は、まだない（次の作業で足す）。いまは並べ終えたことにして進む
+      const done = (result: GameResult) => {
+        this.game = null
         this.wrap.style.visibility = ''
-        window.setTimeout(() => this.hooks.next({ mistakes: 0 }), 0)
-        return
+        this.hooks.next(result)
       }
-      this.game = new MatsuGame(
-        this.root,
-        beat.game,
-        (result) => {
-          this.game = null
-          this.wrap.style.visibility = ''
-          this.hooks.next(result)
-        },
-        () => this.hooks.close(),
-      )
+      const quit = () => this.hooks.close()
+      this.game =
+        beat.game.type === 'etoki'
+          ? new EtokiGame(this.root, beat.game, beat.hand ?? [], done, quit, this.deps.sound)
+          : new MatsuGame(this.root, beat.game, done, quit)
       return
     }
     if (beat.kind === 'card') {
@@ -504,7 +589,7 @@ export class DialogueView {
       this.tagEl.textContent = 'おしらせ'
       this.tagEl.title = ''
       this.textEl.className = 'yd-text notice'
-      this.textEl.innerHTML = noticeHtml(beat.notice, this.notices.yokaiName)
+      this.textEl.innerHTML = noticeHtml(beat.notice, this.deps.yokaiName)
       this.nextEl.style.display = ''
     }
   }
@@ -655,6 +740,352 @@ class MatsuGame {
     this.root.classList.remove('yg-playing')
     window.setTimeout(() => this.el.remove(), 450)
   }
+}
+
+// ---------------------------------------------------------------- 絵解き鎮め
+
+/** 枠の番号（札の番号ではない。札の番号は順番が分かってしまうので出さない） */
+const SLOT_LABEL = ['一', '二', '三', '四']
+
+/**
+ * 絵解き鎮め（04 §3.5）。手札（調べるで拾った札）を、話の順に1枚ずつ選んで枠に置く。点数・打ち切りはない。
+ * 合っていれば鈴が鳴り、墨の渦が1段引く。違えば渦が少し濃くなり、ましろが声をかけるだけ。
+ * 拾っていない札・まだ作っていない札は白紙で出て、選べない。その番が来たら少し待って置き、
+ * ましろが中身を言わずに先へ進める（拾い漏れの救い）。
+ * 墨の渦・藍の帳（場所の畏れ。画面が藍に沈む）は【創作】の演出。spec.plain なら外して、並べるだけ（稽古）にする。
+ * ましろの台詞は台本（GameSpec.lines）から受け取る。
+ */
+class EtokiGame {
+  /** 白紙の札の番が来てから置くまで（ms） */
+  private static readonly BLANK_MS = 900
+  /** はじめの言葉・白紙の言葉を読む間（ms） */
+  private static readonly READ_MS = 1500
+  /** 並べ終えて、ましろの言葉を読んでから閉じるまで（ms） */
+  private static readonly DONE_MS = 1800
+  /** 違う札を選んだときに、渦が濃くなる分と、その上限 */
+  private static readonly WRONG_UP = 0.15
+  private static readonly LEVEL_MAX = 1.4
+  private readonly el: HTMLDivElement
+  private readonly sayText: HTMLElement
+  private readonly hint: HTMLElement
+  private readonly veil: HTMLElement | null = null
+  private readonly swirl: HTMLElement | null = null
+  private readonly slots: HTMLElement[] = []
+  private readonly count: HTMLElement
+  private readonly handEl: HTMLElement
+  /** 手札の札（hand の番号 → 札の要素） */
+  private readonly cards = new Map<number, HTMLElement>()
+  private readonly lines: Required<NonNullable<EtokiSpec['lines']>>
+  /** 置いた枚数（次に置くのは hand[placed]） */
+  private placed = 0
+  private mistakes = 0
+  /** 渦の強さ（1 で始まり、置くごとに 1/N 引く。違うと少し濃くなる。並べ終えると 0） */
+  private level = 1
+  /** 白紙を置くまでの間と、並べ終えたあとは、札を選べない */
+  private waiting = false
+  private finished = false
+  private disposed = false
+  private readonly timers = new Set<number>()
+
+  constructor(
+    private readonly root: HTMLElement,
+    spec: EtokiSpec,
+    private readonly hand: EtokiHandCard[],
+    private readonly done: (r: GameResult) => void,
+    quit: () => void,
+    private readonly sound?: { bell(v?: number): void },
+  ) {
+    // ましろの台詞は台本（game.lines）から。なければ既定
+    this.lines = {
+      start: spec.lines?.start ?? '話の順に、札を一枚ずつ選んでいこう。',
+      right: spec.lines?.right ?? '……風が、少し弱まった。',
+      wrong: spec.lines?.wrong ?? 'ちがうみたい。札の言葉を、よく読んでみよう。',
+      wrongAgain: spec.lines?.wrongAgain ?? '話のはじまりは、どの札だろう。',
+      blank: spec.lines?.blank ?? 'ここは、まだ拾っていない話。……あとで、拾いに行こう。',
+      pending: spec.lines?.pending ?? 'この札は、まだ白紙のまま。',
+      done: spec.lines?.done ?? '……風が、やんだ。',
+    }
+    this.el = el('div', `yg yge${spec.plain ? ' plain' : ''}`)
+    this.el.setAttribute('role', 'dialog')
+    this.el.setAttribute('aria-label', `絵解き${spec.plain ? 'の稽古' : '鎮め'}「${spec.title}」。札を話の順に選ぶ`)
+    // 確認用（Playwright から読む）: 違えた回数。渦の強さは data-level
+    this.el.dataset.mistakes = '0'
+    if (!spec.plain) {
+      this.veil = el('div', 'yge-veil')
+      this.swirl = el('div', 'yge-swirl', `${swirlSvg('out')}${swirlSvg('in')}`)
+      this.el.append(this.veil, this.swirl)
+    }
+    const say = el(
+      'div',
+      'yg-say',
+      `<div class="yg-head"><b>ましろ</b><span class="yg-tag" title="本作の創作の台詞（伝承の事実は「伝承の札」で示します）">台本・創作</span></div><p aria-live="polite">${escapeHtml(this.lines.start)}</p><small>札を選ぶと、つぎの枠に置かれる</small>`,
+    )
+    this.sayText = say.querySelector('p') as HTMLElement
+    this.hint = say.querySelector('small') as HTMLElement
+    const board = el('div', 'yge-board')
+    const title = el('h2', 'yge-title', `<small>${spec.plain ? '絵解きの稽古' : '絵解き鎮め'}</small><span>${escapeHtml(spec.title)}</span>`)
+    const slotList = el('ol', 'yge-slots')
+    slotList.setAttribute('aria-label', '話の順の枠')
+    hand.forEach((_, i) => {
+      const li = el('li', 'yge-slot', `<b>${SLOT_LABEL[i] ?? String(i + 1)}</b><span></span>`)
+      slotList.appendChild(li)
+      this.slots.push(li)
+    })
+    this.count = el('p', 'yge-count')
+    this.handEl = el('div', 'yge-hand')
+    this.handEl.setAttribute('role', 'group')
+    this.handEl.setAttribute('aria-label', '手札')
+    // 手札: 持っている札（決まった入れ替え）のあとに白紙。札の番号（card.number）は出さない
+    for (const i of handOrder(hand)) {
+      const c = hand[i]
+      let e: HTMLElement
+      if (c.card) {
+        const b = el('button', 'yge-card', `<b>${escapeHtml(c.card.title)}</b><span>${keepQuotes(escapeHtml(c.card.body))}</span>`) as HTMLButtonElement
+        b.type = 'button'
+        b.addEventListener('click', () => this.pick(i))
+        e = b
+      } else {
+        e = el('div', 'yge-card blank', `<b>白紙</b><span>${c.blank === 'pending' ? 'まだ白紙の頁' : 'まだ拾っていない話'}</span>`)
+        e.setAttribute('aria-disabled', 'true')
+      }
+      this.handEl.appendChild(e)
+      this.cards.set(i, e)
+    }
+    board.append(title, slotList, this.count, this.handEl)
+    const quitBtn = el('button', 'yg-quit', '会話をやめる') as HTMLButtonElement
+    quitBtn.type = 'button'
+    quitBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      quit()
+    })
+    this.el.append(say, board, quitBtn)
+    root.appendChild(this.el)
+    root.classList.add('yg-playing')
+    this.refresh()
+    // 読み直してから付けると、出るときのフェードと、渦・藍が濃くなっていく様子が残る
+    void this.el.offsetWidth
+    this.el.classList.add('on')
+    this.setLevel(1)
+    this.focusFirst()
+    // 1枚目が白紙なら、はじめの言葉を読んでから置く
+    this.proceed(EtokiGame.READ_MS)
+  }
+
+  /** 札を選んだ。次の番の札なら置き、違えば渦が少し濃くなる */
+  private pick(i: number): void {
+    if (this.disposed || this.waiting || this.finished) return
+    if (i === this.placed) {
+      this.sound?.bell(0.6)
+      this.place(i)
+      // 最後の1枚なら、そのまま「風がやんだ」へ
+      if (this.placed >= this.hand.length) this.finish(0)
+      else {
+        this.say(this.lines.right)
+        this.proceed(EtokiGame.BLANK_MS)
+      }
+      return
+    }
+    this.mistakes++
+    this.el.dataset.mistakes = String(this.mistakes)
+    this.setLevel(Math.min(EtokiGame.LEVEL_MAX, this.level + EtokiGame.WRONG_UP))
+    this.say(this.mistakes === 1 ? this.lines.wrong : this.lines.wrongAgain)
+    const e = this.cards.get(i)
+    if (e) {
+      // 揺れ（動きを減らす設定では CSS が止める）。続けて選んでも揺れるよう、付け直す
+      e.classList.remove('shake')
+      void e.offsetWidth
+      e.classList.add('shake')
+      this.later(450, () => e.classList.remove('shake'))
+    }
+  }
+
+  /** 次の番へ: 並べ終えたら終わり。白紙の番なら少し待って置く。そうでなければ札を選んでもらう */
+  private proceed(pause: number): void {
+    if (this.placed >= this.hand.length) {
+      this.finish(pause)
+      return
+    }
+    if (this.hand[this.placed].blank) {
+      this.waiting = true
+      this.later(pause, () => {
+        const i = this.placed
+        const blank = this.hand[i].blank
+        this.place(i)
+        this.say(blank === 'pending' ? this.lines.pending : this.lines.blank)
+        this.waiting = false
+        this.proceed(EtokiGame.READ_MS)
+      })
+      return
+    }
+    this.waiting = false
+  }
+
+  /** hand[i] を枠に置く（手札から消し、渦を1段引く） */
+  private place(i: number): void {
+    const c = this.hand[i]
+    const slot = this.slots[i]
+    const text = slot.querySelector('span') as HTMLElement
+    text.textContent = c.card ? c.card.title : '白紙'
+    slot.classList.add('filled', 'just')
+    slot.classList.toggle('blank', !c.card)
+    slot.setAttribute('aria-label', `${SLOT_LABEL[i] ?? i + 1}: ${c.card ? c.card.title : `白紙（${c.blank === 'pending' ? 'まだ白紙の頁' : 'まだ拾っていない話'}）`}`)
+    this.later(520, () => slot.classList.remove('just'))
+    const had = this.cards.get(i)
+    const hadFocus = !!had && had === document.activeElement
+    had?.remove()
+    this.cards.delete(i)
+    this.placed++
+    this.setLevel(this.level - 1 / Math.max(1, this.hand.length))
+    this.refresh()
+    // 選んだ札が消えると、キーボードの位置がなくなる。次の札へ移す（白紙を置いたときは、いまの位置のまま）
+    if (hadFocus || !this.el.contains(document.activeElement)) this.focusFirst()
+  }
+
+  /** 並べ終えた: 渦が消え、ましろの言葉を読んでから会話へ戻す（2回は終わらない） */
+  private finish(pause: number): void {
+    if (this.finished) return
+    this.finished = true
+    this.waiting = true
+    // 案内は消すが、場所は残す（言葉の枠が縮むと、題と枠が動いてしまう）
+    this.hint.style.visibility = 'hidden'
+    const calm = () => {
+      this.setLevel(0)
+      this.say(this.lines.done)
+      this.later(EtokiGame.DONE_MS, () => {
+        const m = this.mistakes
+        this.dispose()
+        this.done({ mistakes: m })
+      })
+    }
+    if (pause > 0) this.later(pause, calm)
+    else calm()
+  }
+
+  /** 枠の「つぎ」と、並べた枚数（色だけにしない: 文字で数も出す） */
+  private refresh(): void {
+    this.slots.forEach((s, i) => {
+      const next = i === this.placed && !this.finished
+      s.classList.toggle('next', next)
+      if (!s.classList.contains('filled')) (s.querySelector('span') as HTMLElement).textContent = next ? 'つぎ' : ''
+    })
+    this.count.innerHTML = `並べた札<b>${this.placed} / ${this.hand.length}</b>`
+  }
+
+  private say(text: string): void {
+    this.sayText.textContent = text
+    // 同じ言葉が続いても、言い直したと分かるように、ふっと濃くする（動きではなく濃さ）
+    this.sayText.classList.remove('fresh')
+    void this.sayText.offsetWidth
+    this.sayText.classList.add('fresh')
+  }
+
+  /** 渦の強さ（藍の帳の濃さ・墨の渦の濃さと大きさ） */
+  private setLevel(v: number): void {
+    this.level = Math.max(0, Math.min(EtokiGame.LEVEL_MAX, v))
+    this.el.dataset.level = this.level.toFixed(2)
+    if (this.veil) this.veil.style.opacity = Math.min(0.84, this.level * 0.6).toFixed(3)
+    if (this.swirl) {
+      this.swirl.style.opacity = Math.min(1, this.level * 0.85).toFixed(3)
+      this.swirl.style.setProperty('--s', (0.8 + 0.2 * this.level).toFixed(3))
+    }
+  }
+
+  /** いちばん前の、選べる札にキーボードの位置を置く */
+  private focusFirst(): void {
+    this.later(50, () => (this.handEl.querySelector('button.yge-card') as HTMLButtonElement | null)?.focus({ preventScroll: true }))
+  }
+
+  /** 閉じたあとには動かないタイマー */
+  private later(ms: number, fn: () => void): void {
+    const id = window.setTimeout(() => {
+      this.timers.delete(id)
+      if (!this.disposed) fn()
+    }, ms)
+    this.timers.add(id)
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    for (const id of this.timers) window.clearTimeout(id)
+    this.timers.clear()
+    this.el.classList.remove('on')
+    this.el.style.pointerEvents = 'none'
+    this.root.classList.remove('yg-playing')
+    window.setTimeout(() => this.el.remove(), 450)
+  }
+}
+
+/**
+ * 手札を出す順（hand の番号）。持っている札は、札の id から決まる入れ替えにする（開くたびに同じ並び）。
+ * 2枚以上なら、正しい順のままにはしない。白紙は選べないので、うしろにまとめる。
+ */
+function handOrder(hand: EtokiHandCard[]): number[] {
+  const held = hand.flatMap((c, i) => (c.card ? [i] : []))
+  const blanks = hand.flatMap((c, i) => (c.card ? [] : [i]))
+  let h = 2166136261
+  for (const c of hand) for (let k = 0; k < c.key.length; k++) h = Math.imul(h ^ c.key.charCodeAt(k), 16777619) >>> 0
+  const order = held.slice()
+  for (let i = order.length - 1; i > 0; i--) {
+    h = (Math.imul(h, 1664525) + 1013904223) >>> 0
+    const j = h % (i + 1)
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  // 正しい順のままなら、1枚ずらす
+  if (order.length >= 2 && order.every((v, k) => v === held[k])) order.push(order.shift()!)
+  return [...order, ...blanks]
+}
+
+/**
+ * 墨の渦（【創作】の演出）。筆で掃いたような、途切れた渦の線を、決まった形で描く。外の輪と内の輪を逆向きに回す（回すのは CSS）。
+ * 内の輪には、風の筋（淡い細い線）を少し混ぜる。社殿・鳥居・お札などの形は描かない。
+ */
+function swirlSvg(ring: 'out' | 'in'): string {
+  // [はじめの半径, おわりの半径, はじめの角度(度), 掃く角度(度), 太さ, 濃さ]
+  const strokes: [number, number, number, number, number, number][] =
+    ring === 'out'
+      ? [
+          [94, 82, 8, 140, 5.5, 0.8],
+          [88, 72, 196, 118, 3.4, 0.66],
+          [76, 62, 112, 168, 6.5, 0.82],
+          [70, 56, 318, 104, 2.4, 0.6],
+          [97, 92, 262, 64, 1.8, 0.5],
+        ]
+      : [
+          [54, 38, 36, 196, 5, 0.8],
+          [46, 30, 252, 138, 3, 0.7],
+          [32, 20, 150, 156, 2.4, 0.6],
+          [60, 55, 176, 62, 1.6, 0.5],
+        ]
+  const wind: [number, number, number, number, number][] =
+    ring === 'in'
+      ? [
+          [64, 58, 86, 84, 1.3],
+          [40, 34, 300, 70, 1.1],
+          [84, 80, 220, 52, 1.2],
+        ]
+      : []
+  const ink = strokes.map(([r0, r1, a0, sw, w, o]) => `<path d="${brushPath(r0, r1, a0, sw, w)}" fill="#2a2622" fill-opacity="${o}"/>`).join('')
+  const pale = wind.map(([r0, r1, a0, sw, w]) => `<path d="${brushPath(r0, r1, a0, sw, w)}" fill="#f4f0e6" fill-opacity="0.55"/>`).join('')
+  return `<svg class="${ring}" viewBox="-100 -100 200 200" aria-hidden="true">${ink}${pale}</svg>`
+}
+
+/** 渦の一筆（半径を変えながら弧を掃く）。入りは細く、途中で太り、払いで細くなる */
+function brushPath(r0: number, r1: number, a0: number, sweep: number, w: number): string {
+  const n = 28
+  const outer: string[] = []
+  const inner: string[] = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const a = ((a0 + sweep * t) * Math.PI) / 180
+    const r = r0 + (r1 - r0) * t
+    const k = (w / 2) * Math.sin(Math.PI * t ** 0.75)
+    const cx = Math.cos(a)
+    const cy = Math.sin(a)
+    outer.push(`${(cx * (r + k)).toFixed(1)},${(cy * (r + k)).toFixed(1)}`)
+    inner.push(`${(cx * (r - k)).toFixed(1)},${(cy * (r - k)).toFixed(1)}`)
+  }
+  return `M${outer.join('L')}L${inner.reverse().join('L')}Z`
 }
 
 // ---------------------------------------------------------------- 曼荼羅帳
