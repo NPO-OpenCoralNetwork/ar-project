@@ -169,21 +169,41 @@
       "y1": 728,
       "pieces": [
         {
-          "id": "sato-1",
+          "id": "sato-game",
+          "label": "ガメ",
+          "yokaiId": "game",
+          "art": "game",
+          "cardIds": [
+            "game-1"
+          ],
           "x": 40,
           "y": 580,
           "w": 56,
           "h": 54
         },
         {
-          "id": "sato-2",
+          "id": "sato-karabozu",
+          "label": "カーラボーズ",
+          "yokaiId": "karabozu",
+          "art": "karabozu",
+          "cardIds": [
+            "karabozu-1"
+          ],
           "x": 122,
           "y": 580,
           "w": 56,
           "h": 54
         },
         {
-          "id": "sato-3",
+          "id": "sato-minomoshi",
+          "label": "ミノモシ",
+          "yokaiId": "minomoshi",
+          "art": "minomoshi",
+          "cardIds": [
+            "mino-1",
+            "mino-2",
+            "mino-3"
+          ],
           "x": 204,
           "y": 580,
           "w": 56,

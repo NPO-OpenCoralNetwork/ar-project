@@ -75,7 +75,7 @@ export class Encounters {
     this.dialogue = new DialogueView(
       root,
       {
-        next: () => this.onBeat(this.active?.runner.next() ?? { kind: 'end' }),
+        next: (r) => this.onBeat(this.active?.runner.next(r) ?? { kind: 'end' }),
         choose: (i) => this.onBeat(this.active?.runner.choose(i) ?? { kind: 'end' }),
         close: () => this.endTalk('closed'),
       },

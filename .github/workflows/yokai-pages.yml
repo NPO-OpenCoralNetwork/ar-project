@@ -11,10 +11,13 @@ name: yokai-game pages
 #
 # 前提: リポジトリの Settings → Pages → Build and deployment → Source を「GitHub Actions」にしておく。
 # まだなら、公開を飛ばしてビルドの確認だけで終える。
+#
+# 10/17: GitHub Actions は当面使わない方針（費用の確認が済むまで。レビューは開発のセッションの中で行う）。
+# そのため、プッシュでは動かさず、手動（Actions タブの「Run workflow」）でだけ動く。再開するときは、下の push を戻す。
 on:
-  push:
-    branches: [main, 'claude/**']
-    paths: ['apps/yokai-game/**', '.github/workflows/yokai-pages.yml']
+  # push:
+  #   branches: [main, 'claude/**']
+  #   paths: ['apps/yokai-game/**', '.github/workflows/yokai-pages.yml']
   workflow_dispatch:
 
 permissions:

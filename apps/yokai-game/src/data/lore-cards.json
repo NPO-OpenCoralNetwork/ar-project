@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "伝承の札。中身は docs/yokai-game/03-tateyama-folklore-research.md（確度「確認済」）だけから書く。言い換えない。公開前に監修を通す（02 F-71）。社寺名・由緒は入れない（04 §5.2）。",
+  "note": "伝承の札。中身は docs/yokai-game/03-tateyama-folklore-research.md（確度「確認済」）だけから書く。言い換えない。公開前に監修を通す（02 F-71）。社寺名・由緒は入れない（04 §5.2）。 10/17: ガメ・カーラボーズ（03 #18）とミノモシ（03 #17）の札を足した。本文は日文研の怪異・妖怪伝承データベースの要約（原典の採録）に沿う。#18 の採録は1件だけで、富山の売薬の起源とは結びつけない。",
   "cards": [
     {
       "id": "kozobo-1",
@@ -12,12 +12,113 @@
         "work": "『和漢三才図会』",
         "year": 1712,
         "checkedIn": [
-          { "label": "細木2019（立山博物館 研究紀要）", "url": "https://tatehaku.jp/wp-content/themes/tatehaku/common/images/pdf/bulletin/2019/26_2019_04.pdf" },
-          { "label": "国際日本文化研究センター 怪異・妖怪伝承データベース", "url": "https://www.nichibun.ac.jp/YoukaiCard/0030432.html" }
+          {
+            "label": "細木2019（立山博物館 研究紀要）",
+            "url": "https://tatehaku.jp/wp-content/themes/tatehaku/common/images/pdf/bulletin/2019/26_2019_04.pdf"
+          },
+          {
+            "label": "国際日本文化研究センター 怪異・妖怪伝承データベース",
+            "url": "https://www.nichibun.ac.jp/YoukaiCard/0030432.html"
+          }
         ]
       },
       "confidence": "確認済",
       "researchRef": "03 #8",
+      "review": "下書き"
+    },
+    {
+      "id": "game-1",
+      "yokaiId": "game",
+      "title": "河童は「ガメ」、親方は「カーラボーズ」",
+      "body": "富山市では、河童を「ガメ」、その親方を「カーラボーズ」と呼ぶ。",
+      "source": {
+        "work": "高崎正秀「河童俗伝」『民族』3巻5号",
+        "year": 1928,
+        "checkedIn": [
+          {
+            "label": "国際日本文化研究センター 怪異・妖怪伝承データベース（2240171）",
+            "url": "https://www.nichibun.ac.jp/YoukaiCard/2240171.html"
+          }
+        ]
+      },
+      "confidence": "確認済",
+      "researchRef": "03 #18",
+      "review": "下書き"
+    },
+    {
+      "id": "karabozu-1",
+      "yokaiId": "karabozu",
+      "title": "腕を返してもらう代わりに",
+      "body": "捕まえられて抜けた腕は、カーラボーズのものだった。腕を返してもらう代わりに、薬の作り方を教えたという。",
+      "source": {
+        "work": "高崎正秀「河童俗伝」『民族』3巻5号",
+        "year": 1928,
+        "checkedIn": [
+          {
+            "label": "国際日本文化研究センター 怪異・妖怪伝承データベース（2240171）",
+            "url": "https://www.nichibun.ac.jp/YoukaiCard/2240171.html"
+          }
+        ]
+      },
+      "confidence": "確認済",
+      "researchRef": "03 #18",
+      "review": "下書き"
+    },
+    {
+      "id": "mino-1",
+      "yokaiId": "minomoshi",
+      "title": "払うほど、増える",
+      "body": "歩いていると、体にミノモシがつく。手で払うと、かえって増えたという。",
+      "source": {
+        "work": "伊藤曙覧「妖怪変化とつきもの」『富山県史 民俗編』",
+        "year": 1973,
+        "checkedIn": [
+          {
+            "label": "国際日本文化研究センター 怪異・妖怪伝承データベース（C1610109-000）",
+            "url": "https://www.nichibun.ac.jp/YoukaiCard/C1610109-000.html"
+          }
+        ]
+      },
+      "confidence": "確認済",
+      "researchRef": "03 #17",
+      "review": "下書き"
+    },
+    {
+      "id": "mino-2",
+      "yokaiId": "minomoshi",
+      "title": "荒れる天気の前ぶれ",
+      "body": "漁師は、ミノモシが出ると、天気が荒れる前ぶれだと言った。",
+      "source": {
+        "work": "伊藤曙覧「妖怪変化とつきもの」『富山県史 民俗編』",
+        "year": 1973,
+        "checkedIn": [
+          {
+            "label": "国際日本文化研究センター 怪異・妖怪伝承データベース（C1610109-000）",
+            "url": "https://www.nichibun.ac.jp/YoukaiCard/C1610109-000.html"
+          }
+        ]
+      },
+      "confidence": "確認済",
+      "researchRef": "03 #17",
+      "review": "下書き"
+    },
+    {
+      "id": "mino-3",
+      "yokaiId": "minomoshi",
+      "title": "腰に曲尺",
+      "body": "腰に曲尺（かねじゃく）を差して歩くと、難を逃れられると言った。",
+      "source": {
+        "work": "伊藤曙覧「妖怪変化とつきもの」『富山県史 民俗編』",
+        "year": 1973,
+        "checkedIn": [
+          {
+            "label": "国際日本文化研究センター 怪異・妖怪伝承データベース（C1610109-000）",
+            "url": "https://www.nichibun.ac.jp/YoukaiCard/C1610109-000.html"
+          }
+        ]
+      },
+      "confidence": "確認済",
+      "researchRef": "03 #17",
       "review": "下書き"
     }
   ]

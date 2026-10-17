@@ -115,6 +115,18 @@ export type Condition =
   | { flag: string; is: boolean }
   | { travel: Travel }
 
+/**
+ * 会話の途中に入る小さな遊び（失敗はない。04 §3.4）。
+ * - matsu: 「払わずに待つ」（ミノモシ番外）。体につく光を払うと増え、しばらく何もしないと離れていく。
+ *   払った（タップした）かどうかを tappedFlag に保存し、そのあとの台詞の出し分けに使える
+ */
+export type GameSpec = { type: 'matsu'; tappedFlag?: string }
+
+export interface GameResult {
+  /** 払った（タップした）回数 */
+  tapped: number
+}
+
 /** 台本の効果（台本の流れの中で、その場所に来たときに1回だけ適用して保存する） */
 export type Effect =
   | { meet: true }
@@ -122,6 +134,7 @@ export type Effect =
   | { openCard: string }
   | { piece: string; state: PieceState }
   | { flag: string; value: boolean }
+  | { game: GameSpec }
 
 export interface ScriptLine {
   /** speakers のキー */

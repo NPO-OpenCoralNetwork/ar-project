@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "id": "karabozu",
+  "yokaiId": "karabozu",
+  "creative": true,
+  "review": "下書き",
+  "note": "カーラボーズ（ガメの親方）の台本。台詞はすべて【創作】（性格: 無口で頑固な世話焼き。見習いに最初の仕事を頼む。一人称「おれ」、呼び方「見習い」。04 §4.1）。伝承の事実は札 karabozu-1（03 #18）でだけ出す。腕の話は台詞では語らず、札にまかせる。富山の売薬の起源とは結びつけない（03 #18）。悩み #1「ガメ⇄カーラボーズ」（とりもつ・伝言2か所。04 付録A）の親方の側: 伝言を頼む（tm1-asked）→ ガメの返事を伝える（伝え方を選ぶ）→ 仲直り（tm1-done）で札と「なじみ」。失敗はなく、選び方で台詞が変わるだけ（04 §3.4）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない案内を必ず入れる（安全）。富山弁の監修までは、ぶっきらぼうな言い方にとどめる。",
+  "speakers": {
+    "karabozu": { "name": "カーラボーズ", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "label": "現地ではじめて（夢で会っていた）", "when": [{ "travel": "utsutsu" }, { "flag": "kb-genchi", "is": false }, { "met": true }], "node": "u_reunion" },
+    { "label": "現地ではじめて", "when": [{ "travel": "utsutsu" }, { "flag": "kb-genchi", "is": false }], "node": "u_first" },
+    { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
+    { "label": "ガメの返事を伝える", "when": [{ "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }], "node": "deliver" },
+    { "label": "伝言を運んでいる途中", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-done", "is": false }], "node": "waiting" },
+    { "label": "まだ仕事を頼んでいない", "when": [{ "flag": "tm1-asked", "is": false }], "node": "ask_again" },
+    { "label": "また会う", "node": "again" }
+  ],
+  "nodes": {
+    "first": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……川のほうから、だれか見てる。" },
+        { "speaker": "karabozu", "text": "……見習いか。" }
+      ],
+      "effects": [{ "meet": true }, { "bond": "kaomishiri" }],
+      "next": "first2"
+    },
+    "first2": {
+      "lines": [
+        { "speaker": "karabozu", "text": "おれはカーラボーズ。このあたりのガメどもの、親方だ。" },
+        { "speaker": "mashiro", "text": "ガメ？" },
+        { "speaker": "karabozu", "text": "河童のことだ。この辺じゃ、そう呼ぶ。" }
+      ],
+      "next": "ask"
+    },
+    "ask_again": {
+      "lines": [{ "speaker": "karabozu", "text": "……おう、見習い。" }],
+      "next": "ask"
+    },
+    "ask": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……ちょうどいい。ひとつ、頼まれてくれ。" },
+        { "speaker": "karabozu", "text": "ガメのやつが、帰ってこん。ちょっと叱っただけで、すねおった。" }
+      ],
+      "choices": [
+        { "text": "伝言なら、運ぶよ", "next": "ask_yes" },
+        { "text": "なにがあったの？", "next": "ask_why" }
+      ]
+    },
+    "ask_why": {
+      "lines": [
+        { "speaker": "karabozu", "text": "人の町を見に行くと言うから、だめだと言った。" },
+        { "speaker": "karabozu", "text": "……声が、大きかったかもしれん。" }
+      ],
+      "next": "ask_yes"
+    },
+    "ask_yes": {
+      "lines": [
+        { "speaker": "karabozu", "text": "「晩までに戻れ」と伝えてくれ。……それだけでいい。" },
+        { "speaker": "mashiro", "text": "それだけ？" },
+        { "speaker": "karabozu", "text": "それだけだ。" }
+      ],
+      "effects": [{ "flag": "tm1-asked", "value": true }, { "piece": "sato-karabozu", "state": "hakubyo" }],
+      "next": "ask_end"
+    },
+    "ask_end": {
+      "lines": [
+        { "speaker": "mashiro", "text": "ガメは、川沿いの道のどこかにいるみたい。" },
+        { "speaker": "karabozu", "text": "……川には入るなよ、見習い。人の子は流される。" }
+      ],
+      "end": true
+    },
+    "waiting": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……まだか。" },
+        { "speaker": "karabozu", "text": "ガメは、川沿いの道のどこかにいる。……急がんでいい。" }
+      ],
+      "end": true
+    },
+    "deliver": {
+      "lines": [{ "speaker": "karabozu", "text": "……ガメは、なんと言っておった。" }],
+      "choices": [
+        { "text": "「ごめん」って言ってたよ", "next": "deliver_sorry" },
+        { "text": "町を見たかっただけで、親方のことは好きだって", "next": "deliver_heart" }
+      ]
+    },
+    "deliver_sorry": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……そうか。" },
+        { "speaker": "karabozu", "text": "あいつが謝るなら、おれも言いすぎた。" }
+      ],
+      "next": "resolve"
+    },
+    "deliver_heart": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……好き、だと？" },
+        { "speaker": "karabozu", "text": "……ふん。そういうことは、自分で言え。" },
+        { "speaker": "mashiro", "text": "（照れてる……）" }
+      ],
+      "next": "resolve"
+    },
+    "resolve": {
+      "lines": [
+        { "speaker": "karabozu", "text": "見習い。……世話をかけたな。" },
+        { "speaker": "karabozu", "text": "礼に、昔の話をひとつ。……恥ずかしい話だがな。" }
+      ],
+      "effects": [{ "flag": "tm1-done", "value": true }, { "openCard": "karabozu-1" }, { "bond": "najimi" }],
+      "next": "resolve_end"
+    },
+    "resolve_end": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……ガメには、まだ言うなよ。" },
+        { "speaker": "mashiro", "text": "ふふ、言わないよ。" }
+      ],
+      "end": true
+    },
+    "u_reunion": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……夢で見た顔だな。本当に来たのか。" },
+        { "speaker": "mashiro", "text": "色が、ある……！" }
+      ],
+      "effects": [{ "meet": true }, { "flag": "kb-genchi", "value": true }, { "piece": "sato-karabozu", "state": "saishiki" }],
+      "next": "u_here"
+    },
+    "u_first": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……いる。立ち止まったら、見えた。" },
+        { "speaker": "karabozu", "text": "……見習いか。足で来たか。" }
+      ],
+      "effects": [{ "meet": true }, { "bond": "kaomishiri" }, { "flag": "kb-genchi", "value": true }, { "piece": "sato-karabozu", "state": "saishiki" }],
+      "next": "u_first2"
+    },
+    "u_first2": {
+      "lines": [
+        { "speaker": "karabozu", "text": "おれはカーラボーズ。このあたりのガメどもの、親方だ。" },
+        { "speaker": "mashiro", "text": "ガメ？" },
+        { "speaker": "karabozu", "text": "河童のことだ。この辺じゃ、そう呼ぶ。" }
+      ],
+      "next": "u_here"
+    },
+    "u_here": {
+      "lines": [{ "speaker": "karabozu", "text": "……ここの水は、夢のより冷たいだろう。手は入れるなよ。" }],
+      "choices": [
+        { "text": "なにか、困ってるの？", "next": "ask", "when": [{ "flag": "tm1-asked", "is": false }] },
+        { "text": "まだ、ガメに会えてない", "next": "waiting", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }] },
+        { "text": "ガメから、返事をあずかってきた", "next": "deliver", "when": [{ "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }] },
+        { "text": "あいさつに来ただけ", "next": "greet", "when": [{ "flag": "tm1-done", "is": true }] }
+      ]
+    },
+    "again": {
+      "lines": [{ "speaker": "karabozu", "text": "……おう、見習い。" }],
+      "choices": [
+        { "text": "札を、もう一度読みたい", "next": "reread", "when": [{ "card": "karabozu-1", "opened": true }] },
+        { "text": "あいさつに来ただけ", "next": "greet" }
+      ]
+    },
+    "reread": {
+      "lines": [{ "speaker": "karabozu", "text": "……物好きだな。" }],
+      "effects": [{ "openCard": "karabozu-1" }],
+      "next": "again_close"
+    },
+    "greet": {
+      "lines": [{ "speaker": "karabozu", "text": "……ふん。悪くない。" }],
+      "next": "again_close"
+    },
+    "again_close": {
+      "lines": [{ "speaker": "karabozu", "text": "川には入るなよ。" }],
+      "end": true
+    }
+  }
+}

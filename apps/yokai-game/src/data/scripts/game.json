@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "id": "game",
+  "yokaiId": "game",
+  "creative": true,
+  "review": "下書き",
+  "note": "ガメ（富山市での河童の呼び名。03 #18）の台本。台詞はすべて【創作】（性格: 人懐っこい。親方に叱られて気まずい。腕の話の河童かどうかは語らない。一人称「おいら」、呼び方「きみ」。04 §4.1）。伝承の事実は札 game-1（03 #18）でだけ出す。悩み #1「ガメ⇄カーラボーズ」（とりもつ）のガメの側: 親方の伝言を、伝え方を選んで伝える（tm1-soft）→ ガメの返事をあずかる（tm1-reply）→ 仲直りのあと、お礼に札と「なじみ」（tm1-game-thanked）。ガメから先に会ってもよい（そのときは親方のことを聞かされる）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない案内を必ず入れる（安全）。",
+  "speakers": {
+    "game": { "name": "ガメ", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "label": "現地ではじめて（夢で会っていた）", "when": [{ "travel": "utsutsu" }, { "flag": "game-genchi", "is": false }, { "met": true }], "node": "u_reunion" },
+    { "label": "現地ではじめて", "when": [{ "travel": "utsutsu" }, { "flag": "game-genchi", "is": false }], "node": "u_first" },
+    { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
+    { "label": "親方の伝言を伝える", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }], "node": "message" },
+    { "label": "仲直りのお礼", "when": [{ "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": false }], "node": "thanks" },
+    { "label": "また会う", "node": "again" }
+  ],
+  "nodes": {
+    "first": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……川沿いの草むらで、なにか動いた。" },
+        { "speaker": "game", "text": "わっ。……み、見えてるの？" }
+      ],
+      "effects": [{ "meet": true }, { "bond": "kaomishiri" }],
+      "next": "first2"
+    },
+    "first2": {
+      "lines": [
+        { "speaker": "game", "text": "おいら、ガメ。河童のガメ。……この辺じゃ、そう呼ぶんだ。" },
+        { "speaker": "game", "text": "ねえ、きみ。親方に会った？　……怒ってた？" }
+      ],
+      "choices": [
+        { "text": "親方から、伝言をあずかってるよ", "next": "message", "when": [{ "flag": "tm1-asked", "is": true }] },
+        { "text": "親方って？", "next": "who_boss", "when": [{ "flag": "tm1-asked", "is": false }] }
+      ]
+    },
+    "who_boss": {
+      "lines": [
+        { "speaker": "game", "text": "カーラボーズ。おいらたちの親方。……ちょっと、けんかしちゃって。" },
+        { "speaker": "game", "text": "もし会ったら、怒ってたかどうか、教えてよ。" }
+      ],
+      "effects": [{ "piece": "sato-game", "state": "hakubyo" }],
+      "next": "who_boss_end"
+    },
+    "who_boss_end": {
+      "lines": [
+        { "speaker": "mashiro", "text": "親方は、どこにいるのかな。" },
+        { "speaker": "game", "text": "川の上のほう。……でも、川には入っちゃだめだよ。人の子は流されるから。" }
+      ],
+      "end": true
+    },
+    "message": {
+      "lines": [{ "speaker": "game", "text": "親方、なんて言ってた？" }],
+      "choices": [
+        { "text": "「晩までに戻れ」だって", "next": "msg_plain" },
+        { "text": "心配してたよ。早く帰ってこいって", "next": "msg_soft" }
+      ]
+    },
+    "msg_plain": {
+      "lines": [
+        { "speaker": "game", "text": "……やっぱり、怒ってる。" },
+        { "speaker": "mashiro", "text": "怒ってるっていうより、言葉が短いだけかも。" },
+        { "speaker": "game", "text": "……そうかなあ。" }
+      ],
+      "effects": [{ "flag": "tm1-soft", "value": false }],
+      "next": "reply"
+    },
+    "msg_soft": {
+      "lines": [
+        { "speaker": "game", "text": "……心配？　親方が？" },
+        { "speaker": "game", "text": "へへ。……そっか。" }
+      ],
+      "effects": [{ "flag": "tm1-soft", "value": true }],
+      "next": "reply"
+    },
+    "reply": {
+      "lines": [
+        { "speaker": "game", "text": "じゃあ、親方に伝えて。人の町、ちょっと見たかっただけなんだ。" },
+        { "speaker": "game", "text": "……ごめんって。" }
+      ],
+      "effects": [{ "flag": "tm1-reply", "value": true }, { "piece": "sato-game", "state": "hakubyo" }],
+      "next": "reply_end"
+    },
+    "reply_end": {
+      "lines": [
+        { "speaker": "mashiro", "text": "伝言、あずかったよ。" },
+        { "speaker": "game", "text": "……ありがと。きみ、いいやつだね。" }
+      ],
+      "end": true
+    },
+    "thanks": {
+      "lines": [
+        { "speaker": "game", "text": "親方、もう怒ってないって！　きみのおかげだよ。" },
+        { "speaker": "game", "text": "お礼に、おいらたちの名前のこと、教えてあげる。" }
+      ],
+      "effects": [{ "flag": "tm1-game-thanked", "value": true }, { "openCard": "game-1" }, { "bond": "najimi" }],
+      "next": "thanks_end"
+    },
+    "thanks_end": {
+      "lines": [{ "speaker": "game", "text": "今度は、おいしいものの話もしてあげるね。" }],
+      "end": true
+    },
+    "u_reunion": {
+      "lines": [
+        { "speaker": "game", "text": "あっ、夢で見た顔だ！　……ほんとに来たの？" },
+        { "speaker": "mashiro", "text": "ガメって、こんな色だったんだ……！" }
+      ],
+      "effects": [{ "meet": true }, { "flag": "game-genchi", "value": true }, { "piece": "sato-game", "state": "saishiki" }],
+      "next": "u_here"
+    },
+    "u_first": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……いる。立ち止まったら、見えた。" },
+        { "speaker": "game", "text": "わっ。……み、見えてるの？　おいら、ガメ。河童のガメ。" }
+      ],
+      "effects": [{ "meet": true }, { "bond": "kaomishiri" }, { "flag": "game-genchi", "value": true }, { "piece": "sato-game", "state": "saishiki" }],
+      "next": "u_here"
+    },
+    "u_here": {
+      "lines": [{ "speaker": "game", "text": "ここの水は、夢のとにおいがちがうでしょ。……あ、でも川には入っちゃだめだよ。" }],
+      "choices": [
+        { "text": "親方って？", "next": "who_boss", "when": [{ "flag": "tm1-asked", "is": false }] },
+        { "text": "親方から、伝言をあずかってるよ", "next": "message", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }] },
+        { "text": "まだ、親方に伝えてないんだ", "next": "wait_boss", "when": [{ "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }] },
+        { "text": "親方とは、仲直りできた？", "next": "thanks", "when": [{ "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": false }] },
+        { "text": "あいさつに来ただけ", "next": "greet", "when": [{ "flag": "tm1-game-thanked", "is": true }] }
+      ]
+    },
+    "wait_boss": {
+      "lines": [{ "speaker": "game", "text": "親方に、伝えてくれた？　……どきどきする。" }],
+      "end": true
+    },
+    "again": {
+      "lines": [{ "speaker": "game", "text": "あ、きみだ！" }],
+      "choices": [
+        { "text": "親方って？", "next": "who_boss", "when": [{ "flag": "tm1-asked", "is": false }] },
+        { "text": "札を、もう一度読みたい", "next": "reread", "when": [{ "card": "game-1", "opened": true }] },
+        { "text": "あいさつに来ただけ", "next": "greet" }
+      ]
+    },
+    "reread": {
+      "lines": [{ "speaker": "game", "text": "いいよ。……ほら。" }],
+      "effects": [{ "openCard": "game-1" }],
+      "next": "again_close"
+    },
+    "greet": {
+      "lines": [{ "speaker": "game", "text": "へへ。きみが来ると、うれしいな。" }],
+      "next": "again_close"
+    },
+    "again_close": {
+      "lines": [{ "speaker": "game", "text": "川には入っちゃだめだよ。またね！" }],
+      "end": true
+    }
+  }
+}

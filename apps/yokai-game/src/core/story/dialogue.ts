@@ -1,7 +1,7 @@
 // 台本の会話を進める仕組み（描画に依存しない）。夢の旅と、のちの現の旅で同じものを使う。
 //
 // 使い方: start() で最初の「拍」（beat）を受け取り、表示し終えたら next()、選択肢なら choose(i)。
-// 拍は、台詞（line）・伝承の札（card）・お知らせ（notice: 縁・ピース）・選択肢（choices）・終わり（end）の5種類。
+// 拍は、台詞（line）・伝承の札（card）・お知らせ（notice: 縁・ピース）・小さな遊び（game）・選択肢（choices）・終わり（end）の6種類。
 // 効果（札・ピース・縁）は、その拍に来たときに1回だけ適用して保存する（途中で閉じても、そこまでは残る）。
 
 import { type ProgressStore, bondRank, pieceRank } from './progress'
@@ -11,6 +11,8 @@ import {
   type Condition,
   type DialogueScript,
   type Effect,
+  type GameResult,
+  type GameSpec,
   type LoreCard,
   PIECE_LABEL,
   type PieceState,
@@ -26,6 +28,7 @@ export type Beat =
   | { kind: 'line'; speakerId: string; speaker: ScriptSpeaker; text: string }
   | { kind: 'card'; card: LoreCard; first: boolean }
   | { kind: 'notice'; notice: Notice }
+  | { kind: 'game'; game: GameSpec; yokai: string }
   | {
       kind: 'choices'
       /** 選択肢の前の台詞（画面に残す） */
@@ -72,9 +75,11 @@ export class DialogueRunner {
     return this.nodeId
   }
 
-  /** 台詞・札・お知らせを読み終えたら、次の拍へ */
-  next(): Beat {
+  /** 台詞・札・お知らせを読み終えたら、次の拍へ。小さな遊びのあとは、その結果を渡す */
+  next(result?: GameResult): Beat {
     if (!this.current || this.current.kind === 'choices' || this.current.kind === 'end') return this.current ?? { kind: 'end' }
+    if (this.current.kind === 'game' && this.current.game.tappedFlag)
+      this.ctx.progress.setFlag(this.current.game.tappedFlag, (result?.tapped ?? 0) > 0)
     return this.advance()
   }
 
@@ -166,6 +171,7 @@ export class DialogueRunner {
       progress.setFlag(e.flag, e.value)
       return null
     }
+    if ('game' in e) return { kind: 'game', game: e.game, yokai }
     return null
   }
 
@@ -213,12 +219,15 @@ export function validateScript(script: DialogueScript, cards: Record<string, Lor
     if (exits !== 1) errs.push(`${script.id}: 場面 ${id} の出口（choices / next / end）は1つだけにする`)
     if (n.next && !has(n.next)) errs.push(`${script.id}: 場面 ${id} の next ${n.next} がない`)
     for (const c of n.choices ?? []) if (!has(c.next)) errs.push(`${script.id}: 場面 ${id} の選択肢「${c.text}」の行き先 ${c.next} がない`)
-    if ((n.choices?.length ?? 0) > 3) errs.push(`${script.id}: 場面 ${id} の選択肢は3つまで`)
+    // 同時に出る選択肢は3つまで。条件つき（when）の選択肢は、状態によって出し分ける分だけ多く書いてよい（全部で6つまで）
+    const always = (n.choices ?? []).filter((c) => !c.when?.length).length
+    if (always > 3 || (n.choices?.length ?? 0) > 6) errs.push(`${script.id}: 場面 ${id} の選択肢は、条件なしで3つまで・全部で6つまで`)
     if (n.choices?.length && !n.lines?.length) errs.push(`${script.id}: 場面 ${id} は選択肢の前に台詞を置く`)
     for (const l of n.lines ?? []) if (!script.speakers[l.speaker]) errs.push(`${script.id}: 場面 ${id} の話し手 ${l.speaker} がいない`)
     for (const e of n.effects ?? []) {
       if ('openCard' in e && !cards[e.openCard]) errs.push(`${script.id}: 場面 ${id} の札 ${e.openCard} がない`)
       if ('piece' in e && !pieceIds.has(e.piece)) errs.push(`${script.id}: 場面 ${id} のピース ${e.piece} が曼荼羅にない`)
+      if ('game' in e && e.game.type !== 'matsu') errs.push(`${script.id}: 場面 ${id} の遊び ${String((e.game as { type: unknown }).type)} は知らない`)
     }
   }
   return errs

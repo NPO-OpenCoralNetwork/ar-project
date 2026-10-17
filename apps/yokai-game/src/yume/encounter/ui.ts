@@ -4,11 +4,12 @@
 // - 会話の枠（画面の下。名前・本文・選択肢2〜3）。台本の台詞は「台本・創作」の印つきのふつうの枠
 // - 伝承の札（和紙のカード。プレイヤーには題・本文・出典だけ。確度・調べ・監修の状態は ?debug のときだけ。台本の枠とは形も書体も分ける。04 §3.2 F-43）
 // - 曼荼羅帳（縦長の掛軸。里・麓・山の三段の枠は【創作】の構図）と、最初からやり直す（確認つき）
+// - 会話の途中の小さな遊び（いまは「払わずに待つ」= ミノモシ番外。04 §3.4）
 //
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
 
 import type { Beat, Notice } from '../../core/story/dialogue'
-import type { LoreCard, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
+import type { GameResult, LoreCard, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
 import { PIECE_LABEL } from '../../core/story/types'
 import { ARTS, artToSvg } from './art'
 import { stampDate, stampFrameSvg, stampSvg } from './stamp'
@@ -57,6 +58,19 @@ const CSS = /* css */ `
 /* タッチの端末では、キーボードの番号は出さない */
 @media (pointer: coarse) { .yd-choice kbd { display: none; } }
 .yd-close { position: absolute; top: -40px; right: 0; font: inherit; font-size: 12px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; min-height: 32px; cursor: pointer; }
+/* 払わずに待つ（ミノモシ番外）: 体につく光。払うと増え、待つと離れていく */
+.yg { position: absolute; inset: 0; z-index: 38; opacity: 0; pointer-events: none; transition: opacity 0.4s; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.yg.on { opacity: 1; pointer-events: auto; }
+.yg-l { position: absolute; left: 0; top: 0; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 250, 214, 0.98) 0 22%, rgba(246, 226, 150, 0.7) 38%, rgba(240, 210, 120, 0) 70%); will-change: transform, opacity; }
+.yg-say { position: absolute; left: 50%; top: calc(16px + var(--sat)); transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); background: var(--washi-solid, #faf7f0); color: #2a2622; border: 1px solid rgba(42, 38, 34, 0.2); border-radius: 14px; padding: 10px 14px; box-shadow: 0 8px 26px rgba(30, 20, 10, 0.16); pointer-events: none; }
+.yg-say b { display: block; font-size: 11px; letter-spacing: 0.14em; color: rgba(42, 38, 34, 0.6); font-weight: 500; }
+.yg-say p { margin: 2px 0 0; font-family: var(--title-font); font-size: 16px; line-height: 1.7; }
+.yg-say small { display: block; margin-top: 4px; font-size: 12px; color: rgba(42, 38, 34, 0.62); }
+.yg-wait { position: absolute; left: 50%; bottom: calc(26px + var(--sab)); transform: translateX(-50%); width: 46px; height: 46px; pointer-events: none; }
+.yg-wait circle { fill: none; stroke-width: 3; }
+.yg-wait .bg { stroke: rgba(255, 255, 255, 0.5); }
+.yg-wait .fg { stroke: rgba(240, 200, 110, 0.95); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 23px 23px; }
 /* 伝承の札（和紙のカード） */
 .yc-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px 16px calc(56px + var(--sab)); background: rgba(30, 26, 22, 0.28); opacity: 0; pointer-events: none; transition: opacity 0.45s; z-index: 40; }
 .yc-wrap.on { opacity: 1; pointer-events: auto; }
@@ -308,7 +322,8 @@ export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: strin
 // ---------------------------------------------------------------- 会話の枠
 
 export interface DialogueHooks {
-  next(): void
+  /** 次の拍へ（小さな遊びのあとは、その結果を渡す） */
+  next(result?: GameResult): void
   choose(index: number): void
   close(): void
 }
@@ -324,6 +339,8 @@ export class DialogueView {
   private readonly cardWrap: HTMLDivElement
   private readonly cardEl: HTMLDivElement
   private beat: Beat | null = null
+  private game: MatsuGame | null = null
+  private readonly root: HTMLElement
   private openFlag = false
   /** 連打で2拍進まないように、表示してから少し待つ */
   private shownAt = 0
@@ -334,6 +351,7 @@ export class DialogueView {
     private readonly notices: { yokaiName(id: string): string },
   ) {
     injectStyle()
+    this.root = root
     this.wrap = el('div', 'yd')
     this.wrap.setAttribute('role', 'dialog')
     this.wrap.setAttribute('aria-live', 'polite')
@@ -394,10 +412,12 @@ export class DialogueView {
     this.beat = null
     this.wrap.classList.remove('on')
     this.cardWrap.classList.remove('on')
+    this.game?.dispose()
+    this.game = null
   }
 
   private advance(): void {
-    if (!this.beat || this.beat.kind === 'choices' || this.beat.kind === 'end') return
+    if (!this.beat || this.beat.kind === 'choices' || this.beat.kind === 'end' || this.beat.kind === 'game') return
     if (performance.now() - this.shownAt < 220) return
     this.hooks.next()
   }
@@ -405,6 +425,17 @@ export class DialogueView {
   show(beat: Beat): void {
     this.beat = beat
     this.shownAt = performance.now()
+    if (beat.kind === 'game') {
+      this.cardWrap.classList.remove('on')
+      this.wrap.style.visibility = 'hidden'
+      this.game?.dispose()
+      this.game = new MatsuGame(this.root, (result) => {
+        this.game = null
+        this.wrap.style.visibility = ''
+        this.hooks.next(result)
+      })
+      return
+    }
     if (beat.kind === 'card') {
       this.cardEl.innerHTML = cardHtml(beat.card, { first: beat.first, button: '札をしまう' })
       const btn = this.cardEl.querySelector('.yc-btn') as HTMLButtonElement
@@ -460,6 +491,112 @@ function noticeHtml(n: Notice, yokaiName: (id: string) => string): string {
   }
   const where = n.travel === 'yume' ? '夢の旅では線（白描）まで。色は、現地でこの地点に立つと入る。' : ''
   return `<b>曼荼羅帳に、${escapeHtml(n.label)}のピースが一つ入った</b><span>${where}右上の「曼荼羅帳」で見られる。</span>`
+}
+
+// ---------------------------------------------------------------- 払わずに待つ（ミノモシ番外）
+
+/**
+ * 体につく光（04 §3.4: 光は払うほど増える。#17 の伝承。「払わずに待つ」と離れていくのは【創作】の遊び方）。
+ * 光をタップする（払う）と、その光が分かれて増える。WAIT_SEC のあいだ何もしなければ、光はふわりと離れていく。失敗はない。
+ */
+class MatsuGame {
+  private static readonly WAIT_SEC = 5
+  private static readonly MAX = 36
+  private readonly el: HTMLDivElement
+  private readonly say: HTMLElement
+  private readonly ring: SVGCircleElement
+  private readonly lights: { e: HTMLDivElement; a: number; r: number; w: number; dy: number; born: number }[] = []
+  private tapped = 0
+  private calm = 0
+  private leaving = -1
+  private last = performance.now()
+  private raf = 0
+  private disposed = false
+  private readonly reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+  constructor(
+    root: HTMLElement,
+    private readonly done: (r: GameResult) => void,
+  ) {
+    this.el = el('div', 'yg')
+    this.el.setAttribute('role', 'application')
+    this.el.setAttribute('aria-label', '体についた光。払わずに、そのまま待つ')
+    this.say = el('div', 'yg-say', `<b>ましろ</b><p>光が、くっついてきた……。払わずに、そのまま待ってみよう。</p><small>画面にさわらずに、数秒待つ</small>`)
+    const C = 2 * Math.PI * 19
+    const wait = el('div', 'yg-wait', `<svg viewBox="0 0 46 46" aria-hidden="true"><circle class="bg" cx="23" cy="23" r="19"/><circle class="fg" cx="23" cy="23" r="19" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"/></svg>`)
+    this.ring = wait.querySelector('.fg') as SVGCircleElement
+    this.el.append(this.say, wait)
+    root.appendChild(this.el)
+    for (let i = 0; i < 6; i++) this.spawn(Math.random() * Math.PI * 2, 70 + Math.random() * 70)
+    this.el.addEventListener('pointerdown', (e) => this.brush(e))
+    requestAnimationFrame(() => this.el.classList.add('on'))
+    const step = (t: number) => {
+      if (this.disposed) return
+      this.raf = requestAnimationFrame(step)
+      this.tick(Math.min(0.05, (t - this.last) / 1000), t)
+      this.last = t
+    }
+    this.raf = requestAnimationFrame(step)
+  }
+
+  private spawn(a: number, r: number): void {
+    if (this.lights.length >= MatsuGame.MAX) return
+    const e = el('div', 'yg-l')
+    this.el.insertBefore(e, this.say)
+    this.lights.push({ e, a, r, w: (0.25 + Math.random() * 0.35) * (Math.random() < 0.5 ? -1 : 1), dy: Math.random() * Math.PI * 2, born: performance.now() })
+  }
+
+  /** 払う: 触れたあたりの光が分かれて増える（#17: 手で払うとより一層増えた） */
+  private brush(e: PointerEvent): void {
+    if (this.leaving >= 0) return
+    this.tapped++
+    this.calm = 0
+    const cx = window.innerWidth / 2
+    const cy = window.innerHeight * 0.46
+    const a = Math.atan2(e.clientY - cy, e.clientX - cx)
+    const r = Math.min(170, Math.hypot(e.clientX - cx, e.clientY - cy))
+    for (let i = 0; i < 2; i++) this.spawn(a + (Math.random() - 0.5) * 0.8, Math.max(40, r + (Math.random() - 0.5) * 40))
+    const p = this.say.querySelector('p') as HTMLElement
+    p.textContent = this.tapped === 1 ? '……払うと、かえって増えるみたい。' : 'また増えた……。じっと待ってみよう。'
+  }
+
+  private tick(dt: number, t: number): void {
+    const cx = window.innerWidth / 2
+    const cy = window.innerHeight * 0.46
+    if (this.leaving < 0) {
+      this.calm += dt
+      const k = Math.min(1, this.calm / MatsuGame.WAIT_SEC)
+      this.ring.style.strokeDashoffset = (2 * Math.PI * 19 * (1 - k)).toFixed(2)
+      if (k >= 1) {
+        this.leaving = t
+        ;(this.say.querySelector('p') as HTMLElement).textContent = '……離れていった。さみしがりなだけ、だったのかな。'
+        ;(this.say.querySelector('small') as HTMLElement).textContent = ''
+      }
+    }
+    const away = this.leaving >= 0 ? (t - this.leaving) / 1600 : 0
+    for (const l of this.lights) {
+      if (!this.reduced) l.a += l.w * dt
+      const r = l.r + away * 260
+      const x = cx + Math.cos(l.a) * r
+      const y = cy + Math.sin(l.a) * r * 0.8 + Math.sin(t / 700 + l.dy) * 6 - away * 120
+      const grow = Math.min(1, (t - l.born) / 300)
+      l.e.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(0.6 + 0.4 * grow).toFixed(2)})`
+      l.e.style.opacity = String(Math.max(0, 1 - away) * grow)
+    }
+    if (away >= 1) {
+      const n = this.tapped
+      this.dispose()
+      this.done({ tapped: n })
+    }
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    cancelAnimationFrame(this.raf)
+    this.el.classList.remove('on')
+    window.setTimeout(() => this.el.remove(), 450)
+  }
 }
 
 // ---------------------------------------------------------------- 曼荼羅帳

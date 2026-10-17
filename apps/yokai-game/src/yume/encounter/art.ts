@@ -6,31 +6,10 @@
 // 本番の絵ではない（04 §6.2: 本番の絵は段階5）。
 // 彩色（段階3）: 同じ部品に色（color）を持たせ、現地で会った姿と曼荼羅の彩色のピースに使う。光と霞（06）のやわらかい色で、こわくしない。
 
-export interface InkPart {
-  /** 紙の白で塗る面（後の部品が前の部品を隠す） */
-  fill?: string
-  /** 彩色（現地で会った本当の姿・曼荼羅の彩色のピース）で塗る色。なければ紙の白 */
-  color?: string
-  /** 墨の線（太さは viewBox の単位） */
-  lines: { d: string; w: number }[]
-}
+import { artToSvg, circle, type InkArt, type InkPart, mirror, part, tint } from './ink'
 
-export interface InkArt {
-  /** viewBox の幅・高さ */
-  w: number
-  h: number
-  /** 奥から順に描く部品（塗り → 線 を部品ごとに。前の部品が奥の線を隠す） */
-  parts: InkPart[]
-}
-
-const mirror = (d: string, cx: number): string =>
-  // 「x,y」の組の x だけを cx を軸に反転する（このファイルのパスは、すべて絶対座標の M/L/C/Z で書く）
-  d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (_, x: string, y: string) => `${+(2 * cx - Number(x)).toFixed(2)},${y}`)
-
-const part = (fill: string | undefined, w: number, ...extra: [string, number][]): InkPart => ({
-  fill,
-  lines: [...(fill ? [{ d: fill, w }] : []), ...extra.map(([d, ww]) => ({ d, w: ww }))],
-})
+export { artToSvg }
+export type { InkArt, InkPart }
 
 // 羽（体の後ろ）。左を描いて、右は反転
 const WING_L = 'M80,104 C64,84 40,78 24,90 C14,98 13,114 19,127 L15,140 L26,145 L21,160 L33,163 L31,178 L45,177 L47,191 L61,184 C70,168 76,150 80,130 Z'
@@ -65,8 +44,6 @@ const POMPOMS: [number, number][] = [
   [88, 132],
   [90, 146],
 ]
-const circle = (cx: number, cy: number, r: number) =>
-  `M${cx - r},${cy} C${cx - r},${cy - r * 0.55} ${cx - r * 0.55},${cy - r} ${cx},${cy - r} C${cx + r * 0.55},${cy - r} ${cx + r},${cy - r * 0.55} ${cx + r},${cy} C${cx + r},${cy + r * 0.55} ${cx + r * 0.55},${cy + r} ${cx},${cy + r} C${cx - r * 0.55},${cy + r} ${cx - r},${cy + r * 0.55} ${cx - r},${cy} Z`
 
 const pompoms = [...POMPOMS, ...POMPOMS.map(([x, y]): [number, number] => [200 - x, y])].map(([x, y]) => circle(x, y, 4.6))
 
@@ -82,7 +59,6 @@ const C = {
   tokin: '#3a3330',
   pompoms: ['#cf7f5f', '#dbb560', '#7fa284'],
 }
-const tint = (p: InkPart, color: string): InkPart => ({ ...p, color })
 
 export const KOZOBO_ART: InkArt = {
   w: 200,
@@ -126,16 +102,3 @@ export const KOZOBO_ART: InkArt = {
 }
 
 export const ARTS: Record<string, InkArt> = { kozobo: KOZOBO_ART }
-
-/** SVG の中身（<g> の中）として書き出す。曼荼羅帳のピースと、現地の姿に使う。colored なら部品の色（彩色）で塗る */
-export function artToSvg(art: InkArt, paper: string, ink: string, lineScale = 1, fillOpacity = 1, colored = false): string {
-  return art.parts
-    .map(
-      (p) =>
-        (p.fill ? `<path d="${p.fill}" fill="${colored && p.color ? p.color : paper}" fill-opacity="${fillOpacity}"/>` : '') +
-        p.lines
-          .map((l) => `<path d="${l.d}" fill="none" stroke="${ink}" stroke-width="${(l.w * lineScale).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/>`)
-          .join(''),
-    )
-    .join('')
-}

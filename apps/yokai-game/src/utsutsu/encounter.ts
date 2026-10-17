@@ -60,7 +60,7 @@ export class GenEncounter {
     this.dialogue = new DialogueView(
       d.root,
       {
-        next: () => this.onBeat(this.active?.runner.next() ?? { kind: 'end' }),
+        next: (r) => this.onBeat(this.active?.runner.next(r) ?? { kind: 'end' }),
         choose: (i) => this.onBeat(this.active?.runner.choose(i) ?? { kind: 'end' }),
         close: () => this.end('closed'),
       },

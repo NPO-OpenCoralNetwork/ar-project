@@ -17,7 +17,7 @@ const restZones: RestZone[] = osm.restZones.map((z) => ({
 }))
 
 /**
- * 地点の候補（仮）。fetch-osm.mjs の spotCandidates などから、西・中央・東の3か所を選んだ（段階1b で範囲を東へ広げたので見直した）。
+ * 地点の候補（仮）。fetch-osm.mjs の spotCandidates などから、西・中央・東の3か所を選んだ（段階1b で範囲を東へ広げたので見直した）。段階3で、南の川沿いに4か所目（カーラボーズ）を足した。
  * 条件: 公道の上、お休みの範囲から 60m 以上（04 §3.1 の 50m に余裕を足した）、鉄道から 15m 以上。
  * 1つ目（光蔵坊）は、はじめの位置（main.ts の startPoint。この地点から 15〜60m）から歩いて 1分以内。
  * 注意: OSM には歩道（sidewalk）のタグが1本もなく、建物も空中写真より少ない（仮の家で補っている）。
@@ -47,6 +47,14 @@ const spots: Spot[] = [
     position: { lat: 36.6068054, lon: 137.3193094 },
     placeKind: 'road',
     yokaiId: 'minomoshi', // 仮
+  },
+  {
+    // 南、川（用水）から約 40m の道。お休みの範囲から約 130m。ガメの地点から約 210m（とりもつで行き来する。段階3）
+    id: 'iwakuraji-4',
+    label: 'この地点',
+    position: { lat: 36.6060817, lon: 137.3161479 },
+    placeKind: 'road',
+    yokaiId: 'karabozu', // 仮（ガメの親方。04 では里の川沿い）
   },
 ]
 

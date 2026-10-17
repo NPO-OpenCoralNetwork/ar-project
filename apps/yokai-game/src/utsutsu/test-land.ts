@@ -6,7 +6,7 @@
 // - お休みの範囲: 社寺の面（amenity=place_of_worship・landuse=religious）、墓地（landuse=cemetery・amenity=grave_yard）。
 //   社寺が点だけのときは半径 50m の円、小さな祠（historic=wayside_shrine）は半径 10m の円で囲む（scripts/fetch-osm.mjs の簡易版）。
 // - 地点: 公道（歩道のある道を優先）の上で、お休みの範囲から 60m 以上、線路から 15m 以上、いまいる所から 60〜350m、
-//   地点どうし 120m 以上離れた所を機械的に選ぶ。1つ目（光蔵坊）は、いまいる所からいちばん近い候補にする。
+//   地点どうし 120m 以上離れた所を機械的に選ぶ（4か所）。1つ目（光蔵坊）は、いまいる所からいちばん近い候補にする。
 //   「住宅の前でないか」「2分立ち止まっても邪魔にならないか」は分からないので、歩いてみて合わなければ作り直す。
 // OSM のデータは ODbL（© OpenStreetMap contributors）。
 
@@ -32,8 +32,8 @@ const ROAD_WIDTH: Record<string, number> = {
   living_street: 4, service: 3.5, track: 3, pedestrian: 4, footway: 2, path: 1.5, cycleway: 2, steps: 2,
 }
 const WATER_W: Record<string, number> = { river: 20, canal: 3, stream: 2, ditch: 1, drain: 1 }
-/** テスト用の土地に置く妖怪（台本と絵があるのは光蔵坊だけ。ほかは気配だけ） */
-const TEST_YOKAI = ['kozobo', 'game', 'minomoshi']
+/** テスト用の土地に置く妖怪。1つ目（いちばん近い地点）は光蔵坊。ガメとカーラボーズは、とりもつ（悩み #1）で行き来する */
+const TEST_YOKAI = ['kozobo', 'game', 'karabozu', 'minomoshi']
 
 export function loadTestLand(): TestLand | null {
   try {

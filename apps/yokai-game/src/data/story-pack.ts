@@ -5,7 +5,10 @@ import { validateScript } from '../core/story/dialogue'
 import type { DialogueScript, LoreCard, LoreCardFile, MandalaDef, SectionDef, SectionFile, YokaiDef } from '../core/story/types'
 import cardsJson from './lore-cards.json'
 import mandalaJson from './mandala.json'
+import gameScript from './scripts/game.json'
+import karabozuScript from './scripts/karabozu.json'
 import kozoboScript from './scripts/kozobo.json'
+import minomoshiScript from './scripts/minomoshi.json'
 import sectionsJson from './sections.json'
 import yokaiJson from './yokai.json'
 
@@ -26,7 +29,7 @@ export function loadStoryPack(): StoryPack {
   for (const c of cardFile.cards) cards[c.id] = c
   const mandala = mandalaJson as unknown as MandalaDef
   const scripts: Record<string, DialogueScript> = {}
-  for (const s of [kozoboScript as unknown as DialogueScript]) scripts[s.id] = s
+  for (const s of [kozoboScript, gameScript, karabozuScript, minomoshiScript] as unknown as DialogueScript[]) scripts[s.id] = s
   const yokai: Record<string, YokaiDef> = {}
   for (const y of yokaiJson.yokai as YokaiDef[]) yokai[y.id] = y
 
