@@ -390,9 +390,11 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   if (dbg) root.appendChild(dbg)
 
   let toastTimer = 0
-  // ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける
+  // ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける。
+  // 文ごとに区切り、2行になるときは文の切れ目（。）で折り返す（句の途中で折れないように）
   const toast = (text: string, who = 'ましろ', ms = 4200) => {
-    toastEl.innerHTML = `${who ? `<small>${escapeHtml(who)}<i class="tag" title="本作の創作の台詞（伝承の事実は「伝承の札」で示します）">台本・創作</i></small>` : ''}${escapeHtml(text)}`
+    const body = (text.match(/[^。]+。?|。/g) ?? [text]).map((t) => `<span class="s">${escapeHtml(t)}</span>`).join('')
+    toastEl.innerHTML = `${who ? `<small>${escapeHtml(who)}<i class="tag" title="本作の創作の台詞（伝承の事実は「伝承の札」で示します）">台本・創作</i></small>` : ''}${body}`
     toastEl.classList.add('on')
     window.clearTimeout(toastTimer)
     toastTimer = window.setTimeout(() => toastEl.classList.remove('on'), ms)
@@ -411,7 +413,14 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
         const pos = engine.view.position
         const d = sp && pos ? Math.round(Math.hypot(sp.x - pos.x, sp.z - pos.z) / 10) * 10 : null
         const far = d !== null ? `（約${d}m）` : ''
-        toast(sp?.role === 'clue' ? `古い話の気配${far}。近くで立ち止まってみよう。` : `この地点${far}。近くまで行って、立ち止まってみよう。`)
+        // 寄り道（水辺の道）の地点では、水のほうへ誘わない（道の上で立ち止まる）
+        toast(
+          sp?.role === 'clue'
+            ? `古い話の気配${far}。近くで立ち止まってみよう。`
+            : sp?.role === 'wander'
+              ? `この地点${far}。道の上で、立ち止まってみよう。`
+              : `この地点${far}。近くまで行って、立ち止まってみよう。`,
+        )
       }
     },
     followChange: (f) => {
@@ -641,7 +650,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     }
 
     // 状態の帯
-    const [world, plain] = bandText(v, stationMin(), geoProblem)
+    const nearRole = v.near ? land.spots.find((s) => s.id === v.near?.spotId)?.role : undefined
+    const [world, plain] = bandText(v, stationMin(), geoProblem, nearRole === 'clue')
     const html = `<b>${escapeHtml(world)}</b><span>${escapeHtml(plain)}</span>`
     if (html !== lastBand) {
       band.innerHTML = html
@@ -685,8 +695,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   })
 }
 
-/** 状態の帯の言葉（世界の言葉、普通の言葉）。04 §5.3、01-app-ux §3.3 */
-function bandText(v: UtsutsuEngine['view'], stationMin: number | null, geo: GeoProblem): [string, string] {
+/** 状態の帯の言葉（世界の言葉、普通の言葉）。04 §5.3、01-app-ux §3.3。nearClue: いちばん近い地点が調べる地点（誰もいない） */
+function bandText(v: UtsutsuEngine['view'], stationMin: number | null, geo: GeoProblem, nearClue = false): [string, string] {
   if (geo === 'unavailable') return ['ここは、空が遠いね', '位置が取れません。空が見える所で少し待ってください']
   switch (v.motion) {
     case 'locating':
@@ -703,7 +713,7 @@ function bandText(v: UtsutsuEngine['view'], stationMin: number | null, geo: GeoP
   if (v.phase.phase === 'night') return ['夜は、気配だけ', '夜は出会いがありません。明るいうちに来てください']
   const near = v.near
   if (near && v.motion === 'stopped' && v.clearing > 0) return ['気配が、澄んでいく…', 'そのまま、少し待ってください']
-  if (near && v.motion === 'stopped') return ['このあたりに、誰かいる', '「足を止めた」を押すと、気配が澄みます']
+  if (near && v.motion === 'stopped') return [nearClue ? 'このあたりに、古い話の気配' : 'このあたりに、誰かいる', '「足を止めた」を押すと、気配が澄みます']
   if (near) return ['このあたりだ。足を止めてみよう', '立ち止まると、気配が澄みます']
   const k = v.kehai[0]
   if (k) {

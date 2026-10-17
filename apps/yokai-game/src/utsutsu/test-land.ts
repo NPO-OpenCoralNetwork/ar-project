@@ -11,7 +11,7 @@
 //   ガメとカーラボーズは、とりもつ（悩み #1）で行き来するので、2体そろって置けるとき（3か所以上）だけ置く。
 // - 調べる地点: 妖怪の地点のあとに、同じ決まりで2つ。ほかのどの地点からも 90m 以上。水の縁から 20m 以内の道は、ほかが無いときだけ使う。
 // - 水辺の道の地点: 同じ決まりの公道のうち、川・用水・小川の縁（線は幅の半分を引く）か水の面の縁から 20m 以内を、
-//   水に沿って通っている所（前後 12m も同じくらいの近さ。橋・暗渠の上・水を横切る所は外す）。ほかのどの地点からも 90m 以上、2つまで。
+//   水に沿って通っている所（前後 12m も同じくらいの近さ。橋・暗渠の上・河原（水路の幅の内）・水を横切る所は外す）。ほかのどの地点からも 90m 以上、2つまで。
 //   側溝（ditch・drain）は水辺に数えない。水辺の道が無ければ置かない（地点は道の上。水には近づけない）。
 // - どの地点も「住宅の前でないか」「2分立ち止まっても邪魔にならないか」は分からないので、歩いてみて合わなければ作り直す。
 // OSM のデータは ODbL（© OpenStreetMap contributors）。
@@ -258,10 +258,11 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     restZones.push(circle(c[0], c[1], t.amenity === 'place_of_worship' ? 50 : 10))
   }
 
-  // 水の縁までの距離（線は幅の半分を引く。面の中は 0）と、水の上か（面の中か、水路の線から 3m 以内）
+  // 水の縁までの距離（線は幅の半分を引く。面の中は 0）と、水の上か（面の中か、水路の線から幅の半分（3m 以上）以内。河原の道も外す）
   const waterEdge = (q: XZ): number =>
     Math.min(Infinity, ...sideWaters.map((l) => Math.max(0, distPolyline(q, l.points) - l.widthM / 2)), ...map.waterAreas.map((a) => distPolygon(q, a)))
-  const onWater = (q: XZ): boolean => map.waterAreas.some((a) => pointInPoly(q, a)) || sideWaters.some((l) => distPolyline(q, l.points) < 3)
+  const onWater = (q: XZ): boolean =>
+    map.waterAreas.some((a) => pointInPoly(q, a)) || sideWaters.some((l) => distPolyline(q, l.points) < Math.max(3, l.widthM / 2))
   /** 水に沿って通る道か（その点と前後 12m が、水の縁から同じくらいの近さ。水を横切る道は、前後で近さが変わる）。e はその点の waterEdge */
   const alongWater = (p: XZ, a: XZ, b: XZ, e: number): boolean => {
     if (e > WATER_NEAR_M || onWater(p)) return false
