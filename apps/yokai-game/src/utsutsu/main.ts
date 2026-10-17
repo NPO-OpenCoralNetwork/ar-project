@@ -203,7 +203,8 @@ function showStart(): void {
     ${t ? `<button class="sub" type="button" data-go="test-old">前に作ったテスト用の土地で歩く（${escapeHtml(stampDate(t.createdAt))}）</button>` : ''}
     ${!t && testLandIsOld() ? '<p class="soft">前に作ったテスト用の土地は古い形なので、もう一度作ってください。</p>' : ''}
     ${SIM_ALLOWED ? `<h3>開発用</h3><div class="row"><button class="sub" type="button" data-go="sim-iwakuraji">シミュレーター（ふもと）</button>${t ? `<button class="sub" type="button" data-go="sim-test">シミュレーター（テスト用）</button>` : ''}</div>` : ''}
-    <a class="sub" href="./">夢の旅（家で遊ぶ）へ</a>
+    <a class="sub" href="./yume.html">夢の旅（家で遊ぶ）へ</a>
+    <a class="sub" href="./">入口へ</a>
     <p class="soft">位置は気配を出すためだけに、この端末の中で使います。歩いた道は記録せず、どこにも送りません。</p>`)
   card.querySelectorAll<HTMLButtonElement>('[data-go]').forEach((b) =>
     b.addEventListener('click', () => {

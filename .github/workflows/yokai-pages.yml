@@ -1,7 +1,7 @@
 name: yokai-game pages
 
 # 妖怪ARゲームの試作（apps/yokai-game）を GitHub Pages に公開する。
-# - 本番: main の内容を https://npo-opencoralnetwork.github.io/ar-project/ に出す（夢の旅 = /、現の旅 = /utsutsu.html）。
+# - 本番: main の内容を https://npo-opencoralnetwork.github.io/ar-project/ に出す（入口 = /、夢の旅 = /yume.html、現の旅 = /utsutsu.html）。
 # - 確認用: いちばん新しく更新された claude/** ブランチを /ar-project/preview/ に出す（main に入れる前に iPhone で試すため）。
 #
 # Pages のサイトはリポジトリに1つだけで、公開するたびに丸ごと入れ替わる。そのため公開は必ず main の上で行い、
