@@ -9,7 +9,7 @@
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
 
 import type { Beat, Notice } from '../../core/story/dialogue'
-import type { GameResult, GameSpec, LoreCard, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
+import type { GameResult, LoreCard, MatsuSpec, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
 import { PIECE_LABEL } from '../../core/story/types'
 import { ARTS, artToSvg } from './art'
 import { stampDate, stampFrameSvg, stampSvg } from './stamp'
@@ -443,6 +443,12 @@ export class DialogueView {
       this.cardWrap.classList.remove('on')
       this.wrap.style.visibility = 'hidden'
       this.game?.dispose()
+      if (beat.game.type !== 'matsu') {
+        // 絵解き鎮めの画面は、まだない（次の作業で足す）。いまは並べ終えたことにして進む
+        this.wrap.style.visibility = ''
+        window.setTimeout(() => this.hooks.next({ mistakes: 0 }), 0)
+        return
+      }
       this.game = new MatsuGame(
         this.root,
         beat.game,
@@ -527,7 +533,7 @@ class MatsuGame {
   private readonly say: HTMLElement
   private readonly ring: SVGCircleElement
   private readonly lights: { e: HTMLDivElement; a: number; r: number; w: number; dy: number; born: number }[] = []
-  private readonly lines: Required<NonNullable<GameSpec['lines']>>
+  private readonly lines: Required<NonNullable<MatsuSpec['lines']>>
   private tapped = 0
   private calm = 0
   private leaving = -1
@@ -539,7 +545,7 @@ class MatsuGame {
 
   constructor(
     private readonly root: HTMLElement,
-    spec: GameSpec,
+    spec: MatsuSpec,
     private readonly done: (r: GameResult) => void,
     quit: () => void,
   ) {

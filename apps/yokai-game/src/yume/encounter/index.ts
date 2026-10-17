@@ -358,7 +358,7 @@ export class Encounters {
     if (!a) return
     this.phase = 'talking'
     this.phaseT = 0
-    const name = this.d.story.yokai[a.runner.script.yokaiId]?.name ?? ''
+    const name = this.d.story.yokai[a.runner.script.yokaiId ?? '']?.name ?? ''
     this.dialogue.open(`${name}との会話`)
     this.onBeat(a.runner.start())
   }

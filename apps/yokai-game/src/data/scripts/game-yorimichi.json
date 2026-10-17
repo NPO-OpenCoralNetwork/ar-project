@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "id": "game-yorimichi",
+  "yokaiId": "game",
+  "creative": true,
+  "review": "下書き",
+  "note": "寄り道のガメ（出現の表の水辺・昼。04 §3.1）の台本。台詞はすべて【創作】。寄り道では雑談だけ: 悩みを始めない・縁を上げない・札もピースも動かさない（04 §3.1「悩みの開始は決まった地点だけ」、§3.3「会話では段階は上がらない」）。会ったあと（夢でも現地でも）だけ出る（appearance.json）。川に入らない・川をのぞきこまない案内を必ず入れる（安全）。土地の呼び名などの伝承は言わない（伝承は札だけ）。話は2つを交互に出す（game-yori）。",
+  "speakers": {
+    "game": { "name": "ガメ", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "label": "現地・話1", "when": [{ "travel": "utsutsu" }, { "flag": "game-yori", "is": false }], "node": "u_a" },
+    { "label": "現地・話2", "when": [{ "travel": "utsutsu" }], "node": "u_b" },
+    { "label": "話1", "when": [{ "flag": "game-yori", "is": false }], "node": "a" },
+    { "label": "話2", "node": "b" }
+  ],
+  "nodes": {
+    "a": {
+      "lines": [
+        { "speaker": "game", "text": "あ、きみだ！　こんなところで会うなんて。" },
+        { "speaker": "mashiro", "text": "ガメ、散歩？" },
+        { "speaker": "game", "text": "うん。水の音を聞きながら歩くの、好きなんだ。" }
+      ],
+      "effects": [{ "flag": "game-yori", "value": true }],
+      "next": "close"
+    },
+    "b": {
+      "lines": [
+        { "speaker": "game", "text": "へへ、また会ったね。" },
+        { "speaker": "game", "text": "今日は、水がきらきらしてる。……あ、のぞきこんじゃだめだよ。" },
+        { "speaker": "mashiro", "text": "うん、道から見るね。" }
+      ],
+      "effects": [{ "flag": "game-yori", "value": false }],
+      "next": "close"
+    },
+    "u_a": {
+      "lines": [
+        { "speaker": "game", "text": "あ、きみだ！　ほんものの水の音がするね。" },
+        { "speaker": "mashiro", "text": "ガメ、散歩？" },
+        { "speaker": "game", "text": "うん。きみも、歩いてきたんだね。" }
+      ],
+      "effects": [{ "flag": "game-yori", "value": true }],
+      "next": "close"
+    },
+    "u_b": {
+      "lines": [
+        { "speaker": "game", "text": "へへ、また会ったね。" },
+        { "speaker": "game", "text": "風が水の上をすべっていくの、見える？　……あ、のぞきこんじゃだめだよ。" },
+        { "speaker": "mashiro", "text": "うん、道から見るね。" }
+      ],
+      "effects": [{ "flag": "game-yori", "value": false }],
+      "next": "close"
+    },
+    "close": {
+      "lines": [{ "speaker": "game", "text": "川には近づかないでね。見るのは、道からだけ。またね！" }],
+      "end": true
+    }
+  }
+}

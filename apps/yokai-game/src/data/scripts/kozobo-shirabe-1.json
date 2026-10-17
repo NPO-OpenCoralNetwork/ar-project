@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "id": "kozobo-shirabe-1",
+  "creative": true,
+  "review": "下書き",
+  "note": "調べる地点1（光蔵坊の悩み #2「人はわしの話をどう語っておる」。04 §3.4・§3.5）の台本。妖怪はおらず、ましろだけが話す（台詞は【創作】）。伝承の中身は札 kozobo-2（03 #8 の前半（①））でだけ出し、ましろは話の中身を言わない。気配を出す条件は clues.json（頼まれていて、札をまだ拾っていない間）。拾い漏れの地点は、悩みを解いたあとも「次の楽しみ」として残る。",
+  "speakers": {
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "label": "現地で拾う", "when": [{ "travel": "utsutsu" }, { "flag": "kz-q2-asked", "is": true }, { "card": "kozobo-2", "opened": false }], "node": "u_find" },
+    { "label": "拾う", "when": [{ "flag": "kz-q2-asked", "is": true }, { "card": "kozobo-2", "opened": false }], "node": "find" },
+    { "label": "もう拾った", "when": [{ "card": "kozobo-2", "opened": true }], "node": "found" },
+    { "label": "まだ頼まれていない", "node": "quiet" }
+  ],
+  "nodes": {
+    "u_find": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……立ち止まったら、聞こえた。古い話の気配がする。" },
+        { "speaker": "mashiro", "text": "誰かが昔、ここで語った話かな。" }
+      ],
+      "effects": [{ "openCard": "kozobo-2" }],
+      "next": "find_end"
+    },
+    "find": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……耳を澄ましたら、聞こえた。古い話の気配がする。" },
+        { "speaker": "mashiro", "text": "誰かが昔、ここで語った話かな。" }
+      ],
+      "effects": [{ "openCard": "kozobo-2" }],
+      "next": "find_end"
+    },
+    "find_end": {
+      "lines": [{ "speaker": "mashiro", "text": "光蔵坊に、聞かせに行こう。" }],
+      "end": true
+    },
+    "found": {
+      "lines": [{ "speaker": "mashiro", "text": "ここで拾った話だ。……ほかの場所にも、まだあるかな。" }],
+      "end": true
+    },
+    "quiet": {
+      "lines": [{ "speaker": "mashiro", "text": "……古い話の気配。でも、まだ声は遠い。" }],
+      "end": true
+    }
+  }
+}

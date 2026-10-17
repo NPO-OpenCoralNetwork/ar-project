@@ -116,12 +116,16 @@ export type Condition =
   | { travel: Travel }
 
 /**
- * 会話の途中に入る小さな遊び（失敗はない。04 §3.4）。
+ * 会話の途中に入る小さな遊び（失敗はない。04 §3.4・§3.5）。遊びの間のましろの台詞（【創作】）も台本に持つ
+ * （lines。ないときは画面側の決まり文句）。
  * - matsu: 「払わずに待つ」（ミノモシ番外）。体につくものを払うと増え、しばらく何もしないと離れていく。
  *   払った（タップした）かどうかを tappedFlag に保存し、そのあとの台詞の出し分けに使える。
- *   遊びの間のましろの台詞（【創作】）も台本に持つ（lines。ないときは画面側の決まり文句）
+ * - etoki: 「絵解き鎮め」（04 §3.5）。手札（調べるで拾った札）を、話の順に1枚ずつ選ぶ。点数・打ち切りはない。
+ *   違えば渦が少し濃くなり、ましろが声をかけるだけ。拾っていない札・まだ作っていない札は白紙で出る（拾い漏れの救い）。
  */
-export type GameSpec = {
+export type GameSpec = MatsuSpec | EtokiSpec
+
+export interface MatsuSpec {
   type: 'matsu'
   tappedFlag?: string
   lines?: {
@@ -136,9 +140,51 @@ export type GameSpec = {
   }
 }
 
+/** 絵解き鎮めの札の並び（正しい順）。pending は、PO・監修の確認待ちでまだ作っていない札（いつも白紙で出す） */
+export type EtokiSlot = { card: string } | { pending: string }
+
+export interface EtokiSpec {
+  type: 'etoki'
+  /** 渦の中に出す題（例: 「光蔵坊の話」） */
+  title: string
+  /** 正しい順の札（4枚まで） */
+  slots: EtokiSlot[]
+  /** 渦と風の演出を外して、並べるだけ（稽古）にする（04 §3.5「演出を外しても成り立つ形」） */
+  plain?: boolean
+  lines?: {
+    /** はじめ */
+    start?: string
+    /** 合っていたとき */
+    right?: string
+    /** 1回目に違ったとき */
+    wrong?: string
+    /** 2回目からに違ったとき */
+    wrongAgain?: string
+    /** 拾っていない札（白紙）を置いたとき。伝承の中身は言わない */
+    blank?: string
+    /** まだ作っていない札（白紙）を置いたとき */
+    pending?: string
+    /** 並べ終えたとき */
+    done?: string
+  }
+}
+
+/** 遊びの結果 */
 export interface GameResult {
-  /** 払った（タップした）回数 */
-  tapped: number
+  /** matsu: 払った（タップした）回数 */
+  tapped?: number
+  /** etoki: 違う札を選んだ回数 */
+  mistakes?: number
+}
+
+/** 絵解き鎮めの手札の1枚（台本の側で、いま持っているかを見て作る。並びは正しい順） */
+export interface EtokiHandCard {
+  /** 札の id か、pending の id */
+  key: string
+  /** 持っている札の中身（白紙なら無し） */
+  card?: LoreCard
+  /** 白紙の理由: missing＝まだ拾っていない、pending＝まだ作っていない */
+  blank?: 'missing' | 'pending'
 }
 
 /** 台本の効果（台本の流れの中で、その場所に来たときに1回だけ適用して保存する） */
@@ -182,7 +228,8 @@ export interface ScriptSpeaker {
 export interface DialogueScript {
   version: 1
   id: string
-  yokaiId: string
+  /** 話す妖怪。調べる地点の台本（ましろだけが話す）では無し。そのときは会う・縁の効果を使えない */
+  yokaiId?: string
   /** 台本の台詞はすべて【創作】。伝承の事実は札（openCard）でだけ出す */
   creative: true
   review: ReviewState
@@ -225,4 +272,58 @@ export interface SectionFile {
   version: 1
   note?: string
   sections: SectionDef[]
+}
+
+// ---- 調べる地点・出現の表 ----
+
+/**
+ * 調べる地点（悩みの「調べる」。04 §3.4）。妖怪はおらず、立ち止まる（家では耳を澄ます）と、ましろが話して札が出る。
+ * 地点そのものは地域パック・テスト用の土地に置き、ここでは「どの台本を使い、いつ気配を出すか」だけを持つ。
+ */
+export interface ClueDef {
+  id: string
+  /** 使う台本（ましろだけが話す） */
+  script: string
+  /** この条件を満たす間だけ、気配を出す（例: 悩みを頼まれた・札をまだ拾っていない）。拾い漏れの地点は「次の楽しみ」として残る */
+  showWhen: Condition[]
+  note?: string
+}
+
+export interface ClueFile {
+  version: 1
+  note?: string
+  clues: ClueDef[]
+}
+
+/** 時間帯（現の旅は日の入りからの時刻、夢の旅は箱庭の昼・夕・夜を当てる。04 §2.5・§3.9） */
+export type TimeSlot = 'day' | 'oumagatoki' | 'night'
+
+/** 場所の種類（出現の表の行。試作では水辺だけ。04 §3.1） */
+export type PlaceKind = 'mizube'
+
+/**
+ * 出現の表の1マス。
+ * - yokaiId と script: 出る妖怪と、寄り道の台本（悩みは始めない。縁も上げない。04 §3.1）。when を満たさなければ気配だけ
+ * - pending: まだ作っていない妖怪（例: くらがり＝段階4）。作るまでは気配だけ
+ * - kehaiOnly: 気配だけ（夜。02 F-62）
+ */
+export interface AppearanceSlot {
+  yokaiId?: string
+  script?: string
+  when?: Condition[]
+  pending?: string
+  kehaiOnly?: true
+}
+
+export interface AppearanceRow {
+  placeKind: PlaceKind
+  /** 表の見出し（例: 「川・用水沿いの歩道（河原には置かない）」） */
+  label: string
+  slots: Record<TimeSlot, AppearanceSlot>
+}
+
+export interface AppearanceTable {
+  version: 1
+  note?: string
+  rows: AppearanceRow[]
 }

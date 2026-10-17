@@ -4,7 +4,7 @@
   "yokaiId": "kozobo",
   "creative": true,
   "review": "下書き",
-  "note": "夢の旅（家）で光蔵坊とはじめて会う台本。台詞はすべて【創作】（性格: 威張るが昔のおごりを恥じている。呼び方は「人の子」。04 §3.3・§4.1）。伝承の事実は札 kozobo-1（03 #8、04 §3.5 の札①）でだけ出す。神仏の名は出さず、姿も描かない（光蔵坊は「あのお方」とだけ呼ぶ。04 §3.5）。家で上がる縁は「顔見知り」まで（この台本）。富山弁の監修までは「〜じゃ」程度の古風な言い方にとどめる。現地（段階3）: 夢で先に会っていれば再会（「夢で見た顔じゃ」）、そうでなければ現地ではじめて会う。どちらも札①を開き、曼荼羅のピースに色を入れる（彩色）。その場でしか聞けない台詞は u_onlyhere。縁は「顔見知り」まで（「語り仲間」は段階4の悩みごとで）。",
+  "note": "夢の旅（家）で光蔵坊とはじめて会う台本。台詞はすべて【創作】（性格: 威張るが昔のおごりを恥じている。呼び方は「人の子」。04 §3.3・§4.1）。伝承の事実は札 kozobo-1（03 #8、04 §3.5 の札①）でだけ出す。神仏の名は出さず、姿も描かない（光蔵坊は「あのお方」とだけ呼ぶ。04 §3.5）。家で上がる縁は「顔見知り」まで（この台本）。富山弁の監修までは「〜じゃ」程度の古風な言い方にとどめる。現地（段階3）: 夢で先に会っていれば再会（「夢で見た顔じゃ」）、そうでなければ現地ではじめて会う。どちらも札①を開き、曼荼羅のピースに色を入れる（彩色）。その場でしか聞けない台詞は u_onlyhere。縁は「顔見知り」まで（「語り仲間」は段階4の悩みごとで）。悩み #2「人はわしの話をどう語っておる」（調べる→鎮め。04 §3.5・付録A）: 2回目に会ったときに頼む（kz-q2-asked）→ 道の調べる地点で札①②（kozobo-2・3）を拾う（clues.json）→ 1枚でも拾って戻ると、絵解き鎮め（etoki）で話の順に並べる。拾っていない札は白紙で出て、ましろは伝承の中身を言わずに先へ進める（拾い漏れの救い）。③（刀尾権現）は PO・監修の確認待ちなので白紙（pending）。並べ終えると「なじみ」（kz-q2-done）になり、呼び方が「人の子」から「見習い」に変わる（04 §3.3）。「今もときどき胸がさわぐ」は【創作】（#8 は追い出されたところで終わる）。家でも現地でも同じ流れで、家で解いたら現地でやり直さない。",
   "speakers": {
     "kozobo": { "name": "光蔵坊", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
@@ -12,9 +12,15 @@
   "entries": [
     { "label": "現地・夢で会っていた", "when": [{ "travel": "utsutsu" }, { "flag": "kozobo-genchi", "is": false }, { "met": true }], "node": "u_reunion" },
     { "label": "現地・はじめて", "when": [{ "travel": "utsutsu" }, { "flag": "kozobo-genchi", "is": false }], "node": "u_first" },
+    { "label": "悩み #2 を頼む（2回目から）", "when": [{ "piece": "fumoto-kozobo", "atLeast": "hakubyo" }, { "flag": "kz-q2-asked", "is": false }], "node": "q2_ask" },
+    { "label": "話を拾って戻った（①）", "when": [{ "flag": "kz-q2-asked", "is": true }, { "flag": "kz-q2-done", "is": false }, { "card": "kozobo-2", "opened": true }], "node": "q2_back" },
+    { "label": "話を拾って戻った（②）", "when": [{ "flag": "kz-q2-asked", "is": true }, { "flag": "kz-q2-done", "is": false }, { "card": "kozobo-3", "opened": true }], "node": "q2_back" },
+    { "label": "まだ話を拾っていない", "when": [{ "flag": "kz-q2-asked", "is": true }, { "flag": "kz-q2-done", "is": false }], "node": "q2_wait" },
+    { "label": "現地・また会う（悩みを解いたあと）", "when": [{ "travel": "utsutsu" }, { "flag": "kz-q2-done", "is": true }], "node": "u_again_m" },
     { "label": "現地・また会う", "when": [{ "travel": "utsutsu" }], "node": "u_again" },
     { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
     { "label": "札の前で途切れた", "when": [{ "card": "kozobo-1", "opened": false }], "node": "resume" },
+    { "label": "また会う（悩みを解いたあと）", "when": [{ "flag": "kz-q2-done", "is": true }], "node": "again_m" },
     { "label": "また会う", "when": [{ "piece": "fumoto-kozobo", "atLeast": "hakubyo" }], "node": "again" },
     { "label": "札のあとで途切れた", "node": "resume_end" }
   ],
@@ -241,6 +247,90 @@
     "u_again_close": {
       "lines": [{ "speaker": "kozobo", "text": "暗くならぬうちに、帰るのじゃぞ。" }],
       "end": true
+    },
+    "q2_ask": {
+      "lines": [
+        { "speaker": "kozobo", "text": "……また来たか、人の子。ちょうどよい。" },
+        { "speaker": "kozobo", "text": "ひとつ、聞きたいことがある。" },
+        { "speaker": "kozobo", "text": "人は、わしの話を、どう語っておる。" }
+      ],
+      "next": "q2_ask2"
+    },
+    "q2_ask2": {
+      "lines": [
+        { "speaker": "mashiro", "text": "どう、って……？" },
+        { "speaker": "kozobo", "text": "昔の話というものは、あちこちに落ちておる。この道のどこかにもな。" },
+        { "speaker": "kozobo", "text": "拾うてきて、わしに聞かせてくれ。" }
+      ],
+      "effects": [{ "flag": "kz-q2-asked", "value": true }],
+      "next": "q2_ask_end"
+    },
+    "q2_ask_end": {
+      "lines": [
+        { "speaker": "mashiro", "text": "立ち止まって耳を澄ませば、聞こえるかも。さがしてみよう。" },
+        { "speaker": "kozobo", "text": "急がんでよい。……道の端は、気をつけて歩くのじゃぞ。" }
+      ],
+      "end": true
+    },
+    "q2_wait": {
+      "lines": [
+        { "speaker": "kozobo", "text": "……まだ、何も拾うておらぬようじゃな。" },
+        { "speaker": "mashiro", "text": "この道のどこかに、古い話の気配があるはず。" }
+      ],
+      "end": true
+    },
+    "q2_back": {
+      "lines": [
+        { "speaker": "kozobo", "text": "……拾うてきたか。" },
+        { "speaker": "kozobo", "text": "では、並べてみい。わしの話が、どう語られておるか。" }
+      ],
+      "choices": [
+        { "text": "並べてみる", "next": "q2_stir" },
+        { "text": "もう少し、さがしてくる", "next": "q2_later" }
+      ]
+    },
+    "q2_later": {
+      "lines": [{ "speaker": "kozobo", "text": "……うむ。待っておる。" }],
+      "end": true
+    },
+    "q2_stir": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……風が、強くなってきた。" },
+        { "speaker": "kozobo", "text": "……昔のことを思うと、どうにも胸がさわぐ。……かまわん、並べよ。" }
+      ],
+      "effects": [{ "game": { "type": "etoki", "title": "光蔵坊の話", "slots": [{ "card": "kozobo-2" }, { "card": "kozobo-3" }, { "pending": "kozobo-3rd" }], "lines": { "start": "話の順に、札を一枚ずつ選んでいこう。", "right": "……風が、少し弱まった。", "wrong": "ちがうみたい。札の言葉を、よく読んでみよう。", "wrongAgain": "話のはじまりは、どの札だろう。", "blank": "ここは、まだ拾っていない話。……あとで、拾いに行こう。", "pending": "この札は、まだ白紙のまま。……続きは、いつか。", "done": "……風が、やんだ。" } } }],
+      "next": "q2_calm"
+    },
+    "q2_calm": {
+      "lines": [
+        { "speaker": "kozobo", "text": "……そうじゃ。それが、わしの話じゃ。" },
+        { "speaker": "kozobo", "text": "おごりは、いまも、ときどき胸の奥でさわぐ。……鎮めてもろうたな。" }
+      ],
+      "effects": [{ "bond": "najimi" }, { "flag": "kz-q2-done", "value": true }],
+      "next": "q2_end"
+    },
+    "q2_end": {
+      "lines": [
+        { "speaker": "kozobo", "text": "見習い。……そう呼んでやろう。" },
+        { "speaker": "mashiro", "text": "見習い？" },
+        { "speaker": "kozobo", "text": "話を拾い、並べて、語り返す。それが、おぬしらの仕事じゃろう。" },
+        { "speaker": "kozobo", "text": "拾い残した話があれば、また聞かせてくれ。" }
+      ],
+      "end": true
+    },
+    "again_m": {
+      "lines": [{ "speaker": "kozobo", "text": "おう、見習いか。" }],
+      "choices": [
+        { "text": "札を、もう一度読みたい", "next": "reread" },
+        { "text": "あいさつに来ただけ", "next": "greet" }
+      ]
+    },
+    "u_again_m": {
+      "lines": [{ "speaker": "kozobo", "text": "おう、見習い。ここで会うのは、悪くない。" }],
+      "choices": [
+        { "text": "札を、もう一度読みたい", "next": "u_reread" },
+        { "text": "あいさつに来ただけ", "next": "u_greet" }
+      ]
     }
   }
 }

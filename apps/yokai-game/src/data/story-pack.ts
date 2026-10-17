@@ -1,13 +1,30 @@
 // 物語のデータ（台本・伝承の札・曼荼羅の構図・妖怪）をまとめて読み込み、点検する。
 // ゲーム独自のデータなので、OSM 由来のデータ（ODbL）とは別のファイルに分けている（05 §5.1）。
 
+import { validateAppearance } from '../core/story/appearance'
 import { validateScript } from '../core/story/dialogue'
-import type { DialogueScript, LoreCard, LoreCardFile, MandalaDef, SectionDef, SectionFile, YokaiDef } from '../core/story/types'
+import type {
+  AppearanceTable,
+  ClueDef,
+  ClueFile,
+  DialogueScript,
+  LoreCard,
+  LoreCardFile,
+  MandalaDef,
+  SectionDef,
+  SectionFile,
+  YokaiDef,
+} from '../core/story/types'
+import appearanceJson from './appearance.json'
+import cluesJson from './clues.json'
 import cardsJson from './lore-cards.json'
 import mandalaJson from './mandala.json'
 import gameScript from './scripts/game.json'
+import gameYorimichiScript from './scripts/game-yorimichi.json'
 import karabozuScript from './scripts/karabozu.json'
 import kozoboScript from './scripts/kozobo.json'
+import kozoboShirabe1Script from './scripts/kozobo-shirabe-1.json'
+import kozoboShirabe2Script from './scripts/kozobo-shirabe-2.json'
 import minomoshiScript from './scripts/minomoshi.json'
 import sectionsJson from './sections.json'
 import yokaiJson from './yokai.json'
@@ -19,6 +36,10 @@ export interface StoryPack {
   mandala: MandalaDef
   /** 節と旅印 */
   sections: SectionDef[]
+  /** 調べる地点（地点は地域パックに置き、clueId でここを引く） */
+  clues: Record<string, ClueDef>
+  /** 出現の表（寄り道の妖怪。場所の種類 × 時間帯） */
+  appearance: AppearanceTable
   /** 点検で見つかった問題（空なら問題なし） */
   problems: string[]
 }
@@ -29,7 +50,16 @@ export function loadStoryPack(): StoryPack {
   for (const c of cardFile.cards) cards[c.id] = c
   const mandala = mandalaJson as unknown as MandalaDef
   const scripts: Record<string, DialogueScript> = {}
-  for (const s of [kozoboScript, gameScript, karabozuScript, minomoshiScript] as unknown as DialogueScript[]) scripts[s.id] = s
+  const scriptList = [
+    kozoboScript,
+    kozoboShirabe1Script,
+    kozoboShirabe2Script,
+    gameScript,
+    gameYorimichiScript,
+    karabozuScript,
+    minomoshiScript,
+  ] as unknown as DialogueScript[]
+  for (const s of scriptList) scripts[s.id] = s
   const yokai: Record<string, YokaiDef> = {}
   for (const y of yokaiJson.yokai as YokaiDef[]) yokai[y.id] = y
 
@@ -47,5 +77,13 @@ export function loadStoryPack(): StoryPack {
   const sections = (sectionsJson as unknown as SectionFile).sections
   for (const sec of sections)
     for (const c of sec.requires) if ('piece' in c && !pieceIds.has(c.piece)) problems.push(`節 ${sec.id} のピース ${c.piece} がない`)
-  return { yokai, scripts, cards, mandala, sections, problems }
+  const clues: Record<string, ClueDef> = {}
+  for (const c of (cluesJson as unknown as ClueFile).clues) {
+    clues[c.id] = c
+    if (!scripts[c.script]) problems.push(`調べる地点 ${c.id} の台本 ${c.script} がない`)
+    else if (scripts[c.script].yokaiId) problems.push(`調べる地点 ${c.id} の台本に妖怪がいる（ましろだけが話す）`)
+  }
+  const appearance = appearanceJson as unknown as AppearanceTable
+  problems.push(...validateAppearance(appearance, new Set(Object.keys(yokai)), new Set(Object.keys(scripts))))
+  return { yokai, scripts, cards, mandala, sections, clues, appearance, problems }
 }

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "note": "調べる地点（04 §3.4）の台本と、気配を出す条件。地点の座標は地域パック（iwakuraji-pack.ts）とテスト用の土地（test-land.ts）に置き、clueId でこの表を引く。showWhen を満たす間だけ気配を出す（頼まれていて、札をまだ拾っていない間。拾い漏れの地点は、悩みを解いたあとも残る）。",
+  "clues": [
+    {
+      "id": "kozobo-shirabe-1",
+      "script": "kozobo-shirabe-1",
+      "showWhen": [
+        {
+          "flag": "kz-q2-asked",
+          "is": true
+        },
+        {
+          "card": "kozobo-2",
+          "opened": false
+        }
+      ],
+      "note": "光蔵坊の悩み #2 の札①"
+    },
+    {
+      "id": "kozobo-shirabe-2",
+      "script": "kozobo-shirabe-2",
+      "showWhen": [
+        {
+          "flag": "kz-q2-asked",
+          "is": true
+        },
+        {
+          "card": "kozobo-3",
+          "opened": false
+        }
+      ],
+      "note": "光蔵坊の悩み #2 の札②"
+    }
+  ]
+}

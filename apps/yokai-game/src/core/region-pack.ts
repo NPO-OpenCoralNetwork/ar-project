@@ -25,9 +25,12 @@ export interface Spot {
   /** 了承前は社寺名などを出さず「この地点」とする */
   label: string
   position: LatLon
-  /** 置ける場所の種類（02/04 のルール: 歩道のある道・広場・公園） */
-  placeKind: 'road' | 'square' | 'park'
+  /** 置ける場所の種類（02/04 のルール: 歩道のある道・広場・公園）。mizube は出現の表の「水辺」（川・用水沿いの歩道） */
+  placeKind: 'road' | 'square' | 'park' | 'mizube'
+  /** 決まった地点の妖怪（F-04）。無くて placeKind が出現の表の行なら、寄り道の地点（表で妖怪を引く） */
   yokaiId?: string
+  /** 調べる地点（clues.json の id）。妖怪はおらず、ましろが話して札が出る（04 §3.4） */
+  clueId?: string
 }
 
 export interface RestZone {

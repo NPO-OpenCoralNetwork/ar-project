@@ -12,6 +12,7 @@ import {
   type Condition,
   type DialogueScript,
   type Effect,
+  type EtokiHandCard,
   type GameResult,
   type GameSpec,
   type LoreCard,
@@ -31,7 +32,14 @@ export type Beat =
   | { kind: 'line'; speakerId: string; speaker: ScriptSpeaker; text: string }
   | { kind: 'card'; card: LoreCard; first: boolean }
   | { kind: 'notice'; notice: Notice }
-  | { kind: 'game'; game: GameSpec; yokai: string }
+  | {
+      kind: 'game'
+      game: GameSpec
+      /** 話している妖怪（調べる地点の台本では空） */
+      yokai: string
+      /** 絵解き鎮めの手札（正しい順。持っていない札は白紙） */
+      hand?: EtokiHandCard[]
+    }
   | {
       kind: 'choices'
       /** 選択肢の前の台詞（画面に残す） */
@@ -81,7 +89,7 @@ export class DialogueRunner {
   /** 台詞・札・お知らせを読み終えたら、次の拍へ。小さな遊びのあとは、その結果を渡す */
   next(result?: GameResult): Beat {
     if (!this.current || this.current.kind === 'choices' || this.current.kind === 'end') return this.current ?? { kind: 'end' }
-    if (this.current.kind === 'game' && this.current.game.tappedFlag)
+    if (this.current.kind === 'game' && this.current.game.type === 'matsu' && this.current.game.tappedFlag)
       this.ctx.progress.setFlag(this.current.game.tappedFlag, (result?.tapped ?? 0) > 0)
     return this.advance()
   }
@@ -149,7 +157,7 @@ export class DialogueRunner {
   /** 効果を適用する。画面に見せるもの（札・お知らせ）があれば拍を返す */
   private apply(e: Effect): Beat | null {
     const { progress, travel } = this.ctx
-    const yokai = this.script.yokaiId
+    const yokai = this.script.yokaiId ?? ''
     if ('meet' in e) {
       progress.meet(yokai, travel)
       return null
@@ -174,12 +182,21 @@ export class DialogueRunner {
       progress.setFlag(e.flag, e.value)
       return null
     }
-    if ('game' in e) return { kind: 'game', game: e.game, yokai }
+    if ('game' in e) {
+      if (e.game.type !== 'etoki') return { kind: 'game', game: e.game, yokai }
+      // 手札は、いま持っている札から作る（画面の側は進み具合を読まない）
+      const hand: EtokiHandCard[] = e.game.slots.map((s) => {
+        if ('pending' in s) return { key: `pending:${s.pending}`, blank: 'pending' }
+        const card = this.ctx.cards[s.card]
+        return card && progress.isCardOpened(s.card) ? { key: s.card, card } : { key: s.card, blank: 'missing' }
+      })
+      return { kind: 'game', game: e.game, yokai, hand }
+    }
     return null
   }
 
   check(conds: Condition[] | undefined): boolean {
-    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId)
+    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId ?? '')
   }
 }
 
@@ -225,7 +242,7 @@ export function validateScript(script: DialogueScript, cards: Record<string, Lor
     // 同時に出る選択肢は3つまで。条件つき（when）の選択肢は、状態によって出し分ける分だけ多く書いてよい（全部で6つまで）
     if ((n.choices?.length ?? 0) > 6) errs.push(`${script.id}: 場面 ${id} の選択肢は全部で6つまで`)
     else if ((n.choices?.length ?? 0) > 3) {
-      const most = maxVisibleChoices(n.choices ?? [], script.yokaiId)
+      const most = maxVisibleChoices(n.choices ?? [], script.yokaiId ?? '')
       if (most > 3) errs.push(`${script.id}: 場面 ${id} の選択肢が、同時に ${most} つ出ることがある（3つまで）`)
     }
     if (n.choices?.length && !n.lines?.length) errs.push(`${script.id}: 場面 ${id} は選択肢の前に台詞を置く`)
@@ -233,10 +250,33 @@ export function validateScript(script: DialogueScript, cards: Record<string, Lor
     for (const e of n.effects ?? []) {
       if ('openCard' in e && !cards[e.openCard]) errs.push(`${script.id}: 場面 ${id} の札 ${e.openCard} がない`)
       if ('piece' in e && !pieceIds.has(e.piece)) errs.push(`${script.id}: 場面 ${id} のピース ${e.piece} が曼荼羅にない`)
-      if ('game' in e) {
-        if (e.game.type !== 'matsu') errs.push(`${script.id}: 場面 ${id} の遊び ${String((e.game as { type: unknown }).type)} は知らない`)
-        for (const [k, v] of Object.entries(e.game.lines ?? {})) if (typeof v !== 'string') errs.push(`${script.id}: 場面 ${id} の遊びの台詞 ${k} が文字でない`)
-      }
+      if (('meet' in e || 'bond' in e) && !script.yokaiId) errs.push(`${script.id}: 場面 ${id} は妖怪のいない台本なので、会う・縁の効果は使えない`)
+      if ('game' in e) errs.push(...validateGame(e.game, cards).map((m) => `${script.id}: 場面 ${id} の${m}`))
+    }
+    for (const c of n.choices ?? []) for (const w of c.when ?? []) if (!script.yokaiId && needsYokai(w)) errs.push(`${script.id}: 場面 ${id} の選択肢の条件に妖怪を書く`)
+  }
+  for (const e of script.entries) for (const w of e.when ?? []) if (!script.yokaiId && needsYokai(w)) errs.push(`${script.id}: 入口 ${e.node} の条件に妖怪を書く`)
+  return errs
+}
+
+/** 妖怪のいない台本で、妖怪を省いた「会ったか」「縁」の条件は使えない */
+const needsYokai = (c: Condition): boolean => ('met' in c || 'bondAtLeast' in c) && !c.yokai
+
+function validateGame(g: GameSpec, cards: Record<string, LoreCard>): string[] {
+  const errs: string[] = []
+  const type = (g as { type: unknown }).type
+  if (type !== 'matsu' && type !== 'etoki') return [`遊び ${String(type)} は知らない`]
+  for (const [k, v] of Object.entries(g.lines ?? {})) if (typeof v !== 'string') errs.push(`遊びの台詞 ${k} が文字でない`)
+  if (g.type === 'etoki') {
+    if (!g.title) errs.push('絵解き鎮めに題がない')
+    if (!g.slots?.length || g.slots.length > 4) errs.push('絵解き鎮めの札は1〜4枚')
+    const seen = new Set<string>()
+    for (const s of g.slots ?? []) {
+      const key = 'card' in s ? s.card : `pending:${s.pending}`
+      if (seen.has(key)) errs.push(`絵解き鎮めの札 ${key} が2回ある`)
+      seen.add(key)
+      if ('card' in s && !cards[s.card]) errs.push(`絵解き鎮めの札 ${s.card} がない`)
+      if ('pending' in s && !s.pending) errs.push('絵解き鎮めの白紙の札に、確認待ちの理由がない')
     }
   }
   return errs

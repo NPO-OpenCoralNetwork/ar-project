@@ -146,7 +146,9 @@
           "yokaiId": "kozobo",
           "art": "kozobo",
           "cardIds": [
-            "kozobo-1"
+            "kozobo-1",
+            "kozobo-2",
+            "kozobo-3"
           ],
           "x": 114,
           "y": 484,
