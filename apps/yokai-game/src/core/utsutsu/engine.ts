@@ -6,6 +6,7 @@
 // - 「足を止めた」ボタン: 直近数秒の速さを確かめ、止まっていれば判定を待たずに澄みはじめる。歩く速さなら「止まってから、もう一度」。
 // - 一度会った地点は、いちど離れる（rearmM 以上）まで、止まるだけでは澄まない（ボタンなら澄む）。会話を終えた直後のため。
 // - 道中（乗り物）・お休みの範囲（境内）・逢魔が時・夜は、出会いを止める。気配の表示は、道中とお休み以外では続ける（夜は気配だけ。F-62）。
+// - 隠した地点（hidden。調べる地点の、頼まれる前・拾ったあと）は、気配・鈴・出会いのどれにも出さない。
 // - 気配: kehaiRangeM（300m）以内の地点を、距離と方角つきで返す。bellRangeM（150m）に入ったときに一度だけ鈴を鳴らす（離れたら戻す）。
 // - 位置は端末の中だけで使い、どこにも送らない（F-52）。保存もしない（進み具合だけを保存する）。
 
@@ -16,13 +17,16 @@ import { type DayPhase, dayPhase, type PhaseInfo } from './sun'
 import { TransitDetector } from './transit'
 import { RestWatcher, type RestZoneLocal } from './zones'
 
+/** 地点。canAppear・hidden は進み具合と時間帯で変わるので、呼ぶ側が書き換えてよい（次の tick から効く） */
 export interface EngineSpot {
   id: string
   x: number
   z: number
   yokaiId?: string
-  /** 台本と絵があり、姿が現れる地点（ほかは気配だけ） */
+  /** 澄むと出会い（appear）になる地点。ほかは気配だけで、澄むと faint */
   canAppear: boolean
+  /** いまは無い地点（気配・鈴・出会いのどれにも出さない） */
+  hidden?: boolean
 }
 
 export interface EngineTuning {
@@ -241,6 +245,11 @@ export class UtsutsuEngine {
     if (last && motion !== 'transit' && motion !== 'rest') {
       const radius = t.encounterRadiusM + Math.min(t.accBonusMaxM, last.acc * 0.5)
       for (const s of this.spots) {
+        if (s.hidden) {
+          // また出てきたときに、近くにいれば鈴が鳴るように
+          this.belled.delete(s.id)
+          continue
+        }
         const dx = s.x - last.x
         const dz = s.z - last.z
         const d = Math.hypot(dx, dz)

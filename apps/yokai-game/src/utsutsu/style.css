@@ -52,9 +52,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 .uh-stop .fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
 .uh-stop b { font-family: var(--title-font); font-weight: 600; font-size: 15px; letter-spacing: 0.1em; display: block; text-align: left; }
 .uh-stop small { display: block; font-size: 11px; color: var(--ink-soft); text-align: left; }
-.uh-toast { position: absolute; left: 50%; top: calc(96px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.04em; padding: 8px 16px; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 12px; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; }
+.uh-toast { position: absolute; left: 50%; top: calc(96px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.04em; padding: 8px 16px; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 12px; width: max-content; max-width: calc(100vw - 120px); text-align: center; text-wrap: balance; word-break: auto-phrase; }
 .uh-toast.on { opacity: 1; }
+.uh-toast .s { display: inline-block; }
 .uh-toast small { display: block; font-family: var(--ui-font); font-size: 11px; color: var(--ink-soft); margin-bottom: 2px; letter-spacing: 0.1em; }
+/* 台詞の印（「台本・創作」。会話の枠の印と同じ形） */
+.uh-toast small .tag { display: inline-block; margin-left: 8px; font-style: normal; font-size: 10px; letter-spacing: 0.04em; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; line-height: 1.5; }
 .yh .yh-credit { position: absolute; right: calc(8px + var(--sar)); bottom: calc(6px + var(--sab)); font-size: 10px; line-height: 1.4; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 2px 7px; text-align: right; max-width: calc(100vw - 16px); z-index: 80; }
 .yh-credit a { color: inherit; text-decoration: none; pointer-events: auto; }
 .uh-debug { position: absolute; left: calc(8px + var(--sal)); bottom: calc(112px + var(--sab)); font: 10.5px/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 3px 6px; white-space: pre; }
@@ -70,6 +73,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 .uh-card p.soft { font-size: 12.5px; color: rgba(42, 38, 34, 0.62); }
 .uh-card .speaker { font-family: var(--title-font); font-size: 16px; line-height: 1.85; margin: 10px 0 2px; }
 .uh-card .speaker::before { content: "ましろ　"; font-size: 12px; color: rgba(42, 38, 34, 0.62); letter-spacing: 0.1em; }
+/* ましろの台詞は【創作】なので、会話の枠の外でも「台本・創作」の印をつける（会話の枠の印と同じ形） */
+.uh-card .speaker::after { content: "台本・創作"; display: inline-block; margin-left: 8px; vertical-align: 0.12em; font-family: var(--ui-font); font-size: 10px; letter-spacing: 0.04em; line-height: 1.5; color: rgba(42, 38, 34, 0.62); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
 .uh-card .count { font-size: 11px; color: rgba(42, 38, 34, 0.55); letter-spacing: 0.12em; }
 .uh-card .big { display: block; width: 100%; margin-top: 14px; font: inherit; font-family: var(--title-font); font-size: 16px; letter-spacing: 0.1em; min-height: 50px; color: #faf7f0; background: #2f4a7a; border: 0; border-radius: 12px; cursor: pointer; }
 .uh-card .sub { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; min-height: 44px; color: #2a2622; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; cursor: pointer; text-align: center; text-decoration: none; line-height: 44px; }
@@ -80,7 +85,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 .uh-card svg.mashiro { display: block; width: 120px; height: 90px; margin: 0 auto 6px; }
 .uh-sheet.transit { background: rgba(28, 33, 64, 0.96); }
 .uh-sheet.transit .uh-card { background: #232a52; color: #e8e4f2; border-color: rgba(232, 228, 242, 0.2); text-align: center; }
-.uh-sheet.transit .uh-card p.soft { color: rgba(232, 228, 242, 0.7); }
+.uh-sheet.transit .uh-card p.soft, .uh-sheet.transit .uh-card .speaker::before, .uh-sheet.transit .uh-card .speaker::after { color: rgba(232, 228, 242, 0.7); }
+.uh-sheet.transit .uh-card .speaker::after { border-color: rgba(232, 228, 242, 0.3); }
 .uh-stamp-page { position: relative; margin: 10px auto 4px; width: 200px; height: 200px; border-radius: 6px; background: linear-gradient(170deg, #fbf6e9, #f1e7d1); box-shadow: inset 0 0 0 1px rgba(42, 38, 34, 0.15); display: flex; align-items: center; justify-content: center; }
 .uh-stamp-page .slot { width: 160px; height: 160px; }
 .uh-stamp-page .slot svg { width: 100%; height: 100%; }
