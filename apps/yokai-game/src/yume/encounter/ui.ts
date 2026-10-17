@@ -121,13 +121,14 @@ const CSS = /* css */ `
   background: linear-gradient(170deg, #fbf6e9, #f3ead6); border: 1px solid rgba(43, 36, 32, 0.3); border-radius: 6px; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 4px 10px rgba(20, 16, 30, 0.2);
   -webkit-tap-highlight-color: transparent; transition: transform 0.2s, border-color 0.2s; }
 .yge-card b { display: block; font-family: var(--title-font); font-weight: 700; font-size: 17px; line-height: 1.45; letter-spacing: 0.06em; }
-.yge-card span { display: block; margin-top: 2px; font-family: var(--title-font); font-size: 14px; line-height: 1.6; color: rgba(43, 36, 32, 0.86); text-wrap: pretty; word-break: auto-phrase; }
+/* 本文の中の短いかぎかっこ（keepQuotes の span）は折らないだけにする。ここで block にしないよう、直下の span だけ */
+.yge-card > span { display: block; margin-top: 2px; font-family: var(--title-font); font-size: 14px; line-height: 1.6; color: rgba(43, 36, 32, 0.86); text-wrap: pretty; word-break: auto-phrase; }
 .yge-card:hover { border-color: rgba(43, 36, 32, 0.6); }
 /* キーボードの位置の枠は、キーボードで操作しているときだけ（タッチでは、枠が「選んだ札」に見えてしまう） */
 .yge-card:focus-visible { outline: none; }
 .yd-keys .yge-card:focus-visible { outline: 2px solid #2b2420; outline-offset: -6px; }
 .yge-card.blank { cursor: default; background: #fff; border: 1.5px dashed rgba(43, 36, 32, 0.42); box-shadow: 0 3px 8px rgba(20, 16, 30, 0.12); color: rgba(43, 36, 32, 0.7); }
-.yge-card.blank span { font-family: var(--ui-font); font-size: 12.5px; color: rgba(43, 36, 32, 0.64); }
+.yge-card.blank > span { font-family: var(--ui-font); font-size: 12.5px; color: rgba(43, 36, 32, 0.64); }
 .yge-card.shake { animation: yge-shake 0.42s ease-in-out; }
 @keyframes yge-shake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
 /* 広い画面では、手札を横に並べる */
@@ -145,7 +146,7 @@ const CSS = /* css */ `
   .yge-slot { min-height: 56px; }
   .yge-card { min-height: 48px; padding: 7px 14px 8px; }
   .yge-card b { font-size: 15.5px; }
-  .yge-card span { font-size: 13px; line-height: 1.5; }
+  .yge-card > span { font-size: 13px; line-height: 1.5; }
 }
 /* 横向きのスマホなど: 言葉の下の案内と題の上の小さな字を外す */
 @media (max-height: 480px) {
@@ -859,6 +860,10 @@ class EtokiGame {
       quit()
     })
     this.el.append(say, board, quitBtn)
+    // Enter を押し続けたとき（キーの連続入力）に、同じ札や、次に位置が移った札を続けて選ばないようにする
+    this.el.addEventListener('keydown', (e) => {
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault()
+    })
     root.appendChild(this.el)
     root.classList.add('yg-playing')
     this.refresh()
