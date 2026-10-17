@@ -1,12 +1,13 @@
 // 地元のテスト用の土地（02 F-07「チームの地元の地点にテスト用の妖怪を割り当てる」）。
-// いまいる所のまわり（約 800m 四方）の OSM データを OSM API から読み、素の地図・お休みの範囲・地点3つをその場で作る。
+// いまいる所のまわり（約 800m 四方）の OSM データを OSM API から読み、素の地図・お休みの範囲・地点（4つまで）をその場で作る。
 //
 // - 作った土地は、この端末の中（localStorage）にだけ置く。リポジトリにもサーバーにも入れない（テストする人の家の近くの位置なので）。
 //   OSM API には範囲（緯度経度の四角）だけが伝わる。
 // - お休みの範囲: 社寺の面（amenity=place_of_worship・landuse=religious）、墓地（landuse=cemetery・amenity=grave_yard）。
 //   社寺が点だけのときは半径 50m の円、小さな祠（historic=wayside_shrine）は半径 10m の円で囲む（scripts/fetch-osm.mjs の簡易版）。
 // - 地点: 公道（歩道のある道を優先）の上で、お休みの範囲から 60m 以上、線路から 15m 以上、いまいる所から 60〜350m、
-//   地点どうし 120m 以上離れた所を機械的に選ぶ（4か所）。1つ目（光蔵坊）は、いまいる所からいちばん近い候補にする。
+//   地点どうし 120m 以上離れた所を機械的に選ぶ（4か所まで）。1つ目（光蔵坊）は、いまいる所からいちばん近い候補にする。
+//   ガメとカーラボーズは、とりもつ（悩み #1）で行き来するので、2体そろって置けるとき（3か所以上）だけ置く。
 //   「住宅の前でないか」「2分立ち止まっても邪魔にならないか」は分からないので、歩いてみて合わなければ作り直す。
 // OSM のデータは ODbL（© OpenStreetMap contributors）。
 
@@ -14,7 +15,8 @@ import { type LatLon, toLocal } from '../core/geo'
 import type { MapLayers, XZ } from '../core/map-layers'
 
 export interface TestLand {
-  version: 1
+  /** 2: ガメ・カーラボーズ・ミノモシを置くようになった版（1 の土地は作り直してもらう） */
+  version: 2
   createdAt: string
   origin: LatLon
   map: MapLayers
@@ -34,13 +36,17 @@ const ROAD_WIDTH: Record<string, number> = {
 const WATER_W: Record<string, number> = { river: 20, canal: 3, stream: 2, ditch: 1, drain: 1 }
 /** テスト用の土地に置く妖怪。1つ目（いちばん近い地点）は光蔵坊。ガメとカーラボーズは、とりもつ（悩み #1）で行き来する */
 const TEST_YOKAI = ['kozobo', 'game', 'karabozu', 'minomoshi']
+/** 地点が3つに満たないときに置く妖怪（とりもつの2体は、片方だけでは進まないので置かない） */
+const TEST_YOKAI_FEW = ['kozobo', 'minomoshi']
+/** テスト用の土地に置く気配の数（いちばん多いとき） */
+export const TEST_SPOTS_MAX = TEST_YOKAI.length
 
 export function loadTestLand(): TestLand | null {
   try {
     const s = localStorage.getItem(KEY)
     if (!s) return null
     const t = JSON.parse(s) as TestLand
-    return t?.version === 1 && t.spots?.length ? t : null
+    return t?.version === 2 && t.spots?.length ? t : null
   } catch {
     return null
   }
@@ -242,9 +248,10 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     picked.push(s.p)
   }
   if (!picked.length) throw new Error('近くに、気配を置ける公道が見つかりませんでした（OSM に道が少ないか、社寺・墓地が近すぎます）。少し移動して、もう一度作ってください')
-  const spots = picked.map((p, i) => ({ id: `test-${i + 1}`, x: Math.round(p[0] * 10) / 10, z: Math.round(p[1] * 10) / 10, yokaiId: TEST_YOKAI[i] }))
+  const yokai = picked.length >= 3 ? TEST_YOKAI : TEST_YOKAI_FEW
+  const spots = picked.map((p, i) => ({ id: `test-${i + 1}`, x: Math.round(p[0] * 10) / 10, z: Math.round(p[1] * 10) / 10, yokaiId: yokai[i] }))
   return {
-    version: 1,
+    version: 2,
     createdAt: new Date().toISOString(),
     origin,
     map,

@@ -247,8 +247,9 @@ const CSS = /* css */ `
 .ue-cam { object-fit: cover; display: none; background: #000; }
 .ue.camera .ue-cam { display: block; }
 .ue.camera .ue-bg { display: none; }
-.ue-fig { position: absolute; left: 50%; bottom: calc(150px + var(--sab)); width: min(62vw, 36vh); aspect-ratio: 2 / 3; margin-left: calc(min(62vw, 36vh) / -2); will-change: transform; filter: drop-shadow(0 10px 10px rgba(60, 50, 40, 0.18)); }
-@media (max-width: 1120px) { .ue-fig { bottom: calc(190px + var(--sab)); } }
+.ue-fig { position: absolute; left: 50%; bottom: calc(max(150px, var(--yd-h, 0px) + 28px) + var(--sab)); width: min(62vw, 36vh); aspect-ratio: 2 / 3; margin-left: calc(min(62vw, 36vh) / -2); will-change: transform; filter: drop-shadow(0 10px 10px rgba(60, 50, 40, 0.18)); transition: bottom 0.35s ease-out; }
+/* 会話の枠の上に出す（枠は 1120px 以下で下から 50px） */
+@media (max-width: 1120px) { .ue-fig { bottom: calc(max(190px, var(--yd-h, 0px) + 64px) + var(--sab)); } }
 .ue-fig svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ue-fig .line { opacity: 0; transform: translateY(10px) scale(0.97); transition: opacity 0.7s ease-out, transform 1.2s ease-out; }
 .ue-fig .color { opacity: 0; transition: opacity 1.1s ease-in 0.7s; }

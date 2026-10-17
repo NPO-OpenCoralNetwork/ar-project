@@ -7,6 +7,7 @@
 import { type ProgressStore, bondRank, pieceRank } from './progress'
 import {
   BOND_LABEL,
+  BOND_LEVELS,
   type BondLevel,
   type Condition,
   type DialogueScript,
@@ -15,7 +16,9 @@ import {
   type GameSpec,
   type LoreCard,
   PIECE_LABEL,
+  PIECE_STATES,
   type PieceState,
+  type ScriptChoice,
   type ScriptSpeaker,
   type Travel,
 } from './types'
@@ -220,15 +223,69 @@ export function validateScript(script: DialogueScript, cards: Record<string, Lor
     if (n.next && !has(n.next)) errs.push(`${script.id}: 場面 ${id} の next ${n.next} がない`)
     for (const c of n.choices ?? []) if (!has(c.next)) errs.push(`${script.id}: 場面 ${id} の選択肢「${c.text}」の行き先 ${c.next} がない`)
     // 同時に出る選択肢は3つまで。条件つき（when）の選択肢は、状態によって出し分ける分だけ多く書いてよい（全部で6つまで）
-    const always = (n.choices ?? []).filter((c) => !c.when?.length).length
-    if (always > 3 || (n.choices?.length ?? 0) > 6) errs.push(`${script.id}: 場面 ${id} の選択肢は、条件なしで3つまで・全部で6つまで`)
+    if ((n.choices?.length ?? 0) > 6) errs.push(`${script.id}: 場面 ${id} の選択肢は全部で6つまで`)
+    else if ((n.choices?.length ?? 0) > 3) {
+      const most = maxVisibleChoices(n.choices ?? [], script.yokaiId)
+      if (most > 3) errs.push(`${script.id}: 場面 ${id} の選択肢が、同時に ${most} つ出ることがある（3つまで）`)
+    }
     if (n.choices?.length && !n.lines?.length) errs.push(`${script.id}: 場面 ${id} は選択肢の前に台詞を置く`)
     for (const l of n.lines ?? []) if (!script.speakers[l.speaker]) errs.push(`${script.id}: 場面 ${id} の話し手 ${l.speaker} がいない`)
     for (const e of n.effects ?? []) {
       if ('openCard' in e && !cards[e.openCard]) errs.push(`${script.id}: 場面 ${id} の札 ${e.openCard} がない`)
       if ('piece' in e && !pieceIds.has(e.piece)) errs.push(`${script.id}: 場面 ${id} のピース ${e.piece} が曼荼羅にない`)
-      if ('game' in e && e.game.type !== 'matsu') errs.push(`${script.id}: 場面 ${id} の遊び ${String((e.game as { type: unknown }).type)} は知らない`)
+      if ('game' in e) {
+        if (e.game.type !== 'matsu') errs.push(`${script.id}: 場面 ${id} の遊び ${String((e.game as { type: unknown }).type)} は知らない`)
+        for (const [k, v] of Object.entries(e.game.lines ?? {})) if (typeof v !== 'string') errs.push(`${script.id}: 場面 ${id} の遊びの台詞 ${k} が文字でない`)
+      }
     }
   }
   return errs
+}
+
+/**
+ * 条件つきの選択肢が、いちどに最大いくつ出るか。条件が見ているもの（フラグ・札・会ったか・旅・縁・ピース）ごとに
+ * 取りうる値をすべて組み合わせて数える（同じフラグの true と false は同時に成り立たない）。
+ */
+function maxVisibleChoices(choices: ScriptChoice[], yokaiDefault: string): number {
+  const keyOf = (c: Condition): string => {
+    if ('met' in c) return `met:${c.yokai ?? yokaiDefault}`
+    if ('card' in c) return `card:${c.card}`
+    if ('bondAtLeast' in c) return `bond:${c.yokai ?? yokaiDefault}`
+    if ('piece' in c) return `piece:${c.piece}`
+    if ('flag' in c) return `flag:${c.flag}`
+    return 'travel'
+  }
+  const domain = new Map<string, number[]>()
+  for (const ch of choices)
+    for (const c of ch.when ?? []) {
+      const k = keyOf(c)
+      if (domain.has(k)) continue
+      if ('bondAtLeast' in c) domain.set(k, BOND_LEVELS.map((_, i) => i))
+      else if ('piece' in c) domain.set(k, PIECE_STATES.map((_, i) => i))
+      else domain.set(k, [0, 1])
+    }
+  const keys = [...domain.keys()]
+  const truth = (c: Condition, v: number): boolean => {
+    if ('met' in c) return (v === 1) === c.met
+    if ('card' in c) return (v === 1) === c.opened
+    if ('bondAtLeast' in c) return v >= bondRank(c.bondAtLeast)
+    if ('piece' in c) return v >= pieceRank(c.atLeast)
+    if ('flag' in c) return (v === 1) === c.is
+    return (v === 1) === (c.travel === 'utsutsu')
+  }
+  let most = 0
+  const assign = new Map<string, number>()
+  const walk = (i: number): void => {
+    if (i === keys.length) {
+      const n = choices.filter((ch) => (ch.when ?? []).every((c) => truth(c, assign.get(keyOf(c)) ?? 0))).length
+      most = Math.max(most, n)
+      return
+    }
+    for (const v of domain.get(keys[i]) ?? [0]) {
+      assign.set(keys[i], v)
+      walk(i + 1)
+    }
+  }
+  walk(0)
+  return most
 }

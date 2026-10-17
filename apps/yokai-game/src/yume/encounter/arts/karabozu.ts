@@ -107,6 +107,7 @@ const lines = (ds: (string | [string, number])[], w: number, flip = false): [str
 export const KARABOZU_ART: InkArt = {
   w: 200,
   h: 300,
+  pieceBox: [20, 48, 170, 248],
   parts: [
     // 甲羅（縁の線・こま割り・ひび）と苔
     tint(

@@ -87,7 +87,8 @@ export class Encounters {
       {
         piece: (id) => d.progress.pieceOf(id),
         isNew: (id) => d.progress.pieceOf(id) !== 'empty' && !d.progress.flag(`seen:${id}`),
-        card: (id) => d.story.cards[id],
+        // 開いた札だけ（ピースだけ先に入っても、札の本文は会話で開くまで見せない）
+        card: (id) => (d.progress.isCardOpened(id) ? d.story.cards[id] : undefined),
         // 家では枠だけ見える（旅印は現地で節を終えたときだけ。02 F-45）
         stamps: () =>
           d.story.sections

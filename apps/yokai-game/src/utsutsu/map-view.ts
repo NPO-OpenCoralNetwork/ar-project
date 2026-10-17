@@ -152,6 +152,8 @@ export class MapView {
   private raf = 0
   private lastDraw = 0
   private grain: CanvasPattern | null = null
+  /** 会話や曼荼羅帳で地図が隠れている間は描かない（電池のため） */
+  private paused = false
   /** 確認用 */
   frames = 0
 
@@ -173,6 +175,7 @@ export class MapView {
     this.resize()
     const loop = (t: number) => {
       this.raf = requestAnimationFrame(loop)
+      if (this.paused) return
       // 立ち止まって気配が揺れている間だけ、20fps で描き直す。ほかは変化があったときだけ
       const animating = this.stopped && this.kehai.length > 0
       if (!this.dirty && !(animating && t - this.lastDraw > 50)) return
@@ -186,6 +189,12 @@ export class MapView {
   dispose(): void {
     cancelAnimationFrame(this.raf)
     this.canvas.remove()
+  }
+
+  setPaused(p: boolean): void {
+    if (p === this.paused) return
+    this.paused = p
+    if (!p) this.dirty = true
   }
 
   setPhase(p: DayPhase): void {

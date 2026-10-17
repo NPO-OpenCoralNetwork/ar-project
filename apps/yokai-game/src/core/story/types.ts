@@ -117,10 +117,24 @@ export type Condition =
 
 /**
  * 会話の途中に入る小さな遊び（失敗はない。04 §3.4）。
- * - matsu: 「払わずに待つ」（ミノモシ番外）。体につく光を払うと増え、しばらく何もしないと離れていく。
- *   払った（タップした）かどうかを tappedFlag に保存し、そのあとの台詞の出し分けに使える
+ * - matsu: 「払わずに待つ」（ミノモシ番外）。体につくものを払うと増え、しばらく何もしないと離れていく。
+ *   払った（タップした）かどうかを tappedFlag に保存し、そのあとの台詞の出し分けに使える。
+ *   遊びの間のましろの台詞（【創作】）も台本に持つ（lines。ないときは画面側の決まり文句）
  */
-export type GameSpec = { type: 'matsu'; tappedFlag?: string }
+export type GameSpec = {
+  type: 'matsu'
+  tappedFlag?: string
+  lines?: {
+    /** はじめ */
+    start?: string
+    /** 1回目に払ったとき */
+    brushed?: string
+    /** 2回目からに払ったとき */
+    brushedAgain?: string
+    /** 離れていったとき */
+    done?: string
+  }
+}
 
 export interface GameResult {
   /** 払った（タップした）回数 */

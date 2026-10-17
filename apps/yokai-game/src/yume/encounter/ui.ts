@@ -9,7 +9,7 @@
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
 
 import type { Beat, Notice } from '../../core/story/dialogue'
-import type { GameResult, LoreCard, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
+import type { GameResult, GameSpec, LoreCard, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
 import { PIECE_LABEL } from '../../core/story/types'
 import { ARTS, artToSvg } from './art'
 import { stampDate, stampFrameSvg, stampSvg } from './stamp'
@@ -58,19 +58,27 @@ const CSS = /* css */ `
 /* タッチの端末では、キーボードの番号は出さない */
 @media (pointer: coarse) { .yd-choice kbd { display: none; } }
 .yd-close { position: absolute; top: -40px; right: 0; font: inherit; font-size: 12px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; min-height: 32px; cursor: pointer; }
-/* 払わずに待つ（ミノモシ番外）: 体につく光。払うと増え、待つと離れていく */
+/* 払わずに待つ（ミノモシ番外）: 体につく光（光として描くのは【創作】）。払うと増え、待つと離れていく */
 .yg { position: absolute; inset: 0; z-index: 38; opacity: 0; pointer-events: none; transition: opacity 0.4s; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .yg.on { opacity: 1; pointer-events: auto; }
 .yg-l { position: absolute; left: 0; top: 0; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; pointer-events: none;
   background: radial-gradient(circle, rgba(255, 250, 214, 0.98) 0 22%, rgba(246, 226, 150, 0.7) 38%, rgba(240, 210, 120, 0) 70%); will-change: transform, opacity; }
 .yg-say { position: absolute; left: 50%; top: calc(16px + var(--sat)); transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); background: var(--washi-solid, #faf7f0); color: #2a2622; border: 1px solid rgba(42, 38, 34, 0.2); border-radius: 14px; padding: 10px 14px; box-shadow: 0 8px 26px rgba(30, 20, 10, 0.16); pointer-events: none; }
-.yg-say b { display: block; font-size: 11px; letter-spacing: 0.14em; color: rgba(42, 38, 34, 0.6); font-weight: 500; }
+.yg-head { display: flex; align-items: baseline; gap: 10px; }
+.yg-say b { display: block; font-size: 11px; letter-spacing: 0.14em; color: rgba(42, 38, 34, 0.68); font-weight: 500; }
+.yg-tag { margin-left: auto; font-size: 10.5px; color: rgba(42, 38, 34, 0.68); border: 1px solid rgba(42, 38, 34, 0.2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .yg-say p { margin: 2px 0 0; font-family: var(--title-font); font-size: 16px; line-height: 1.7; }
-.yg-say small { display: block; margin-top: 4px; font-size: 12px; color: rgba(42, 38, 34, 0.62); }
-.yg-wait { position: absolute; left: 50%; bottom: calc(26px + var(--sab)); transform: translateX(-50%); width: 46px; height: 46px; pointer-events: none; }
+.yg-say small { display: block; margin-top: 4px; font-size: 12px; color: rgba(42, 38, 34, 0.7); }
+.yg-say small:empty { display: none; }
+/* 待つ輪: 明るい背景でも暗い背景でも見えるよう、和紙の円の上に墨の溝と黄土の弧 */
+.yg-wait { position: absolute; left: 50%; bottom: calc(70px + var(--sab)); transform: translateX(-50%); width: 46px; height: 46px; pointer-events: none; }
 .yg-wait circle { fill: none; stroke-width: 3; }
-.yg-wait .bg { stroke: rgba(255, 255, 255, 0.5); }
-.yg-wait .fg { stroke: rgba(240, 200, 110, 0.95); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 23px 23px; }
+.yg-wait .disc { fill: var(--washi-solid, #faf7f0); fill-opacity: 0.92; stroke: rgba(42, 38, 34, 0.2); stroke-width: 1; }
+.yg-wait .bg { stroke: rgba(42, 38, 34, 0.18); }
+.yg-wait .fg { stroke: #b0742a; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 23px 23px; }
+.yg-quit { position: absolute; left: calc(12px + var(--sal)); bottom: calc(16px + var(--sab)); font: inherit; font-size: 12px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; min-height: 36px; cursor: pointer; }
+/* 遊びのあいだは、上の題・ボタン・現地の案内を隠す（光に集中できるように） */
+.yg-playing .yh-title, .yg-playing .yh-panel, .yg-playing .yh-toast, .yg-playing .ue-cam-btn, .yg-playing .ue-note { visibility: hidden; }
 /* 伝承の札（和紙のカード） */
 .yc-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px 16px calc(56px + var(--sab)); background: rgba(30, 26, 22, 0.28); opacity: 0; pointer-events: none; transition: opacity 0.45s; z-index: 40; }
 .yc-wrap.on { opacity: 1; pointer-events: auto; }
@@ -86,7 +94,8 @@ const CSS = /* css */ `
 .yc-card::after { content: ""; position: absolute; inset: 11px; border: 0.8px solid var(--cline); border-radius: 1px; pointer-events: none; }
 .yc-kind { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.18em; color: var(--csoft); }
 .yc-kind .new { margin-left: auto; letter-spacing: 0.05em; color: #7a4a2a; }
-.yc-title { margin: 8px 0 10px; font-family: var(--title-font); font-weight: 700; font-size: 19px; line-height: 1.5; letter-spacing: 0.06em; }
+.yc-title { margin: 8px 0 10px; font-family: var(--title-font); font-weight: 700; font-size: 19px; line-height: 1.5; letter-spacing: 0.06em; word-break: auto-phrase; text-wrap: balance; }
+.yc-nb { display: inline-block; }
 .yc-title small { display: block; font-size: 12px; font-weight: 500; color: var(--csoft); letter-spacing: 0.12em; margin-bottom: 2px; }
 .yc-body { margin: 0 0 14px; font-family: var(--title-font); font-size: 16px; line-height: 1.9; padding: 10px 12px; border-top: 1px solid var(--cline); border-bottom: 1px solid var(--cline); text-wrap: pretty; word-break: auto-phrase; }
 .yc-meta { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 12.5px; line-height: 1.5; }
@@ -295,6 +304,9 @@ const SHOW_PRODUCTION_META = (() => {
   }
 })()
 
+/** 短いかぎかっこ（「ガメ」『民族』など）は、行の途中で折らない */
+const keepQuotes = (html: string): string => html.replace(/[「『][^「」『』]{1,10}[」』]/g, (q) => `<span class="yc-nb">${q}</span>`)
+
 export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: string } = {}): string {
   const src = card.source
   const work = `${escapeHtml(src.work)}${src.year ? `（${src.year}）` : ''}`
@@ -314,7 +326,7 @@ export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: strin
   return `
     <div class="yc-kind"><span>伝承の札</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
     <h3 class="yc-title"><small>${escapeHtml(card.number ?? '')}</small>${escapeHtml(card.title)}</h3>
-    <p class="yc-body">${escapeHtml(card.body)}</p>${meta}
+    <p class="yc-body">${keepQuotes(escapeHtml(card.body))}</p>${meta}
     ${opts.first ? '<p class="yc-foot">札は伝承の記録です。会話の台詞は、本作の創作です。</p>' : ''}
     ${opts.button ? `<button class="yc-btn" type="button">${escapeHtml(opts.button)}</button>` : ''}`
 }
@@ -373,6 +385,8 @@ export class DialogueView {
     this.wrap.append(close, this.box)
     this.box.addEventListener('click', () => this.advance())
     root.appendChild(this.wrap)
+    // 会話の枠の高さ（選択肢が増えると高くなる）。現地の姿は、この上に出す
+    new ResizeObserver(() => root.style.setProperty('--yd-h', `${Math.round(this.wrap.offsetHeight)}px`)).observe(this.wrap)
 
     this.cardWrap = el('div', 'yc-wrap')
     this.cardEl = el('div', 'yc-card')
@@ -429,11 +443,16 @@ export class DialogueView {
       this.cardWrap.classList.remove('on')
       this.wrap.style.visibility = 'hidden'
       this.game?.dispose()
-      this.game = new MatsuGame(this.root, (result) => {
-        this.game = null
-        this.wrap.style.visibility = ''
-        this.hooks.next(result)
-      })
+      this.game = new MatsuGame(
+        this.root,
+        beat.game,
+        (result) => {
+          this.game = null
+          this.wrap.style.visibility = ''
+          this.hooks.next(result)
+        },
+        () => this.hooks.close(),
+      )
       return
     }
     if (beat.kind === 'card') {
@@ -496,8 +515,10 @@ function noticeHtml(n: Notice, yokaiName: (id: string) => string): string {
 // ---------------------------------------------------------------- 払わずに待つ（ミノモシ番外）
 
 /**
- * 体につく光（04 §3.4: 光は払うほど増える。#17 の伝承。「払わずに待つ」と離れていくのは【創作】の遊び方）。
+ * 体につくミノモシ（04 §3.4。#17 の伝承は「体につく」「手で払うといっそう増えた」まで）。
+ * 光として描くのと、「払わずに待つ」と離れていく遊び方は【創作】。原典に「光」の語はない。
  * 光をタップする（払う）と、その光が分かれて増える。WAIT_SEC のあいだ何もしなければ、光はふわりと離れていく。失敗はない。
+ * ましろの台詞は台本（GameSpec.lines）から受け取る。
  */
 class MatsuGame {
   private static readonly WAIT_SEC = 5
@@ -506,35 +527,64 @@ class MatsuGame {
   private readonly say: HTMLElement
   private readonly ring: SVGCircleElement
   private readonly lights: { e: HTMLDivElement; a: number; r: number; w: number; dy: number; born: number }[] = []
+  private readonly lines: Required<NonNullable<GameSpec['lines']>>
   private tapped = 0
   private calm = 0
   private leaving = -1
   private last = performance.now()
   private raf = 0
   private disposed = false
-  private readonly reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  /** 動きを減らす設定なら、光は回らず・揺れず、離れるときも動かずに薄れる */
+  private readonly motion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 1
 
   constructor(
-    root: HTMLElement,
+    private readonly root: HTMLElement,
+    spec: GameSpec,
     private readonly done: (r: GameResult) => void,
+    quit: () => void,
   ) {
+    // ましろの台詞は台本（game.lines）から。なければ既定
+    this.lines = {
+      start: spec.lines?.start ?? '光が、くっついてきた……。払わずに、そのまま待ってみよう。',
+      brushed: spec.lines?.brushed ?? '……払うと、かえって増えるみたい。',
+      brushedAgain: spec.lines?.brushedAgain ?? 'また増えた……。じっと待ってみよう。',
+      done: spec.lines?.done ?? '……離れていった。',
+    }
     this.el = el('div', 'yg')
     this.el.setAttribute('role', 'application')
     this.el.setAttribute('aria-label', '体についた光。払わずに、そのまま待つ')
-    this.say = el('div', 'yg-say', `<b>ましろ</b><p>光が、くっついてきた……。払わずに、そのまま待ってみよう。</p><small>画面にさわらずに、数秒待つ</small>`)
+    this.say = el(
+      'div',
+      'yg-say',
+      `<div class="yg-head"><b>ましろ</b><span class="yg-tag" title="本作の創作の台詞（伝承の事実は「伝承の札」で示します）">台本・創作</span></div><p aria-live="polite">${escapeHtml(this.lines.start)}</p><small>画面にさわらずに、数秒待つ</small>`,
+    )
     const C = 2 * Math.PI * 19
-    const wait = el('div', 'yg-wait', `<svg viewBox="0 0 46 46" aria-hidden="true"><circle class="bg" cx="23" cy="23" r="19"/><circle class="fg" cx="23" cy="23" r="19" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"/></svg>`)
+    const wait = el('div', 'yg-wait', `<svg viewBox="0 0 46 46" aria-hidden="true"><circle class="disc" cx="23" cy="23" r="22.5"/><circle class="bg" cx="23" cy="23" r="19"/><circle class="fg" cx="23" cy="23" r="19" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"/></svg>`)
     this.ring = wait.querySelector('.fg') as SVGCircleElement
-    this.el.append(this.say, wait)
+    const quitBtn = el('button', 'yg-quit', '会話をやめる') as HTMLButtonElement
+    quitBtn.type = 'button'
+    // 払う操作（pointerdown）として数えない
+    quitBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
+    quitBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      quit()
+    })
+    this.el.append(this.say, wait, quitBtn)
     root.appendChild(this.el)
+    root.classList.add('yg-playing')
     for (let i = 0; i < 6; i++) this.spawn(Math.random() * Math.PI * 2, 70 + Math.random() * 70)
     this.el.addEventListener('pointerdown', (e) => this.brush(e))
-    requestAnimationFrame(() => this.el.classList.add('on'))
+    // すぐに触れるようにする（次のフレームを待つと、重い端末で最初の一回の「払う」を取りこぼす）。読み直してからにすると、出るときのフェードは残る
+    void this.el.offsetWidth
+    this.el.classList.add('on')
     const step = (t: number) => {
       if (this.disposed) return
       this.raf = requestAnimationFrame(step)
-      this.tick(Math.min(0.05, (t - this.last) / 1000), t)
+      const dt = (t - this.last) / 1000
       this.last = t
+      // 待つ時間は実時間で数える（重い端末でも5秒で離れる）。タブを離れていた分は数えすぎない
+      this.calm += Math.max(0, Math.min(0.25, dt))
+      this.tick(Math.max(0, Math.min(0.05, dt)), t)
     }
     this.raf = requestAnimationFrame(step)
   }
@@ -557,28 +607,28 @@ class MatsuGame {
     const r = Math.min(170, Math.hypot(e.clientX - cx, e.clientY - cy))
     for (let i = 0; i < 2; i++) this.spawn(a + (Math.random() - 0.5) * 0.8, Math.max(40, r + (Math.random() - 0.5) * 40))
     const p = this.say.querySelector('p') as HTMLElement
-    p.textContent = this.tapped === 1 ? '……払うと、かえって増えるみたい。' : 'また増えた……。じっと待ってみよう。'
+    p.textContent = this.tapped === 1 ? this.lines.brushed : this.lines.brushedAgain
   }
 
   private tick(dt: number, t: number): void {
     const cx = window.innerWidth / 2
     const cy = window.innerHeight * 0.46
     if (this.leaving < 0) {
-      this.calm += dt
       const k = Math.min(1, this.calm / MatsuGame.WAIT_SEC)
       this.ring.style.strokeDashoffset = (2 * Math.PI * 19 * (1 - k)).toFixed(2)
       if (k >= 1) {
         this.leaving = t
-        ;(this.say.querySelector('p') as HTMLElement).textContent = '……離れていった。さみしがりなだけ、だったのかな。'
+        ;(this.say.querySelector('p') as HTMLElement).textContent = this.lines.done
         ;(this.say.querySelector('small') as HTMLElement).textContent = ''
       }
     }
     const away = this.leaving >= 0 ? (t - this.leaving) / 1600 : 0
+    const m = this.motion
     for (const l of this.lights) {
-      if (!this.reduced) l.a += l.w * dt
-      const r = l.r + away * 260
+      l.a += l.w * dt * m
+      const r = l.r + away * 260 * m
       const x = cx + Math.cos(l.a) * r
-      const y = cy + Math.sin(l.a) * r * 0.8 + Math.sin(t / 700 + l.dy) * 6 - away * 120
+      const y = cy + Math.sin(l.a) * r * 0.8 + Math.sin(t / 700 + l.dy) * 6 * m - away * 120 * m
       const grow = Math.min(1, (t - l.born) / 300)
       l.e.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(0.6 + 0.4 * grow).toFixed(2)})`
       l.e.style.opacity = String(Math.max(0, 1 - away) * grow)
@@ -595,6 +645,8 @@ class MatsuGame {
     this.disposed = true
     cancelAnimationFrame(this.raf)
     this.el.classList.remove('on')
+    this.el.style.pointerEvents = 'none'
+    this.root.classList.remove('yg-playing')
     window.setTimeout(() => this.el.remove(), 450)
   }
 }
@@ -770,11 +822,14 @@ export class MandalaView {
       const art = p.art ? ARTS[p.art] : undefined
       let artSvg = ''
       if (art) {
+        // 小さなピースでは姿の範囲（pieceBox）に寄せる。はみ出た分は画像の枠で切る
+        // （<image> にするのは、ピースの当たり判定とフォーカスの枠を、はみ出た線で広げないため）
         const pad = 3
-        const s = Math.min((p.w - pad * 2) / art.w, (p.h - pad * 2) / art.h)
-        const ox = p.x + (p.w - art.w * s) / 2
-        const oy = p.y + (p.h - art.h * s) / 2
-        artSvg = `<g transform="translate(${ox.toFixed(2)},${oy.toFixed(2)}) scale(${s.toFixed(4)})">${artToSvg(art, '#fffdf7', INK, 1.6, 1, st === 'saishiki' || st === 'kin')}</g>`
+        const [bx, by, bw, bh] = art.pieceBox ?? [0, 0, art.w, art.h]
+        const lineScale = 1.6 * Math.min(bw / art.w, bh / art.h) ** 0.5
+        const inner = artToSvg(art, '#fffdf7', INK, lineScale, 1, st === 'saishiki' || st === 'kin')
+        const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${bx} ${by} ${bw} ${bh}">${inner}</svg>`)}`
+        artSvg = `<image x="${p.x + pad}" y="${p.y + pad}" width="${p.w - pad * 2}" height="${p.h - pad * 2}" preserveAspectRatio="xMidYMid meet" href="${src}"/>`
       }
       const stroke = st === 'kin' ? '#c9a24a' : INK
       const sw = st === 'kin' ? 2.2 : 1.1
@@ -840,15 +895,15 @@ export class MandalaView {
       ${svg}
       <p class="yc-foot" style="margin-top:0">${escapeHtml(hint)}</p>
       <div class="row">
-        ${cards.length ? `<button class="yc-btn" type="button" data-act="card">札を読む</button>` : ''}
+        ${cards.length ? `<button class="yc-btn" type="button" data-act="card">札を読む${cards.length > 1 ? `（${cards.length}枚）` : ''}</button>` : ''}
         <button class="yc-btn" type="button" data-act="close">もどる</button>
       </div>`)
-    const cardBtn = this.popCard.querySelector('[data-act="card"]')
-    cardBtn?.addEventListener('click', () => {
-      this.showPop(cardHtml(cards[0], { button: 'もどる' }))
-      this.popCard.querySelector('.yc-btn')?.addEventListener('click', () => this.openPiece(id))
-      ;(this.popCard.querySelector('.yc-btn') as HTMLButtonElement | null)?.focus({ preventScroll: true })
-    })
+    const showCard = (i: number) => {
+      const last = i >= cards.length - 1
+      this.showPop(cardHtml(cards[i], { button: last ? 'もどる' : `次の札（${i + 1}/${cards.length}）` }))
+      this.popCard.querySelector('.yc-btn')?.addEventListener('click', () => (last ? this.openPiece(id) : showCard(i + 1)))
+    }
+    this.popCard.querySelector('[data-act="card"]')?.addEventListener('click', () => showCard(0))
     this.render()
   }
 

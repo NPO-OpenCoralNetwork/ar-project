@@ -16,6 +16,8 @@ export interface InkArt {
   h: number
   /** 奥から順に描く部品（塗り → 線 を部品ごとに。前の部品が奥の線を隠す） */
   parts: InkPart[]
+  /** 曼荼羅の小さなピースで見せる範囲 [x, y, 幅, 高さ]（顔と姿が小さくなりすぎないよう寄せる）。なければ全体 */
+  pieceBox?: [number, number, number, number]
 }
 
 /** 「x,y」の組の x だけを cx を軸に反転する（パスは、すべて絶対座標の M/L/C/Z で書く） */

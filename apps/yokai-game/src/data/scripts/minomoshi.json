@@ -4,7 +4,7 @@
   "yokaiId": "minomoshi",
   "creative": true,
   "review": "下書き",
-  "note": "ミノモシの台本。台詞はすべて【創作】（性格: さみしがりのくっつき虫。言葉は短い。04 §4.1）。伝承の事実は札 mino-1〜3（03 #17。原典の要約: 体にミノモシがつく／手で払うと増えた／漁師は荒天の前兆とした／腰に曲尺をさすと難を逃れる）でだけ出す。悩み #12「払わないで」（番外・待つ。04 §3.4・付録A）: 体につく光を払うと増え、払わずに待つと離れていく（待つのは【創作】の遊び方）。失敗はなく、払ったかどうか（mino-haratta）で台詞が変わるだけ。ましろ「昔の人は、曲尺を腰に差したそうだ」は 04 §3.4 の台詞。現地ではじめて会うときは、夢で会っていれば再会の台詞と色（彩色）が加わる。",
+  "note": "ミノモシの台本。台詞はすべて【創作】（性格: さみしがりのくっつき虫。言葉は短い。04 §4.1）。伝承の事実は札 mino-1〜3（03 #17。原典の要約: 体にミノモシがつく／手で払うと増えた／漁師は荒天の前兆とした／腰に曲尺をさすと難を逃れる）でだけ出す。光として描くのは【創作】（原典に「光」の語はない）。悩み #12「払わないで」（番外・待つ。04 §3.4・付録A）: 体につく光を払うと増え、払わずに待つと離れていく（待つのは【創作】の遊び方）。失敗はなく、払ったかどうか（mino-haratta）で台詞が変わるだけ。ましろ「昔の人は、曲尺を腰に差したそうだ」は 04 §3.4 の台詞。途中で会話を閉じても、次に会ったときに続きから（札の前なら遊びから、札の途中なら札から、札のあとなら結びから）やり直せる（入口「札の前で途切れた」「札の途中で途切れた」「札のあとで途切れた」）。遊びの中のましろの台詞も台本に持つ（game.lines）。現地ではじめて会うときは、夢で会っていれば再会の台詞と色（彩色）が加わる。",
   "speakers": {
     "minomoshi": { "name": "ミノモシ", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
@@ -13,7 +13,10 @@
     { "label": "現地ではじめて（夢で会っていた）", "when": [{ "travel": "utsutsu" }, { "flag": "mino-genchi", "is": false }, { "met": true }], "node": "u_reunion" },
     { "label": "現地ではじめて", "when": [{ "travel": "utsutsu" }, { "flag": "mino-genchi", "is": false }], "node": "u_first" },
     { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
-    { "label": "また会う", "node": "again" }
+    { "label": "札の前で途切れた", "when": [{ "card": "mino-1", "opened": false }], "node": "resume" },
+    { "label": "札の途中で途切れた", "when": [{ "card": "mino-3", "opened": false }], "node": "lore" },
+    { "label": "また会う", "when": [{ "bondAtLeast": "najimi" }, { "piece": "sato-minomoshi", "atLeast": "hakubyo" }], "node": "again" },
+    { "label": "札のあとで途切れた", "node": "lore_end" }
   ],
   "nodes": {
     "first": {
@@ -24,9 +27,13 @@
       "effects": [{ "meet": true }, { "bond": "kaomishiri" }],
       "next": "stick"
     },
+    "resume": {
+      "lines": [{ "speaker": "minomoshi", "text": "……さっきの、つづき。いっしょ、いい？" }],
+      "next": "stick"
+    },
     "stick": {
       "lines": [{ "speaker": "mashiro", "text": "わっ、くっついてきた……！" }],
-      "effects": [{ "game": { "type": "matsu", "tappedFlag": "mino-haratta" } }],
+      "effects": [{ "game": { "type": "matsu", "tappedFlag": "mino-haratta", "lines": { "start": "光が、くっついてきた……。払わずに、そのまま待ってみよう。", "brushed": "……払うと、かえって増えるみたい。", "brushedAgain": "また増えた……。じっと待ってみよう。", "done": "……離れていった。さみしがりなだけ、だったのかな。" } } }],
       "next": "after"
     },
     "after": {
@@ -81,7 +88,7 @@
     },
     "u_stick": {
       "lines": [{ "speaker": "minomoshi", "text": "……ここは、風が、ちがう。" }],
-      "effects": [{ "game": { "type": "matsu", "tappedFlag": "mino-haratta" } }],
+      "effects": [{ "game": { "type": "matsu", "tappedFlag": "mino-haratta", "lines": { "start": "光が、くっついてきた……。払わずに、そのまま待ってみよう。", "brushed": "……払うと、かえって増えるみたい。", "brushedAgain": "また増えた……。じっと待ってみよう。", "done": "……離れていった。さみしがりなだけ、だったのかな。" } } }],
       "next": "u_after"
     },
     "u_after": {
@@ -100,7 +107,7 @@
     },
     "again_stick": {
       "lines": [{ "speaker": "minomoshi", "text": "……ほんと？" }],
-      "effects": [{ "game": { "type": "matsu" } }],
+      "effects": [{ "game": { "type": "matsu", "lines": { "start": "またくっついてきた。……今度も、じっと待とう。", "brushed": "……やっぱり、払うと増えるね。", "brushedAgain": "また増えた……。じっと待ってみよう。", "done": "……ふわっと離れていった。" } } }],
       "next": "again_close"
     },
     "reread": {

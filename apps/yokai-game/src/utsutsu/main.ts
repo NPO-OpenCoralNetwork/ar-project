@@ -28,7 +28,7 @@ import { escapeHtml, MandalaView } from '../yume/encounter/ui'
 import { GenEncounter } from './encounter'
 import { GeoSource, type GeoProblem, type LocationSource, SimSource } from './location'
 import { MapView } from './map-view'
-import { buildTestLand, clearTestLand, loadTestLand, saveTestLand, type TestLand } from './test-land'
+import { buildTestLand, clearTestLand, loadTestLand, saveTestLand, TEST_SPOTS_MAX, type TestLand } from './test-land'
 
 const params = new URLSearchParams(window.location.search)
 const DEBUG = params.has('debug')
@@ -155,7 +155,7 @@ function showStart(): void {
     <p>現地を歩いて、立ち止まると、妖怪が色のついた姿で現れます。夢の旅で先に会っていれば、再会になります。</p>
     <button class="big" type="button" data-go="iwakuraji">歩きはじめる</button>
     <h3>チームのテスト用</h3>
-    <p class="soft">自分の地元で、仕組みを試すための土地です。いまいる所のまわり（約800m四方）の地図を OpenStreetMap から読み、気配を3つ置きます。作った土地はこの端末の中だけに残ります。</p>
+    <p class="soft">自分の地元で、仕組みを試すための土地です。いまいる所のまわり（約800m四方）の地図を OpenStreetMap から読み、気配を${TEST_SPOTS_MAX}つまで置きます。作った土地はこの端末の中だけに残ります。</p>
     <button class="sub" type="button" data-go="test-new">いまいる所で試す（テスト用の土地を作る）</button>
     ${t ? `<button class="sub" type="button" data-go="test-old">前に作ったテスト用の土地で歩く（${escapeHtml(stampDate(t.createdAt))}）</button>` : ''}
     ${SIM_ALLOWED ? `<h3>開発用</h3><div class="row"><button class="sub" type="button" data-go="sim-iwakuraji">シミュレーター（ふもと）</button>${t ? `<button class="sub" type="button" data-go="sim-test">シミュレーター（テスト用）</button>` : ''}</div>` : ''}
@@ -370,6 +370,11 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       here.hidden = f
     },
   })
+  // 会話・曼荼羅帳のあいだ、地図は隠れているので描き直さない
+  new MutationObserver(() => map.setPaused(root.classList.contains('talking') || root.classList.contains('modal-open'))).observe(root, {
+    attributes: true,
+    attributeFilter: ['class'],
+  })
   zin.addEventListener('click', () => map.zoomBy(1.4))
   zout.addEventListener('click', () => map.zoomBy(1 / 1.4))
   here.addEventListener('click', () => map.recenter())
@@ -389,7 +394,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     {
       piece: (id) => progress.pieceOf(id),
       isNew: (id) => progress.pieceOf(id) !== 'empty' && !progress.flag(`seen:${id}`),
-      card: (id) => story.cards[id],
+      card: (id) => (progress.isCardOpened(id) ? story.cards[id] : undefined),
       stamps: () =>
         story.sections
           .filter((s) => s.region === land.id)

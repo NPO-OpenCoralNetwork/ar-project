@@ -4,7 +4,7 @@
   "yokaiId": "game",
   "creative": true,
   "review": "下書き",
-  "note": "ガメ（富山市での河童の呼び名。03 #18）の台本。台詞はすべて【創作】（性格: 人懐っこい。親方に叱られて気まずい。腕の話の河童かどうかは語らない。一人称「おいら」、呼び方「きみ」。04 §4.1）。伝承の事実は札 game-1（03 #18）でだけ出す。悩み #1「ガメ⇄カーラボーズ」（とりもつ）のガメの側: 親方の伝言を、伝え方を選んで伝える（tm1-soft）→ ガメの返事をあずかる（tm1-reply）→ 仲直りのあと、お礼に札と「なじみ」（tm1-game-thanked）。ガメから先に会ってもよい（そのときは親方のことを聞かされる）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない案内を必ず入れる（安全）。",
+  "note": "ガメ（富山市での河童の呼び名。03 #18）の台本。台詞はすべて【創作】（性格: 人懐っこい。親方に叱られて気まずい。腕の話の河童かどうかは語らない。一人称「おいら」、呼び方「きみ」。04 §4.1）。伝承の事実は札 game-1（03 #18）でだけ出す。悩み #1「ガメ⇄カーラボーズ」（とりもつ）のガメの側: 親方の伝言を、伝え方を選んで伝える（tm1-soft）→ ガメの返事をあずかる（tm1-reply）→ 仲直りのあと、お礼に札と「なじみ」（tm1-game-thanked）。ガメから先に会ってもよい（そのときは親方のことを聞かされる）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない・川に近寄らない案内を必ず入れる（安全）。土地の呼び名（富山市では河童を「ガメ」と呼ぶ）は札 game-1 だけで出し、台詞では「この辺では」と言わない（伝承は札だけ。04 §3.2）。伝え方（tm1-soft）は、親方に返事を伝えるときの選択肢に効く。",
   "speakers": {
     "game": { "name": "ガメ", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
@@ -28,7 +28,7 @@
     },
     "first2": {
       "lines": [
-        { "speaker": "game", "text": "おいら、ガメ。河童のガメ。……この辺じゃ、そう呼ぶんだ。" },
+        { "speaker": "game", "text": "おいら、ガメ。河童のガメ。" },
         { "speaker": "game", "text": "ねえ、きみ。親方に会った？　……怒ってた？" }
       ],
       "choices": [
@@ -95,7 +95,7 @@
         { "speaker": "game", "text": "親方、もう怒ってないって！　きみのおかげだよ。" },
         { "speaker": "game", "text": "お礼に、おいらたちの名前のこと、教えてあげる。" }
       ],
-      "effects": [{ "flag": "tm1-game-thanked", "value": true }, { "openCard": "game-1" }, { "bond": "najimi" }],
+      "effects": [{ "openCard": "game-1" }, { "bond": "najimi" }, { "flag": "tm1-game-thanked", "value": true }],
       "next": "thanks_end"
     },
     "thanks_end": {
@@ -119,7 +119,7 @@
       "next": "u_here"
     },
     "u_here": {
-      "lines": [{ "speaker": "game", "text": "ここの水は、夢のとにおいがちがうでしょ。……あ、でも川には入っちゃだめだよ。" }],
+      "lines": [{ "speaker": "game", "text": "ほんものの風だ。……あ、川には近づかないでね。見るのは、道からだけ。" }],
       "choices": [
         { "text": "親方って？", "next": "who_boss", "when": [{ "flag": "tm1-asked", "is": false }] },
         { "text": "親方から、伝言をあずかってるよ", "next": "message", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }] },
@@ -129,13 +129,14 @@
       ]
     },
     "wait_boss": {
-      "lines": [{ "speaker": "game", "text": "親方に、伝えてくれた？　……どきどきする。" }],
-      "end": true
+      "lines": [{ "speaker": "game", "text": "そっか。……親方、なんて言うかな。どきどきする。" }],
+      "next": "again_close"
     },
     "again": {
       "lines": [{ "speaker": "game", "text": "あ、きみだ！" }],
       "choices": [
         { "text": "親方って？", "next": "who_boss", "when": [{ "flag": "tm1-asked", "is": false }] },
+        { "text": "まだ、親方に伝えてないんだ", "next": "wait_boss", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }] },
         { "text": "札を、もう一度読みたい", "next": "reread", "when": [{ "card": "game-1", "opened": true }] },
         { "text": "あいさつに来ただけ", "next": "greet" }
       ]

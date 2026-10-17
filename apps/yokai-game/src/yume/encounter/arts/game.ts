@@ -107,6 +107,7 @@ const wash = (fill: string, color: string, ...extra: [string, number][]): InkPar
 export const GAME_ART: InkArt = {
   w: 200,
   h: 300,
+  pieceBox: [40, 105, 150, 192],
   parts: [
     // 甲羅（後ろ）
     tint(part(SHELL, 1.6, ...lines(SHELL_LINES_L, 0.9), ...lines(SHELL_LINES_L.map((d) => mirror(d, 100)), 0.9)), C.shell),
