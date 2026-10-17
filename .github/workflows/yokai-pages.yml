@@ -1,8 +1,16 @@
 name: yokai-game pages
 
-# 妖怪ARゲームの試作（apps/yokai-game）をビルドし、GitHub Pages に公開する。
-# 公開には、リポジトリの設定で Pages の Source を「GitHub Actions」にし、
-# github-pages 環境でこのブランチからのデプロイを許可しておく必要がある。
+# 妖怪ARゲームの試作（apps/yokai-game）を GitHub Pages に公開する。
+# - 本番: main の内容を https://npo-opencoralnetwork.github.io/ar-project/ に出す（夢の旅 = /、現の旅 = /utsutsu.html）。
+# - 確認用: いちばん新しく更新された claude/** ブランチを /ar-project/preview/ に出す（main に入れる前に iPhone で試すため）。
+#
+# Pages のサイトはリポジトリに1つだけで、公開するたびに丸ごと入れ替わる。そのため公開は必ず main の上で行い、
+# main と確認用のブランチの両方をビルドして1つにまとめて出す（作業中のブランチが本番を上書きしないように）。
+# claude/** へのプッシュでは、そのブランチのビルドを確かめてから、main の上の公開をこのワークフローで呼び出す
+# （github-pages 環境は既定で main からの公開しか許さないので、ブランチの上では公開しない）。
+#
+# 前提: リポジトリの Settings → Pages → Build and deployment → Source を「GitHub Actions」にしておく。
+# まだなら、公開を飛ばしてビルドの確認だけで終える。
 on:
   push:
     branches: [main, 'claude/**']
@@ -11,18 +19,20 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: yokai-pages
-  cancel-in-progress: true
+  # main の公開は1つずつ（走っている公開は取り消さない。待っているものは新しいものに置き換わる）。ブランチの確認はブランチごと
+  group: ${{ github.ref == 'refs/heads/main' && 'yokai-pages' || format('yokai-check-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  build:
+  # claude/** へのプッシュ: ビルドを確かめてから、main の上の公開を呼び出す
+  check:
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
-    outputs:
-      pages: ${{ steps.pages.outputs.enabled }}
+    permissions:
+      contents: read
+      actions: write
     defaults:
       run:
         working-directory: apps/yokai-game
@@ -35,21 +45,85 @@ jobs:
           cache-dependency-path: apps/yokai-game/package-lock.json
       - run: npm ci
       - run: npm run build
-      # Pages がまだ有効になっていなければ、公開せずにビルドの確認だけで終える
+      - name: main の上の公開を呼び出す（確認用 /preview/ を新しくする）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run yokai-pages.yml --ref main --repo "${{ github.repository }}"
+
+  # main へのプッシュ・呼び出し: 本番（main）と確認用（いちばん新しい claude/**）をビルドして1つにまとめる
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      pages: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 確認用のブランチも取ってくる
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/yokai-game/package-lock.json
+      - name: 本番（main）をビルド
+        working-directory: apps/yokai-game
+        run: |
+          npm ci
+          npm run build
+          mkdir -p "$GITHUB_WORKSPACE/_site"
+          cp -R dist/. "$GITHUB_WORKSPACE/_site/"
+      - name: 確認用のブランチを選ぶ（いちばん新しく更新された claude/**）
+        id: pick
+        run: |
+          branch=$(git for-each-ref --sort=-committerdate --format='%(refname:lstrip=3)' refs/remotes/origin/claude | head -n 1)
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "確認用のブランチ: ${branch:-（なし）}"
+      - name: 確認用のブランチをビルド（失敗しても本番は出す）
+        id: preview
+        if: steps.pick.outputs.branch != ''
+        continue-on-error: true
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/preview" "origin/$BRANCH"
+          cd "$RUNNER_TEMP/preview/apps/yokai-game"
+          npm ci
+          npm run build
+          mkdir -p "$GITHUB_WORKSPACE/_site/preview"
+          cp -R dist/. "$GITHUB_WORKSPACE/_site/preview/"
+          printf '%s %s\n' "$BRANCH" "$(git rev-parse --short HEAD)" > "$GITHUB_WORKSPACE/_site/preview/version.txt"
+      - name: 確認用のビルドが失敗したときの案内
+        if: steps.pick.outputs.branch != '' && steps.preview.outcome != 'success'
+        run: |
+          mkdir -p _site/preview
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>確認用（ビルド失敗）</title><p style="font:16px/1.8 system-ui;padding:24px">確認用のブランチのビルドに失敗しました。本番は <a href="../">こちら</a>。</p>' > _site/preview/index.html
+      # Pages がまだ有効になっていなければ（404）、公開せずにビルドの確認だけで終える
       - id: pages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/pages")
-          if [ "$code" = "200" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"; else echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "::notice::GitHub Pages is not enabled yet; skipping deploy"; fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{ github.repository }}/pages")
+          echo "Pages API: $code"
+          if [ "$code" = "404" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not enabled yet (Settings → Pages → Source: GitHub Actions); skipping deploy"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/yokai-game/dist
+          path: _site
 
   deploy:
     needs: build
     if: needs.build.outputs.pages == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

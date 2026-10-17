@@ -17,7 +17,16 @@ npm run build          # 型チェック＋ dist/ へビルド（GitHub Pages �
 npm run build:artifact # 夢の旅だけを1つの HTML（dist-artifact/）にまとめる
 ```
 
-公開: `.github/workflows/yokai-pages.yml` が `dist/` を GitHub Pages に出す（Pages が有効なときだけ）。
+公開: `.github/workflows/yokai-pages.yml` が GitHub Pages に出す（リポジトリの Settings → Pages → Source が「GitHub Actions」のときだけ。まだなら、ビルドの確認だけで終える）。
+
+| URL | 中身 |
+|---|---|
+| `https://npo-opencoralnetwork.github.io/ar-project/` | 本番（main）の夢の旅。現の旅は `utsutsu.html` |
+| `https://npo-opencoralnetwork.github.io/ar-project/preview/` | 確認用。いちばん新しく更新された `claude/**` ブランチ（どのコミットかは `preview/version.txt`）。現の旅は `preview/utsutsu.html` |
+
+- Pages のサイトはリポジトリに1つだけなので、公開は必ず main の上で行い、main と確認用のブランチを1つにまとめて出す。`claude/**` へのプッシュは、ビルドを確かめてから main の上の公開を呼び出す。
+- 本番と確認用は同じオリジン（`npo-opencoralnetwork.github.io`）なので、`localStorage` の保存（進み具合・テスト用の土地）と、位置・カメラの許可は両方で共通になる。
+- HTML は最大10分ほどキャッシュされることがある。新しくならないときは読み込み直す。
 
 ## データを作り直す
 
