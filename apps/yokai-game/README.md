@@ -4,7 +4,8 @@
 
 | ページ | 入口 | 段階 |
 |---|---|---|
-| 夢の旅（家の3D箱庭・岩峅寺まわり 東西700m × 南北400m） | `index.html` → `src/yume/` | 2（光蔵坊との出会いと台本の会話） |
+| 入口（二つの旅を選ぶ。初回は三つの約束） | `index.html` → `src/entrance/`（three.js は読まない。`?debug`・`?sim` は旅のページへ渡す） | 3b |
+| 夢の旅（家の3D箱庭・岩峅寺まわり 東西700m × 南北400m） | `yume.html` → `src/yume/` | 2（光蔵坊との出会いと台本の会話） |
 | **現の旅**（現地を歩く。素の地図＋気配、立ち止まると色の姿） | `utsutsu.html` → `src/utsutsu/`（`?sim` で位置シミュレーター、`?debug` で判定の中身） | 3（仕組み。中身の追加は 3b） |
 | GPS の検証（iPhone を持って歩く） | `gps-test.html` → `src/gps-test/`（PC では `?sim=1` で模擬モード） | 0.5 |
 
@@ -21,8 +22,8 @@ npm run build:artifact # 夢の旅だけを1つの HTML（dist-artifact/）に�
 
 | URL | 中身 |
 |---|---|
-| `https://npo-opencoralnetwork.github.io/ar-project/` | 本番（main）の夢の旅。現の旅は `utsutsu.html` |
-| `https://npo-opencoralnetwork.github.io/ar-project/preview/` | 確認用。いちばん新しく更新された `claude/**` ブランチ（どのコミットかは `preview/version.txt`）。現の旅は `preview/utsutsu.html` |
+| `https://npo-opencoralnetwork.github.io/ar-project/` | 本番（main）の入口。夢の旅は `yume.html`、現の旅は `utsutsu.html` |
+| `https://npo-opencoralnetwork.github.io/ar-project/preview/` | 確認用。いちばん新しく更新された `claude/**` ブランチ（どのコミットかは `preview/version.txt`）。夢の旅は `preview/yume.html`、現の旅は `preview/utsutsu.html` |
 
 - Pages のサイトはリポジトリに1つだけなので、公開は必ず main の上で行い、main と確認用のブランチを1つにまとめて出す。`claude/**` へのプッシュは、ビルドを確かめてから main の上の公開を呼び出す。
 - 本番と確認用は同じオリジン（`npo-opencoralnetwork.github.io`）なので、`localStorage` の保存（進み具合・テスト用の土地）と、位置・カメラの許可は両方で共通になる。
@@ -57,7 +58,7 @@ OSM の建物は空中写真の半分ほどしかないので、道沿いの空�
 
 ## 現の旅（段階3）
 
-はじめ（土地を選ぶ）→ 三つの約束（初回だけ。F-60）→ 位置の許可の説明 → 素の地図（D1）。
+はじめ（土地を選ぶ）→ 三つの約束（初回だけ。F-60。入口で読んでいれば出さない）→ 位置の許可の説明 → 素の地図（D1）。
 歩く → 気配（300m 以内。150m で鈴）→ 地点の 40m 以内で立ち止まる（止まりの判定は段階0.5 と同じ。または「足を止めた」ボタン）→ 3秒で澄む →
 色のついた姿（AR 段階0。「カメラで見る」で AR 段階1）→ 台本の会話（夢で会っていれば再会）→ 札・彩色 → 節を終えたら旅印（D4）。
 

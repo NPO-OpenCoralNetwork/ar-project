@@ -46,7 +46,8 @@ a { color: inherit; }
 .en-choice { position: relative; display: flex; align-items: center; gap: 14px; min-height: 108px; padding: 14px 16px; border-radius: 16px; text-decoration: none; color: var(--ink); border: 1px solid var(--line); box-shadow: 0 6px 22px rgba(60, 50, 40, 0.08); -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform 0.15s, box-shadow 0.15s; }
 .en-choice:hover { box-shadow: 0 8px 28px rgba(60, 50, 40, 0.14); }
 .en-choice:active { transform: translateY(1px); }
-.en-choice::after { content: "›"; margin-left: auto; padding-left: 4px; font-size: 26px; line-height: 1; color: var(--ink-soft); }
+/* 矢印は飾り（読み上げに入れない。代わりの文字を書けない古いブラウザでは、1つ目の content が使われる） */
+.en-choice::after { content: "›"; content: "›" / ""; margin-left: auto; padding-left: 4px; font-size: 26px; line-height: 1; color: var(--ink-soft); }
 .en-choice.yume { background: linear-gradient(160deg, #fffdf7 0%, #fbf3dd 100%); border-color: rgba(176, 140, 60, 0.45); }
 .en-choice.utsutsu { background: linear-gradient(160deg, #f6f8f0 0%, #e7efdc 100%); border-color: rgba(70, 100, 60, 0.4); }
 .en-art { flex: none; width: 60px; height: 60px; }
@@ -65,7 +66,7 @@ a { color: inherit; }
 .en-test h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink-soft); }
 .en-link { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; min-height: 44px; padding: 6px 12px; font-size: 14px; text-decoration: none; background: rgba(255, 255, 255, 0.65); border: 1px solid var(--line); border-radius: 10px; touch-action: manipulation; }
 .en-link + .en-link, .en-status + .en-link { margin-top: 8px; }
-.en-link::after { content: "›"; margin-left: auto; padding-left: 4px; font-size: 20px; line-height: 1; color: var(--ink-soft); }
+.en-link::after { content: "›"; content: "›" / ""; margin-left: auto; padding-left: 4px; font-size: 20px; line-height: 1; color: var(--ink-soft); }
 .en-link:hover { background: #fff; }
 .en-link small { font-size: 12px; color: var(--ink-soft); }
 .en-status { margin: 8px 2px 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-soft); }

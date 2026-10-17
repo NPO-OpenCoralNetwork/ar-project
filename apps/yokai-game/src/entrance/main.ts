@@ -123,7 +123,7 @@ function showHome(): void {
     <main class="en">
       <header class="en-head">
         <h1 class="en-title">ゆめうつつ<span class="kari">（仮）</span></h1>
-        <p class="en-sub">立山のふもとの、妖怪と伝承の旅（試作）</p>
+        <p class="en-sub">${phrases('立山のふもとの、妖怪と伝承の旅（試作）')}</p>
       </header>
       <div class="en-mashiro">
         ${mashiroSvg(false)}
@@ -150,15 +150,20 @@ function showHome(): void {
       </section>
       <footer class="en-foot"><p>試作です。伝承の札は監修前の下書きです。</p></footer>
     </main>`
-  app.querySelectorAll<HTMLAnchorElement>('[data-journey]').forEach((a) =>
-    a.addEventListener('click', (e) => {
-      // 約束を読んでいれば、そのまま旅へ。まだなら、新しいタブで開こうとしたときも先に約束を見せる
+  app.querySelectorAll<HTMLAnchorElement>('[data-journey]').forEach((a) => {
+    // 約束を読んでいれば、そのまま旅へ。まだなら、新しいタブで開こうとしたとき（Ctrl・⌘・中ボタン）も先に約束を見せる
+    const guard = (e: MouseEvent) => {
       if (safeGet(PROMISE_KEY) === '1') return
       e.preventDefault()
       const j = JOURNEYS.find((x) => x.id === a.dataset.journey)!
       showPromise(j, 0)
-    }),
-  )
+    }
+    a.addEventListener('click', guard)
+    // 中ボタンでは click が来ない（auxclick で新しいタブが開く）
+    a.addEventListener('auxclick', (e) => {
+      if (e.button === 1) guard(e)
+    })
+  })
 }
 
 // ---------------------------------------------------------------- 三つの約束（初回だけ・飛ばせない）

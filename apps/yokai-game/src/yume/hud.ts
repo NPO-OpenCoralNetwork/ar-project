@@ -97,6 +97,8 @@ export interface HudHooks {
 
 export class Hud {
   readonly root: HTMLDivElement
+  /** 左上（入口へ戻るリンクと題） */
+  private readonly topLeft: HTMLDivElement
   private readonly perf: HTMLButtonElement
   private readonly prompt: HTMLDivElement
   private readonly toastEl: HTMLDivElement
@@ -142,6 +144,7 @@ export class Hud {
     t.textContent = title
     tl.appendChild(t)
     this.root.appendChild(tl)
+    this.topLeft = tl
 
     const panel = el('div', 'yh-panel')
     const row1 = el('div', 'yh-row')
@@ -390,6 +393,8 @@ export class Hud {
     const e = el('div', 'yh-error')
     e.textContent = message
     this.root.appendChild(e)
+    // 入口へ戻るリンクは知らせの上に残す（この端末では、もう一つの旅を選び直せるように。Tab の順は変えない）
+    this.topLeft.style.zIndex = '1'
   }
 }
 
