@@ -5,10 +5,14 @@
 // - AR 段階1（「カメラで見る」）: カメラの映像の上に同じ板の絵を重ね、スマホの向き（3軸の回転）に合わせて動かす。
 //   姿は「カメラを開いたときに向いていた方角」に置く（体を回す操作は求めない。04 §3.1）。カメラは出会いの間だけ開き、常には開かない（01-app-ux §3.3）。
 // - 姿は、はじめに墨の線（白描）で浮かび、色が差していく（夢で見た姿に、現地で色が入る）。
+// - 姿の出し方（open の form）: color＝色のついた姿（現地）、dream＝墨の線（白描）だけ（夢の姿。家の白描の地図）、
+//   none＝姿なし（調べる地点。ましろだけが話す。霞が少し残る）。
+// - 寄り道の妖怪は、決まった台本ではなく、出現の表の台本（雑談）で話す（呼ぶ側が script を渡す）。
 // - お休みの範囲・道中に入ったら、会話とカメラをすぐ止める（D2・D3）。
 
 import { type Beat, DialogueRunner } from '../core/story/dialogue'
 import type { ProgressStore } from '../core/story/progress'
+import type { Travel } from '../core/story/types'
 import type { StoryPack } from '../data/story-pack'
 import { ARTS, artToSvg } from '../yume/encounter/art'
 import type { Sound } from '../yume/encounter/sound'
@@ -17,6 +21,8 @@ import { DialogueView, escapeHtml } from '../yume/encounter/ui'
 const INK = '#3a332d'
 /** 姿が現れてから会話の枠を開くまで（ms） */
 const APPEAR_MS = 1900
+/** 姿の無い会話（調べる地点）で、霞が引いてから会話の枠を開くまで（ms） */
+const APPEAR_NOFIG_MS = 1200
 
 export interface GenEncounterDeps {
   root: HTMLElement
@@ -26,6 +32,21 @@ export interface GenEncounterDeps {
   /** 会話が終わった（閉じた）。spotId と、終わり方 */
   onEnd(spotId: string, how: 'finished' | 'closed' | 'stopped'): void
   log(s: string): void
+  /** 「カメラで見る」（AR 段階1）を出す。既定 true（家の白描の地図では出さない） */
+  camera?: boolean
+  /** 背景。scene＝昼の景色（AR 段階0。既定）、paper＝無地の和紙（家の白描の地図） */
+  backdrop?: 'scene' | 'paper'
+}
+
+export interface GenOpenOptions {
+  /** 使う台本（決まった地点は妖怪の台本、寄り道は出現の表の台本、調べる地点は clues.json の台本） */
+  script: string
+  /** 姿を出す妖怪（調べる地点では無し） */
+  yokaiId?: string
+  /** 姿の出し方。既定 color。妖怪が無ければ none */
+  form?: 'color' | 'dream' | 'none'
+  /** 既定 utsutsu */
+  travel?: Travel
 }
 
 export class GenEncounter {
@@ -35,7 +56,7 @@ export class GenEncounter {
   private readonly camBtn: HTMLButtonElement
   private readonly note: HTMLDivElement
   private readonly dialogue: DialogueView
-  private active: { spotId: string; runner: DialogueRunner; name: string } | null = null
+  private active: { spotId: string; runner: DialogueRunner } | null = null
   private stream: MediaStream | null = null
   private timer = 0
   private orient: { anchor: number | null; yaw: number; pitch: number; x: number; y: number; raf: number } | null = null
@@ -45,7 +66,7 @@ export class GenEncounter {
     this.el = document.createElement('div')
     this.el.className = 'ue'
     this.el.innerHTML = `
-      <div class="ue-bg">${backdropSvg()}</div>
+      <div class="ue-bg">${d.backdrop === 'paper' ? paperSvg() : backdropSvg()}</div>
       <video class="ue-cam" playsinline muted autoplay></video>
       <div class="ue-fig"></div>
       <div class="ue-veil"></div>
@@ -72,30 +93,41 @@ export class GenEncounter {
     return this.active !== null
   }
 
-  /** 姿が現れる。台本と絵のある妖怪だけ */
-  open(spotId: string, yokaiId: string): boolean {
-    const y = this.d.story.yokai[yokaiId]
+  /** 姿が現れ（姿なしなら霞の中で）、台本の会話を始める。台本が無い・姿の絵が無いときは false */
+  open(spotId: string, opts: GenOpenOptions): boolean {
+    const script = this.d.story.scripts[opts.script]
+    const y = opts.yokaiId ? this.d.story.yokai[opts.yokaiId] : undefined
+    const form = y ? (opts.form ?? 'color') : 'none'
     const art = y?.art ? ARTS[y.art] : undefined
-    const script = y?.script ? this.d.story.scripts[y.script] : undefined
-    if (!y || !art || !script) return false
-    const runner = new DialogueRunner(script, { progress: this.d.progress, cards: this.d.story.cards, travel: 'utsutsu' })
-    this.active = { spotId, runner, name: y.name }
-    this.fig.innerHTML = `
+    if (!script || (opts.yokaiId && !y) || (form !== 'none' && !art)) return false
+    const runner = new DialogueRunner(script, { progress: this.d.progress, cards: this.d.story.cards, travel: opts.travel ?? 'utsutsu' })
+    this.active = { spotId, runner }
+    if (!y || !art || form === 'none') this.fig.innerHTML = ''
+    else if (form === 'dream')
+      this.fig.innerHTML = `<svg class="line" viewBox="0 0 ${art.w} ${art.h}" role="img" aria-label="${escapeHtml(y.name)}（夢の姿）">${artToSvg(art, '#fffdf7', INK, 1.25)}</svg>`
+    else
+      this.fig.innerHTML = `
       <svg class="line" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.25)}</svg>
       <svg class="color" viewBox="0 0 ${art.w} ${art.h}" role="img" aria-label="${escapeHtml(y.name)}（色のついた姿）">${artToSvg(art, '#fffdf7', INK, 1.25, 1, true)}</svg>`
     this.note.textContent = ''
     this.el.classList.remove('parting', 'appeared')
+    this.el.classList.toggle('nofig', form === 'none')
+    // 姿の無い会話では、カメラで見るものがない
+    this.camBtn.hidden = this.d.camera === false || form === 'none'
     this.el.classList.add('on')
     // 次のフレームで「現れる」動きを始める（霞が晴れ、線のあとに色が差す）
     requestAnimationFrame(() => requestAnimationFrame(() => this.el.classList.add('appeared')))
     this.d.sound.bell(1)
     this.d.log(`appear ${spotId}`)
     window.clearTimeout(this.timer)
-    this.timer = window.setTimeout(() => {
-      if (!this.active) return
-      this.dialogue.open(`${y.name}との会話`)
-      this.onBeat(runner.start())
-    }, APPEAR_MS)
+    this.timer = window.setTimeout(
+      () => {
+        if (!this.active) return
+        this.dialogue.open(y ? `${y.name}との会話` : 'ましろの話')
+        this.onBeat(runner.start())
+      },
+      form === 'none' ? APPEAR_NOFIG_MS : APPEAR_MS,
+    )
     return true
   }
 
@@ -239,6 +271,20 @@ function backdropSvg(): string {
   </svg>`
 }
 
+/** 家の白描の地図で使う背景（無地の和紙。景色は描かない） */
+function paperSvg(): string {
+  return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="uePaper" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fbf7ec"/><stop offset="1" stop-color="#f1e8d4"/></linearGradient>
+      <pattern id="ueFiber" width="97" height="71" patternUnits="userSpaceOnUse">
+        <path d="M6,9 C13,7 19,10 24,6 M58,22 C62,26 67,27 73,31 M31,47 C36,45 40,49 47,48 M80,58 C84,55 88,57 93,52 M14,63 C18,60 21,62 23,58" fill="none" stroke="#c8bb9c" stroke-opacity="0.22" stroke-width="0.6" stroke-linecap="round"/>
+      </pattern>
+    </defs>
+    <rect width="400" height="700" fill="url(#uePaper)"/>
+    <rect width="400" height="700" fill="url(#ueFiber)"/>
+  </svg>`
+}
+
 const CSS = /* css */ `
 .ue { position: absolute; inset: 0; z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.5s; overflow: hidden; }
 .ue.on { opacity: 1; pointer-events: auto; }
@@ -257,9 +303,19 @@ const CSS = /* css */ `
 .ue.appeared .ue-fig .color { opacity: 1; }
 .ue-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(255, 252, 244, 0.85), rgba(255, 252, 244, 0.98)); opacity: 1; transition: opacity 1.4s ease-out; pointer-events: none; }
 .ue.appeared .ue-veil { opacity: 0; }
-.ue-cam-btn { position: absolute; top: calc(12px + var(--sat)); right: calc(12px + var(--sar)); font: inherit; font-size: 13px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; }
-.ue-note { position: absolute; top: calc(60px + var(--sat)); left: 50%; transform: translateX(-50%); font-size: 12.5px; color: var(--ink); background: var(--washi); border-radius: 8px; padding: 0 10px; max-width: calc(100vw - 32px); text-align: center; }
+.ue-cam-btn { position: absolute; top: calc(12px + var(--sat)); right: calc(12px + var(--sar)); font: inherit; font-size: 13px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 999px; min-height: 44px; padding: 0 14px; cursor: pointer; }
+.ue-cam-btn[hidden] { display: none; }
+/* 姿の無い会話（調べる地点）: 霞を少し残して、古い話の気配にする */
+.ue.nofig.appeared .ue-veil { opacity: 0.55; }
+.ue-note { position: absolute; top: calc(60px + var(--sat)); left: 50%; transform: translateX(-50%); font-size: 12.5px; color: var(--ink); background: var(--washi); border-radius: 8px; padding: 0 10px; width: max-content; max-width: calc(100vw - 32px); text-align: center; }
 .ue-note:empty { display: none; }
+/* 動きを減らす設定: 浮かび上がる動きをやめ、薄く切り替えるだけにする */
+@media (prefers-reduced-motion: reduce) {
+  .ue-fig .line { transform: none; transition: opacity 0.4s; }
+  .ue-fig .color { transition: opacity 0.4s; }
+  .ue-veil { transition: opacity 0.4s; }
+  .ue-fig { transition: none; }
+}
 `
 
 let styled = false

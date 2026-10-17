@@ -3,10 +3,16 @@
 // 流れ: はじめ（土地を選ぶ）→ 三つの約束（初回だけ・飛ばせない。F-60）→ 位置の許可の説明 → 地図（D1）
 //   地図: 状態の帯（世界の言葉＋普通の言葉）、「足を止めた」ボタン（気配の近くでだけ）、曼荼羅帳、出典表示（常に）。
 //   出会い（C2 の現地版）→ 会話 → 節を終えたら旅印（D4）。道中（D3）・お休みの範囲（D2）・逢魔が時・夜は出会いを止める。
+// 地点の役目（04 §3.1・§3.4）:
+// - 決まった妖怪の地点（yokaiId）: その妖怪の台本で、色のついた姿が現れる。
+// - 調べる地点（clueId）: 悩みを頼まれ、札をまだ拾っていない間だけ気配が出る（clues.json）。姿は無く、ましろだけが話して札が出る。
+// - 寄り道の地点（placeKind。水辺）: 出現の表で、時間帯と進み具合から妖怪を引く。会ったことのある妖怪が、雑談の台本で現れる
+//   （悩みは始めない・縁も上げない）。まだ会っていない・まだ作っていない妖怪は「誰かいる」まで。麓では逢魔が時に出会いを止め、夜は気配だけ。
 //
 // 土地:
 // - 立山のふもと（岩峅寺。本番の地域パック）。進み具合は夢の旅と同じ保存（yume.story.v1）なので、夢で会った妖怪と再会できる。
-// - テスト用の土地（チームの地元。test-land.ts）。この端末の中だけに作る。進み具合は別の保存（作ったときに夢の旅の保存を写す）。
+// - テスト用の土地（チームの地元。test-land.ts）。この端末の中だけに作る。進み具合は別の保存（まだ無いときだけ、作ったときに夢の旅の保存を写す。
+//   家の白描の地図も同じ保存に書くので、作り直しても消さない）。
 // - 位置シミュレーター（?sim または ?debug。F-06）。進み具合は別の保存（始めるたびに夢の旅の保存を写す）。
 // URL: ?debug で判定の中身を表示。
 
@@ -14,9 +20,10 @@ import './style.css'
 import { type LatLon, type LocalXZ, toLocal } from '../core/geo'
 import type { MapLayers } from '../core/map-layers'
 import type { Fix } from '../core/location/types'
+import { clueActive, resolveAppearance } from '../core/story/appearance'
 import { checkConditions } from '../core/story/dialogue'
 import { browserStorage, ProgressStore } from '../core/story/progress'
-import type { SectionDef } from '../core/story/types'
+import type { PlaceKind, SectionDef, TimeSlot } from '../core/story/types'
 import { type EngineEvent, type EngineSpot, UtsutsuEngine } from '../core/utsutsu/engine'
 import { sunTimes } from '../core/utsutsu/sun'
 import { iwakurajiMap } from '../data/iwakuraji-map'
@@ -28,7 +35,17 @@ import { escapeHtml, MandalaView } from '../yume/encounter/ui'
 import { GenEncounter } from './encounter'
 import { GeoSource, type GeoProblem, type LocationSource, SimSource } from './location'
 import { MapView } from './map-view'
-import { buildTestLand, clearTestLand, loadTestLand, saveTestLand, TEST_SPOTS_MAX, type TestLand } from './test-land'
+import {
+  buildTestLand,
+  clearTestLand,
+  loadTestLand,
+  saveTestLand,
+  TEST_CLUES_MAX,
+  TEST_SPOTS_MAX,
+  TEST_WANDER_MAX,
+  type TestLand,
+  testLandIsOld,
+} from './test-land'
 
 const params = new URLSearchParams(window.location.search)
 const DEBUG = params.has('debug')
@@ -40,22 +57,46 @@ const PROMISE_KEY = 'yume.promises.v1'
 /** 地域パックの原点からこれより遠いと「現地で開いてください」 */
 const FAR_M = 1500
 
+/**
+ * 土地の地点。役目は yokai（決まった妖怪）・clue（調べる地点）・wander（寄り道。出現の表の行）。
+ * hidden と canAppear は、進み具合と時間帯で refreshSpots が書き換える（判定の仕組みは同じ地点を見ている）
+ */
+interface LandSpot extends EngineSpot {
+  role: 'yokai' | 'clue' | 'wander'
+  clueId?: string
+  placeKind?: PlaceKind
+}
+
 interface Land {
   id: 'iwakuraji' | 'test'
   name: string
   origin: LatLon
   map: MapLayers
   rest: LocalXZ[][]
-  spots: EngineSpot[]
+  spots: LandSpot[]
   attributions: string[]
 }
 
 const story = loadStoryPack()
 if (story.problems.length) console.warn('物語のデータの問題', story.problems)
 
-const canAppear = (yokaiId?: string): boolean => {
+/** 姿が現れる妖怪か（絵と台本がある）。script を省くと、その妖怪の決まった台本で見る */
+const canAppear = (yokaiId?: string, script?: string): boolean => {
   const y = yokaiId ? story.yokai[yokaiId] : undefined
-  return !!(y?.script && y.art && story.scripts[y.script])
+  const sc = script ?? y?.script
+  return !!(y?.art && sc && story.scripts[sc])
+}
+
+/** 地域パック・テスト用の土地の地点に、役目をつける（どの役目でもない地点は置かない） */
+function landSpots(spots: { id: string; x: number; z: number; yokaiId?: string; clueId?: string; placeKind?: string }[]): LandSpot[] {
+  const out: LandSpot[] = []
+  for (const s of spots) {
+    const at = { id: s.id, x: s.x, z: s.z }
+    if (s.yokaiId) out.push({ ...at, role: 'yokai', yokaiId: s.yokaiId, canAppear: canAppear(s.yokaiId) })
+    else if (s.clueId) out.push({ ...at, role: 'clue', clueId: s.clueId, canAppear: false, hidden: true })
+    else if (s.placeKind === 'mizube') out.push({ ...at, role: 'wander', placeKind: s.placeKind, canAppear: false })
+  }
+  return out
 }
 
 function iwakurajiLand(): Land {
@@ -66,7 +107,7 @@ function iwakurajiLand(): Land {
     origin: o,
     map: iwakurajiMap,
     rest: iwakurajiPack.restZones.map((z) => z.polygon.map((p) => toLocal(p, o))),
-    spots: iwakurajiPack.spots.map((s) => ({ id: s.id, ...toLocal(s.position, o), yokaiId: s.yokaiId, canAppear: canAppear(s.yokaiId) })),
+    spots: landSpots(iwakurajiPack.spots.map((s) => ({ ...s, ...toLocal(s.position, o) }))),
     attributions: ['© OpenStreetMap contributors'],
   }
 }
@@ -78,10 +119,13 @@ function testLand(t: TestLand): Land {
     origin: t.origin,
     map: t.map,
     rest: t.restZones.map((z) => z.map(([x, zz]) => ({ x, z: zz }))),
-    spots: t.spots.map((s) => ({ id: s.id, x: s.x, z: s.z, yokaiId: s.yokaiId, canAppear: canAppear(s.yokaiId) })),
+    spots: landSpots(t.spots),
     attributions: ['© OpenStreetMap contributors'],
   }
 }
+
+/** 寄り道の地点で、まだ姿の見えない誰か（【創作】） */
+const WANDER_FAINT = '……水の音のほうに、誰かいる。まだ声は遠い。'
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag)
@@ -155,9 +199,10 @@ function showStart(): void {
     <p>現地を歩いて、立ち止まると、妖怪が色のついた姿で現れます。夢の旅で先に会っていれば、再会になります。</p>
     <button class="big" type="button" data-go="iwakuraji">歩きはじめる</button>
     <h3>チームのテスト用</h3>
-    <p class="soft">自分の地元で、仕組みを試すための土地です。いまいる所のまわり（約800m四方）の地図を OpenStreetMap から読み、気配を${TEST_SPOTS_MAX}つまで置きます。作った土地はこの端末の中だけに残ります。</p>
+    <p class="soft">自分の地元で、仕組みを試すための土地です。いまいる所のまわり（約800m四方）の地図を OpenStreetMap から読み、気配を${TEST_SPOTS_MAX}つまで置き、調べる地点（${TEST_CLUES_MAX}つまで）と水辺の道の地点（${TEST_WANDER_MAX}つまで）も置きます。作った土地はこの端末の中だけに残ります。</p>
     <button class="sub" type="button" data-go="test-new">いまいる所で試す（テスト用の土地を作る）</button>
     ${t ? `<button class="sub" type="button" data-go="test-old">前に作ったテスト用の土地で歩く（${escapeHtml(stampDate(t.createdAt))}）</button>` : ''}
+    ${!t && testLandIsOld() ? '<p class="soft">前に作ったテスト用の土地は古い形なので、もう一度作ってください。</p>' : ''}
     ${SIM_ALLOWED ? `<h3>開発用</h3><div class="row"><button class="sub" type="button" data-go="sim-iwakuraji">シミュレーター（ふもと）</button>${t ? `<button class="sub" type="button" data-go="sim-test">シミュレーター（テスト用）</button>` : ''}</div>` : ''}
     <a class="sub" href="./">夢の旅（家で遊ぶ）へ</a>
     <p class="soft">位置は気配を出すためだけに、この端末の中で使います。歩いた道は記録せず、どこにも送りません。</p>`)
@@ -247,7 +292,8 @@ function makeTestLand(): void {
       buildTestLand({ lat: p.coords.latitude, lon: p.coords.longitude }, (s) => (step.textContent = s))
         .then((t) => {
           saveTestLand(t)
-          copyMainProgress(TEST_KEY)
+          // 進み具合は、まだ無いときだけ夢の旅の保存を写す（家の白描の地図も同じ保存に書くので、作り直しても消さない）
+          if (safeGet(TEST_KEY) === null) copyMainProgress(TEST_KEY)
           log(`testland ${JSON.stringify(t.stats)}`)
           startSession(testLand(t), 'gps')
         })
@@ -344,8 +390,9 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   if (dbg) root.appendChild(dbg)
 
   let toastTimer = 0
+  // ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける
   const toast = (text: string, who = 'ましろ', ms = 4200) => {
-    toastEl.innerHTML = `${who ? `<small>${escapeHtml(who)}</small>` : ''}${escapeHtml(text)}`
+    toastEl.innerHTML = `${who ? `<small>${escapeHtml(who)}<i class="tag" title="本作の創作の台詞（伝承の事実は「伝承の札」で示します）">台本・創作</i></small>` : ''}${escapeHtml(text)}`
     toastEl.classList.add('on')
     window.clearTimeout(toastTimer)
     toastTimer = window.setTimeout(() => toastEl.classList.remove('on'), ms)
@@ -363,7 +410,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
         const sp = land.spots.find((s) => s.id === spotId)
         const pos = engine.view.position
         const d = sp && pos ? Math.round(Math.hypot(sp.x - pos.x, sp.z - pos.z) / 10) * 10 : null
-        toast(`この地点${d !== null ? `（約${d}m）` : ''}。近くまで行って、立ち止まってみよう。`)
+        const far = d !== null ? `（約${d}m）` : ''
+        toast(sp?.role === 'clue' ? `古い話の気配${far}。近くで立ち止まってみよう。` : `この地点${far}。近くまで行って、立ち止まってみよう。`)
       }
     },
     followChange: (f) => {
@@ -378,13 +426,34 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   zin.addEventListener('click', () => map.zoomBy(1.4))
   zout.addEventListener('click', () => map.zoomBy(1 / 1.4))
   here.addEventListener('click', () => map.recenter())
-  const refreshSpots = () =>
+  /** 寄り道の地点に、いま出るもの（出現の表。現の旅の時間帯は、日の入りからの時刻） */
+  const wanderOf = (sp: LandSpot) => {
+    const time: TimeSlot = engine.view.phase.phase
+    return sp.placeKind ? resolveAppearance(story.appearance, sp.placeKind, time, progress, 'utsutsu') : null
+  }
+  // 地点の出方を見直す（はじめ・時間帯が変わったとき・会話のあと・やり直したとき）。
+  // 調べる地点は、頼まれていて札をまだ拾っていない間だけ出す。寄り道の地点は、表で妖怪が出るときだけ姿が現れる（ほかは気配だけ）
+  const refreshSpots = () => {
+    for (const s of land.spots) {
+      if (s.role === 'clue') {
+        const clue = s.clueId ? story.clues[s.clueId] : undefined
+        s.hidden = !clue || !clueActive(clue, progress, 'utsutsu')
+        s.canAppear = !s.hidden
+      } else if (s.role === 'wander') {
+        const a = wanderOf(s)
+        s.canAppear = a?.mode === 'appear' && canAppear(a.yokaiId, a.script)
+      }
+    }
     map.setSpots(
-      land.spots.map((s) => {
-        const met = s.yokaiId ? progress.get().yokai[s.yokaiId]?.met : undefined
-        return { id: s.id, x: s.x, z: s.z, label: met && s.yokaiId ? (story.yokai[s.yokaiId]?.name ?? '？') : '？', onsite: !!met?.onsite }
-      }),
+      land.spots
+        .filter((s) => !s.hidden)
+        .map((s) => {
+          const met = s.yokaiId ? progress.get().yokai[s.yokaiId]?.met : undefined
+          const label = s.role === 'clue' ? '古い話' : met && s.yokaiId ? (story.yokai[s.yokaiId]?.name ?? '？') : '？'
+          return { id: s.id, x: s.x, z: s.z, label, onsite: !!met?.onsite }
+        }),
     )
+  }
   refreshSpots()
 
   // 曼荼羅帳
@@ -502,14 +571,36 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     if (ev.type === 'bell') sound.bell(0.4)
     else if (ev.type === 'appear') {
       const sp = land.spots.find((s) => s.id === ev.spotId)
-      if (sp?.yokaiId && encounter.open(sp.id, sp.yokaiId)) root.classList.add('talking')
-    } else if (ev.type === 'faint') toast('……誰かいる。でも、まだ姿は見えないね。')
-    else if (ev.type === 'transit-enter') {
+      if (sp && openTalk(sp)) root.classList.add('talking')
+    } else if (ev.type === 'faint') {
+      const sp = land.spots.find((s) => s.id === ev.spotId)
+      toast(sp?.role === 'wander' ? WANDER_FAINT : '……誰かいる。でも、まだ姿は見えないね。')
+    } else if (ev.type === 'transit-enter') {
       encounter.stop()
       mandala.close()
     } else if (ev.type === 'transit-exit') toast('着いたね。')
     else if (ev.type === 'rest-enter') encounter.stop()
-    else if (ev.type === 'phase' && ev.phase === 'oumagatoki') toast('暗くなる前に、帰ろう。')
+    else if (ev.type === 'phase') {
+      refreshSpots()
+      if (ev.phase === 'oumagatoki') toast('暗くなる前に、帰ろう。')
+    }
+  }
+  /** 澄んだ地点で会話を始める。地点の役目で、台本と姿の出し方が変わる */
+  const openTalk = (sp: LandSpot): boolean => {
+    if (sp.role === 'yokai') {
+      const script = sp.yokaiId ? story.yokai[sp.yokaiId]?.script : undefined
+      return !!script && encounter.open(sp.id, { script, yokaiId: sp.yokaiId })
+    }
+    if (sp.role === 'clue') {
+      // 姿は無く、ましろだけが話す（霞と会話の枠。札はふだんどおり）
+      const clue = sp.clueId ? story.clues[sp.clueId] : undefined
+      return !!clue && encounter.open(sp.id, { script: clue.script, form: 'none' })
+    }
+    // 寄り道: 出現の表の台本（雑談）で話す。決まった地点の台本は使わない（悩みを始めない・縁も上げない。04 §3.1）
+    const a = wanderOf(sp)
+    if (a?.mode === 'appear' && encounter.open(sp.id, { script: a.script, yokaiId: a.yokaiId })) return true
+    toast(WANDER_FAINT)
+    return false
   }
   const stationMin = (): number | null => {
     const pos = engine.view.position
@@ -628,7 +719,9 @@ function simPanel(sim: SimSource, land: Land, map: MapView, setClock: (offsetMs:
   const d = el('details', 'uh-sim') as HTMLDetailsElement
   // スマホの幅では、たたんだ状態で始める（地図を広く見せる）
   d.open = window.innerWidth > 600
-  const spotBtns = land.spots.map((s, i) => `<button type="button" data-spot="${i}">${escapeHtml(s.yokaiId ? (story.yokai[s.yokaiId]?.name ?? s.id) : s.id)}</button>`).join('')
+  const spotName = (s: LandSpot): string =>
+    s.role === 'yokai' && s.yokaiId ? (story.yokai[s.yokaiId]?.name ?? s.id) : `${s.role === 'clue' ? '調べる' : '水辺'}${s.id.replace(/^.*-[a-z]?/, '')}`
+  const spotBtns = land.spots.map((s, i) => `<button type="button" data-spot="${i}">${escapeHtml(spotName(s))}</button>`).join('')
   d.innerHTML = `<summary>位置シミュレーター（開発用）</summary>
     <div class="g"><span>タップ</span><button type="button" data-tap="walk" aria-pressed="true">歩いて行く</button><button type="button" data-tap="jump" aria-pressed="false">瞬間移動</button></div>
     <div class="g"><span>速さ</span><button type="button" data-speed="1.3" aria-pressed="true">歩く</button><button type="button" data-speed="3.2">走る</button><button type="button" data-speed="11">乗り物</button><button type="button" data-halt>止まる</button></div>

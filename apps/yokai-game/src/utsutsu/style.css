@@ -52,9 +52,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 .uh-stop .fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
 .uh-stop b { font-family: var(--title-font); font-weight: 600; font-size: 15px; letter-spacing: 0.1em; display: block; text-align: left; }
 .uh-stop small { display: block; font-size: 11px; color: var(--ink-soft); text-align: left; }
-.uh-toast { position: absolute; left: 50%; top: calc(96px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.04em; padding: 8px 16px; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 12px; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; }
+.uh-toast { position: absolute; left: 50%; top: calc(96px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.04em; padding: 8px 16px; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 12px; width: max-content; max-width: calc(100vw - 120px); text-align: center; text-wrap: balance; word-break: auto-phrase; }
 .uh-toast.on { opacity: 1; }
 .uh-toast small { display: block; font-family: var(--ui-font); font-size: 11px; color: var(--ink-soft); margin-bottom: 2px; letter-spacing: 0.1em; }
+/* 台詞の印（「台本・創作」。会話の枠の印と同じ形） */
+.uh-toast small .tag { display: inline-block; margin-left: 8px; font-style: normal; font-size: 10px; letter-spacing: 0.04em; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; line-height: 1.5; }
 .yh .yh-credit { position: absolute; right: calc(8px + var(--sar)); bottom: calc(6px + var(--sab)); font-size: 10px; line-height: 1.4; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 2px 7px; text-align: right; max-width: calc(100vw - 16px); z-index: 80; }
 .yh-credit a { color: inherit; text-decoration: none; pointer-events: auto; }
 .uh-debug { position: absolute; left: calc(8px + var(--sal)); bottom: calc(112px + var(--sab)); font: 10.5px/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 3px 6px; white-space: pre; }
