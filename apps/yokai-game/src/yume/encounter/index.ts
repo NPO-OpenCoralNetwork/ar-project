@@ -6,11 +6,21 @@
 // - お休みの範囲（境内）では出会いを起こさない。
 // - 会話の画面・曼荼羅帳を開いている間は、アバターを止める。
 // - 家で上がる縁は「なじみ」まで、曼荼羅は白描まで（ProgressStore が上限で止める）。
+//
+// 地点の役目（data.ts の SpotRole）:
+// - yokai: 決まった地点の妖怪。台本と絵のある妖怪だけ夢の姿が浮かぶ（ほかは気配だけ）。
+// - clue: 調べる地点（04 §3.4）。悩みを頼まれ、札をまだ拾っていない間だけ印を出す（clues.json）。
+//   耳を澄ますと、姿は浮かばず、霞が寄ってましろだけが話し、札が出る。
+// - wander: 寄り道の地点（水辺。04 §3.1）。出現の表を、箱庭の時間帯（昼・夕・夜）で引く。出るときだけ夢の姿が浮かび、
+//   寄り道の台本（雑談）で話す。出ないとき（夜・まだ会っていない・まだ作っていない妖怪）は気配だけ。
+//   表は耳を澄ますたびに引く。会話の途中で時間帯が変わっても、浮かんだ姿は消さない（main.ts は会話の間 T キーを止める）。
 
 import * as THREE from 'three'
+import { clueActive, resolveAppearance, timeSlotOfDiorama } from '../../core/story/appearance'
 import { type Beat, DialogueRunner } from '../../core/story/dialogue'
 import { ListenGauge } from '../../core/story/listen'
 import type { ProgressStore } from '../../core/story/progress'
+import type { DialogueScript } from '../../core/story/types'
 import type { StoryPack } from '../../data/story-pack'
 import type { CameraRig } from '../camera'
 import type { SpotLocal } from '../data'
@@ -25,8 +35,17 @@ import { DialogueView, ListenButton, MandalaView, MistVeil } from './ui'
 
 type Phase = 'roam' | 'appearing' | 'talking' | 'parting'
 
+/** 耳を澄ますと始まる会話（地点の役目ごとに、使う台本と、浮かぶ妖怪）。yokaiId が無いのは調べる地点（姿なし） */
+interface Listenable {
+  spot: SpotLocal
+  script: DialogueScript
+  yokaiId?: string
+}
+
 /** 夢の姿が浮かんでから、会話の枠を開くまで（秒） */
 const APPEAR_SEC = 1.7
+/** 姿のない会話（調べる地点）で、霞が寄ってから会話の枠を開くまで（秒）。浮かぶものがないので短く */
+const CLUE_APPEAR_SEC = 1.2
 /** 会話の間のカメラの距離（m） */
 const TALK_DIST = 22
 const TALK_DIST_PORTRAIT = 17
@@ -52,11 +71,23 @@ export class Encounters {
   private readonly mist: MistVeil
   private readonly dialogue: DialogueView
   private readonly mandala: MandalaView
+  /** 夢の姿（妖怪ごとに1つ。決まった地点の妖怪ははじめに作り、寄り道の妖怪は、はじめて浮かぶときに作る） */
   private readonly figures = new Map<string, DreamFigure>()
   private phase: Phase = 'roam'
   private phaseT = 0
-  private active: { spot: SpotLocal; figure: DreamFigure; runner: DialogueRunner } | null = null
+  /**
+   * 会話の相手。figure が無いのは調べる地点（ましろだけ）。veil はそのときの印の消え方（0..1。姿の浮かび方の代わり）。
+   * piece はこの会話でピースが入ったか（別れのお知らせに使う）
+   */
+  private active: { spot: SpotLocal; figure?: DreamFigure; runner: DialogueRunner; veil: number; piece: boolean } | null = null
   private nearSpot: SpotLocal | null = null
+  /** 箱庭の時間帯（出現の表を引く） */
+  private timeOfDay: ScenePalette['time'] = 'day'
+  /** あとから作る夢の姿に当てる、いまのパレットとにじみのしきい値 */
+  private palette: { p: ScenePalette; look: ViewLook } | null = null
+  private bloom: number | null = null
+  /** 会話のあとに残る霞（姿のない会話は別れを待たないので、ここでゆっくり引く） */
+  private mistLinger = 0
   private spaceHeld = false
   private savedDist: number | null = null
   /** 会話の間だけ向きを変えたら、元の向き（会話が終わったら戻す） */
@@ -104,15 +135,10 @@ export class Encounters {
         },
       },
     )
-    // 夢の姿（台本と絵のある妖怪だけ）
+    // 決まった地点の夢の姿（台本と絵のある妖怪だけ）
     for (const spot of d.field.data.spots) {
-      const y = spot.yokaiId ? d.story.yokai[spot.yokaiId] : undefined
-      const art = y?.art ? ARTS[y.art] : undefined
-      if (!y?.script || !art || !d.story.scripts[y.script]) continue
-      const f = new DreamFigure(art, y.heightM ?? 3.6)
-      f.placeAt(spot.x, spot.z, d.field.spots.groundOf(spot.id))
-      d.scene.add(f.mesh)
-      this.figures.set(spot.id, f)
+      if (spot.role !== 'yokai' || !spot.yokaiId || !this.scriptOf(spot.yokaiId)) continue
+      this.figureOf(spot.yokaiId)?.placeAt(spot.x, spot.z, d.field.spots.groundOf(spot.id))
     }
     window.addEventListener('keydown', (e) => {
       if (e.code !== 'Space' || e.repeat) return
@@ -138,19 +164,71 @@ export class Encounters {
     return this.phase === 'appearing' || this.phase === 'talking' || this.mandala.isOpen
   }
 
+  /** 出会いの途中（耳を澄まし終えてから、別れ終わるまで）。この間は時間帯と曼荼羅帳のキーを止める（main.ts） */
+  get engaged(): boolean {
+    return this.phase !== 'roam'
+  }
+
   /** カメラが追う点（会話の間は、アバターと夢の姿の間） */
   get cameraFocus(): THREE.Vector3 | null {
     return this.phase === 'roam' ? null : this.focus
   }
 
   setPalette(p: ScenePalette, look: ViewLook): void {
+    this.palette = { p, look }
+    // 時間帯は、次に耳を澄ますときの出現の表に効く（浮かんでいる姿はそのまま）
+    this.timeOfDay = p.time
     for (const f of this.figures.values()) f.setPalette(p, look)
     this.mist.setColor(`#${new THREE.Color(p.fogToLight).lerp(new THREE.Color(0xffffff), 0.35).getHexString()}`)
   }
 
   /** にじみ（ブルーム）を使う画質か（使うならそのしきい値） */
   setBloomThreshold(t: number | null): void {
+    this.bloom = t
     for (const f of this.figures.values()) f.setBloomThreshold(t)
+  }
+
+  /** 妖怪の台本（台本と絵のある妖怪だけ。ほかは気配だけ） */
+  private scriptOf(yokaiId: string): DialogueScript | undefined {
+    const y = this.d.story.yokai[yokaiId]
+    if (!y?.script || !y.art || !ARTS[y.art]) return undefined
+    return this.d.story.scripts[y.script]
+  }
+
+  /** 妖怪の夢の姿。まだ無ければ作る（寄り道の妖怪は、はじめて浮かぶときに作る）。絵の無い妖怪は undefined */
+  private figureOf(yokaiId: string): DreamFigure | undefined {
+    const have = this.figures.get(yokaiId)
+    if (have) return have
+    const y = this.d.story.yokai[yokaiId]
+    const art = y?.art ? ARTS[y.art] : undefined
+    if (!y || !art) return undefined
+    const f = new DreamFigure(art, y.heightM ?? 3.6)
+    if (this.palette) f.setPalette(this.palette.p, this.palette.look)
+    f.setBloomThreshold(this.bloom)
+    this.d.scene.add(f.mesh)
+    this.figures.set(yokaiId, f)
+    return f
+  }
+
+  /** 近くの地点で、耳を澄ますと始まる会話（無ければ気配だけ） */
+  private listenableAt(spot: SpotLocal): Listenable | null {
+    const { story, progress } = this.d
+    if (spot.role === 'clue') {
+      const clue = spot.clueId ? story.clues[spot.clueId] : undefined
+      const script = clue ? story.scripts[clue.script] : undefined
+      return clue && script && clueActive(clue, progress, 'yume') ? { spot, script } : null
+    }
+    if (spot.role === 'wander') {
+      if (spot.placeKind !== 'mizube') return null
+      const a = resolveAppearance(story.appearance, spot.placeKind, timeSlotOfDiorama(this.timeOfDay), progress, 'yume')
+      if (a.mode !== 'appear') return null
+      const y = story.yokai[a.yokaiId]
+      const script = story.scripts[a.script]
+      // 寄り道の台本で話す（悩みは始めない・縁も上げない）。絵の無い妖怪は気配だけ
+      return script && y?.art && ARTS[y.art] ? { spot, script, yokaiId: a.yokaiId } : null
+    }
+    const script = spot.yokaiId ? this.scriptOf(spot.yokaiId) : undefined
+    return script ? { spot, script, yokaiId: spot.yokaiId } : null
   }
 
   openMandala(): void {
@@ -170,8 +248,15 @@ export class Encounters {
     this.d.hud.setMandalaNew(hasNew)
   }
 
+  /** 進み具合が変わったら、印を合わせる（会った妖怪は淡く小さく。調べる地点は、頼まれてから札を拾うまでだけ出す） */
   private refreshMet(): void {
-    this.d.field.spots.setMet((s) => !!s.yokaiId && this.d.progress.hasMet(s.yokaiId))
+    const { field, progress, story } = this.d
+    field.spots.setMet((s) => !!s.yokaiId && progress.hasMet(s.yokaiId))
+    field.spots.setVisible((s) => {
+      if (s.role !== 'clue') return true
+      const clue = s.clueId ? story.clues[s.clueId] : undefined
+      return !!clue && clueActive(clue, progress, 'yume')
+    })
   }
 
   /** 毎フレーム。near は 6m 以内のいちばん近い地点 */
@@ -182,30 +267,34 @@ export class Encounters {
     if (near && near !== this.nearSpot && this.phase === 'roam') sound.bell(0.35)
     this.nearSpot = near
 
-    const scripted = near && this.figures.has(near.id) ? near : null
+    // 耳を澄ませる地点か（調べる地点は頼まれている間、寄り道の地点はいまの時間帯に妖怪が出るときだけ）
+    const target = near && this.phase === 'roam' ? this.listenableAt(near) : null
     if (this.phase === 'roam') {
-      const inRest = field.walk.isInsideRest(player.pos.x, player.pos.z) || (scripted ? field.walk.isInsideRest(scripted.x, scripted.z) : false)
+      const inRest = field.walk.isInsideRest(player.pos.x, player.pos.z) || (target ? field.walk.isInsideRest(target.spot.x, target.spot.z) : false)
       const ev = this.gauge.update(dt, {
-        near: !!scripted,
+        near: !!target,
         held: this.listenBtn.held(this.spaceHeld),
         speed: player.speed,
         inRest,
         blocked: this.mandala.isOpen,
       })
-      if (ev === 'start') this.log.push(`listen:start ${scripted?.id}`)
+      if (ev === 'start') this.log.push(`listen:start ${target?.spot.id}`)
       if (ev === 'interrupted') {
         this.log.push('listen:interrupted')
         hud.toast('……気配が、ふっと遠のいた。止まると、また聞こえる')
       }
-      const met = scripted?.yokaiId ? this.d.progress.hasMet(scripted.yokaiId) : false
-      this.listenBtn.show(!!scripted && !this.mandala.isOpen, met ? '長押し・また会いに' : '長押し・その場で止まる')
+      const met = target?.yokaiId ? this.d.progress.hasMet(target.yokaiId) : false
+      const sub = target && !target.yokaiId ? '長押し・古い話の気配' : met ? '長押し・また会いに' : '長押し・その場で止まる'
+      this.listenBtn.show(!!target && !this.mandala.isOpen, sub)
       this.listenBtn.setProgress(this.gauge.progress)
-      // 台本のない妖怪の地点は、気配だけ（のちの段階で）
-      hud.showPrompt(near && !scripted ? 'かすかな気配。まだ声は遠い' : null)
-      field.spots.setFocus(scripted?.id ?? null, this.gauge.progress, 0)
-      this.mistAmount = this.gauge.progress
+      // 台本のない妖怪の地点と、いまは出ない寄り道の地点（夜など）は、気配だけ
+      hud.showPrompt(near && !target ? 'かすかな気配。まだ声は遠い' : null)
+      field.spots.setFocus(target?.spot.id ?? null, this.gauge.progress, 0)
+      // 姿のない会話のあとは、残った霞をゆっくり引く（耳を澄ますと、また寄る）
+      this.mistLinger *= Math.exp(-dt * 1.5)
+      this.mistAmount = Math.max(this.gauge.progress, this.mistLinger)
       sound.setDuck(this.gauge.progress)
-      if (ev === 'complete' && scripted) this.beginAppear(scripted)
+      if (ev === 'complete' && target) this.beginAppear(target)
     } else {
       this.listenBtn.show(false)
       hud.showPrompt(null)
@@ -213,25 +302,30 @@ export class Encounters {
 
     const a = this.active
     if (a) {
-      // カメラはアバターと夢の姿の間を見る。会話の枠（画面の下）に隠れないよう、見る点を少し手前に寄せる（二人が画面の上へ上がる）
-      const fp = a.figure.position
+      // カメラはアバターと夢の姿の間を見る。会話の枠（画面の下）に隠れないよう、見る点を少し手前に寄せる（二人が画面の上へ上がる）。
+      // 姿のない会話（調べる地点）は、アバターとましろだけを、同じように少し上へ上げて見る（寄らない・向きも変えない）
+      const fp = a.figure?.position ?? player.pos
       const fwd = this.d.rig.forward()
       const back = this.d.rig.dist * (window.innerHeight > window.innerWidth ? 0.14 : 0.1)
       this.focus.set((player.pos.x + fp.x) / 2 - fwd.x * back, (player.pos.y + fp.y) / 2 + 0.6, (player.pos.z + fp.z) / 2 - fwd.y * back)
-      field.spots.setFocus(a.spot.id, 0, Math.min(1, a.figure.visibleAmount * 1.5))
+      // 姿のない会話は、霞が寄るにつれて印が霞に溶ける
+      if (!a.figure && this.phase !== 'parting') a.veil = Math.min(1, a.veil + dt / CLUE_APPEAR_SEC)
+      field.spots.setFocus(a.spot.id, 0, Math.min(1, (a.figure ? a.figure.visibleAmount : a.veil) * 1.5))
     }
     if (this.phase === 'appearing') {
       this.mistAmount += (0.7 - this.mistAmount) * (1 - Math.exp(-dt * 2))
       sound.setDuck(0.9)
-      if (this.phaseT >= APPEAR_SEC && a) this.beginTalk()
+      if (a && this.phaseT >= (a.figure ? APPEAR_SEC : CLUE_APPEAR_SEC)) this.beginTalk()
     } else if (this.phase === 'talking') {
       this.mistAmount += (0.45 - this.mistAmount) * (1 - Math.exp(-dt * 2))
       sound.setDuck(0.75)
     } else if (this.phase === 'parting') {
       this.mistAmount += (0 - this.mistAmount) * (1 - Math.exp(-dt * 1.5))
       sound.setDuck(0)
-      if (a && a.figure.visibleAmount <= 0.01) {
+      // 姿のない会話は、消える姿を待たずにすぐ終える（残った霞は歩きながら引く）
+      if (!a || !a.figure || a.figure.visibleAmount <= 0.01) {
         field.spots.setFocus(null, 0, 0)
+        this.mistLinger = this.mistAmount
         this.active = null
         this.phase = 'roam'
         this.phaseT = 0
@@ -243,17 +337,28 @@ export class Encounters {
     for (const f of this.figures.values()) f.update(dt, time, this.d.rig.camera)
   }
 
-  private beginAppear(spot: SpotLocal): void {
-    const figure = this.figures.get(spot.id)
-    const yokai = spot.yokaiId ? this.d.story.yokai[spot.yokaiId] : undefined
-    const script = yokai?.script ? this.d.story.scripts[yokai.script] : undefined
-    if (!figure || !script) return
+  private beginAppear(target: Listenable): void {
+    const { spot, script, yokaiId } = target
     const { player, rig, progress, story } = this.d
     const runner = new DialogueRunner(script, { progress, cards: story.cards, travel: 'yume' })
-    this.active = { spot, figure, runner }
+    if (!yokaiId) {
+      // 調べる地点: 姿は浮かばない。霞が寄り、印が溶けたら、ましろが話しはじめる（カメラは寄らない・向きも変えない）
+      this.active = { spot, runner, veil: 0, piece: false }
+      this.phase = 'appearing'
+      this.phaseT = 0
+      this.log.push(`appear ${spot.id} ${spot.role}`)
+      player.walkTarget = null
+      // 印の方を向いて聞く（印の真上に立っていたら、向きはそのまま）
+      if (Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z) > 0.8) player.faceHeading = Math.atan2(spot.x - player.pos.x, -(spot.z - player.pos.z))
+      this.d.sound.bell(0.6)
+      return
+    }
+    const figure = this.figureOf(yokaiId)
+    if (!figure) return
+    this.active = { spot, figure, runner, veil: 0, piece: false }
     this.phase = 'appearing'
     this.phaseT = 0
-    this.log.push(`appear ${spot.id}`)
+    this.log.push(spot.role === 'yokai' ? `appear ${spot.id}` : `appear ${spot.id} ${spot.role} ${yokaiId}`)
     player.walkTarget = null
     // 縦長の画面（スマホ）は横の画角が狭いので、もう少し寄る
     const talkDist = Math.min(rig.distTarget, window.innerHeight > window.innerWidth ? TALK_DIST_PORTRAIT : TALK_DIST)
@@ -358,7 +463,11 @@ export class Encounters {
     if (!a) return
     this.phase = 'talking'
     this.phaseT = 0
-    const name = this.d.story.yokai[a.runner.script.yokaiId ?? '']?.name ?? ''
+    // 妖怪のいない台本（調べる地点）は、ましろ（連れ）の名前
+    const script = a.runner.script
+    const name = script.yokaiId
+      ? (this.d.story.yokai[script.yokaiId]?.name ?? '')
+      : (Object.values(script.speakers).find((s) => s.role === 'companion')?.name ?? '')
     this.dialogue.open(`${name}との会話`)
     this.onBeat(a.runner.start())
   }
@@ -371,7 +480,10 @@ export class Encounters {
       this.endTalk('end')
       return
     }
-    if (beat.kind === 'notice' && beat.notice.type === 'piece') this.refreshBadge()
+    if (beat.kind === 'notice' && beat.notice.type === 'piece') {
+      a.piece = true
+      this.refreshBadge()
+    }
     this.dialogue.show(beat)
   }
 
@@ -382,7 +494,7 @@ export class Encounters {
     if (!a) return
     this.phase = 'parting'
     this.phaseT = 0
-    a.figure.hide()
+    a.figure?.hide()
     this.gauge.disarm()
     if (this.savedDist !== null) {
       this.d.rig.distTarget = this.savedDist
@@ -393,7 +505,8 @@ export class Encounters {
       this.savedYaw = null
     }
     this.refreshBadge()
-    if (why === 'end' && this.d.hud.mandalaHasNew) this.d.hud.toast('曼荼羅帳に、ピースが一つ入った（右上の「曼荼羅帳」）', 4200)
+    // この会話でピースが入ったときだけ（調べる地点の札だけの会話や、前のピースをまだ見ていないだけのときは出さない）
+    if (why === 'end' && a.piece && this.d.hud.mandalaHasNew) this.d.hud.toast('曼荼羅帳に、ピースが一つ入った（右上の「曼荼羅帳」）', 4200)
   }
 
   private resetAll(): void {
@@ -408,15 +521,29 @@ export class Encounters {
     this.log.push('reset')
   }
 
-  /** 確認用 */
-  get debugState(): { phase: Phase; gauge: number; node: string; busy: boolean; figure: number; mist: number } {
+  /** 確認用（with: 会話の相手の地点と役目。shown: いま印を出している調べる・寄り道の地点） */
+  get debugState(): {
+    phase: Phase
+    gauge: number
+    node: string
+    busy: boolean
+    figure: number
+    mist: number
+    with: string
+    time: string
+    shown: string[]
+  } {
+    const a = this.active
     return {
       phase: this.phase,
       gauge: this.gauge.progress,
-      node: this.active?.runner.node ?? '',
+      node: a?.runner.node ?? '',
       busy: this.busy,
-      figure: this.active?.figure.visibleAmount ?? 0,
+      figure: a?.figure?.visibleAmount ?? 0,
       mist: this.mistAmount,
+      with: a ? `${a.spot.id}:${a.spot.role}${a.figure ? '' : ':nofigure'}` : '',
+      time: this.timeOfDay,
+      shown: this.d.field.data.spots.filter((s) => s.role !== 'yokai' && this.d.field.spots.isVisible(s.id)).map((s) => s.id),
     }
   }
 }
