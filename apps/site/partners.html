@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>協力したい方へ</title>
+  <meta name="description" content="ゲームの中に、あなたの土地をひらく。自治体・観光協会、お店・企業、作り手・監修の方へ。（公式サイトの見本。非公開）">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light dark">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@400;600&display=swap">
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23faf7f0'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffd89a'/%3E%3C/svg%3E">
+</head>
+<body>
+  <!--
+    パートナー向けのページの見本（PO と方向を合わせるためのもの。公開しない）。
+    構成は docs/product/02-site.md §2.2・§6、中身は docs/product/00-vision.md §5・§6。
+    協力先・事例・名前はすべて「例」か「準備中」。金額は書かない（未定）。
+  -->
+  <canvas id="kasumi" aria-hidden="true"></canvas>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="emap" viewBox="0 0 600 380">
+        <defs>
+          <radialGradient id="em-vig" cx="56%" cy="52%" r="68%">
+            <stop offset="58%" style="stop-color:var(--map-haze);stop-opacity:0"/>
+            <stop offset="100%" style="stop-color:var(--map-haze);stop-opacity:0.92"/>
+          </radialGradient>
+          <linearGradient id="em-plain" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style="stop-color:var(--map-plain)"/>
+            <stop offset="1" style="stop-color:var(--map-land)"/>
+          </linearGradient>
+        </defs>
+        <rect width="600" height="380" style="fill:var(--map-land)"/>
+        <path d="M0,150 C60,120 120,110 190,102 C250,96 300,74 336,40 C350,26 360,12 366,0 L600,0 L600,380 L0,380 Z" fill="url(#em-plain)"/>
+        <path d="M0,0 L366,0 C360,12 350,26 336,40 C300,74 250,96 190,102 C120,110 60,120 0,150 Z" style="fill:var(--map-sea)"/>
+        <g fill="none" style="stroke:var(--map-sea-line)" stroke-width="1.2" stroke-linecap="round" opacity="0.8">
+          <path d="M40,60 q10,-6 20,0 t20,0"/><path d="M150,36 q10,-6 20,0 t20,0"/><path d="M96,96 q10,-6 20,0 t20,0"/><path d="M250,26 q10,-6 20,0 t20,0"/>
+        </g>
+        <path d="M0,150 C60,120 120,110 190,102 C250,96 300,74 336,40 C350,26 360,12 366,0" fill="none" style="stroke:var(--map-line)" stroke-width="1.2"/>
+        <!-- 田の帯 -->
+        <g style="fill:var(--map-field)" opacity="0.8">
+          <path d="M210,150 L300,140 L306,152 L214,164 Z"/><path d="M220,176 L318,162 L326,176 L226,192 Z"/><path d="M236,206 L338,188 L348,204 L244,222 Z"/>
+          <path d="M120,170 L190,162 L194,174 L122,184 Z"/><path d="M110,198 L196,186 L202,200 L114,214 Z"/>
+        </g>
+        <!-- 山並み（切り絵の3層） -->
+        <path d="M392,262 L392,262 C405.0,262 405.0,150 418,150 C429.0,150 429.0,74 440,74 C458.0,74 458.0,98 476,98 C491.0,98 491.0,58 506,58 C523.0,58 523.0,86 540,86 C553.0,86 553.0,66 566,66 C583.0,66 583.0,90 600,90 L600,90 L600,262 Z" style="fill:var(--map-m1);stroke:var(--map-line)" stroke-width="1"/>
+        <path d="M427,83 C433.5,75 446.5,75 453,83 L445.85,80.5 L441.3,84 L435.45,80 Z M493,67 C499.5,59 512.5,59 519,67 L511.85,64.5 L507.3,68 L501.45,64 Z M553,75 C559.5,67 572.5,67 579,75 L571.85,72.5 L567.3,76 L561.45,72 Z " style="fill:var(--map-snow)"/>
+        <path d="M352,282 L352,282 C372.0,282 372.0,170 392,170 C410.0,170 410.0,128 428,128 C445.0,128 445.0,150 462,150 C477.0,150 477.0,118 492,118 C509.0,118 509.0,140 526,140 C542.0,140 542.0,112 558,112 C579.0,112 579.0,140 600,140 L600,140 L600,282 Z" style="fill:var(--map-m2);stroke:var(--map-line)" stroke-width="1"/>
+        <path d="M417,137 C422.5,129 433.5,129 439,137 L432.95,134.5 L429.1,138 L424.15,134 Z M481,127 C486.5,119 497.5,119 503,127 L496.95,124.5 L493.1,128 L488.15,124 Z M547,121 C552.5,113 563.5,113 569,121 L562.95,118.5 L559.1,122 L554.15,118 Z " style="fill:var(--map-snow)"/>
+        <ellipse cx="500" cy="168" rx="80" ry="9" style="fill:var(--map-haze)" opacity="0.85"/>
+        <path d="M316,342 L316,342 C336.0,342 336.0,232 356,232 C380.0,232 380.0,196 404,196 C422.0,196 422.0,212 440,212 C458.0,212 458.0,184 476,184 C494.0,184 494.0,204 512,204 C530.0,204 530.0,182 548,182 C574.0,182 574.0,200 600,200 L600,200 L600,342 Z" style="fill:var(--map-m3);stroke:var(--map-line)" stroke-width="1"/>
+        <!-- 手前の丘 -->
+        <path d="M0,380 L0,330 C30.0,330 30.0,306 60,306 C90.0,306 90.0,318 120,318 C150.0,318 150.0,296 180,296 C210.0,296 210.0,314 240,314 C270.0,314 270.0,298 300,298 C330.0,298 330.0,320 360,320 C390.0,320 390.0,300 420,300 C450.0,300 450.0,322 480,322 C510.0,322 510.0,304 540,304 C570.0,304 570.0,318 600,318 L600,318 L600,380 Z" style="fill:var(--map-hill)" opacity="0.9"/>
+        <!-- 杉の木立 -->
+        <g style="fill:var(--map-tree)">
+          <path d="M80,312 l6,-14 l6,14 Z M92,314 l7,-17 l7,17 Z M106,312 l5,-12 l5,12 Z"/>
+          <path d="M468,316 l6,-14 l6,14 Z M480,318 l7,-17 l7,17 Z"/>
+          <path d="M352,236 l5,-12 l5,12 Z M362,238 l6,-15 l6,15 Z"/>
+        </g>
+        <!-- 川 -->
+        <path d="M600,232 C560,236 520,226 486,228 C452,232 424,236 404,232 C380,226 360,206 336,180 C310,152 278,126 244,98" fill="none" style="stroke:var(--map-river)" stroke-width="5" stroke-linecap="round"/>
+        <!-- 家並み（名前なし） -->
+        <g style="fill:var(--map-house)">
+          <rect x="372" y="246" width="7" height="5"/><rect x="382" y="250" width="6" height="4"/><rect x="420" y="250" width="7" height="5"/><rect x="430" y="246" width="6" height="4"/>
+          <rect x="160" y="140" width="8" height="5"/><rect x="172" y="144" width="6" height="4"/><rect x="150" y="146" width="6" height="4"/>
+        </g>
+        <g style="fill:var(--map-haze)" opacity="0.85">
+          <ellipse cx="150" cy="262" rx="90" ry="12"/><ellipse cx="560" cy="120" rx="50" ry="7"/>
+        </g>
+        <rect width="600" height="380" fill="url(#em-vig)"/>
+        <text x="90" y="64" font-size="13" letter-spacing="4" style="fill:var(--map-line);font-family:var(--title-font)">富山湾</text>
+      </symbol>
+      <radialGradient id="glow-amber"><stop offset="0" stop-color="#ffd89a"/><stop offset="0.35" stop-color="#ff9a48" stop-opacity="0.55"/><stop offset="1" stop-color="#c4402c" stop-opacity="0"/></radialGradient>
+      <radialGradient id="glow-paper"><stop offset="0" stop-color="#fbf8f0"/><stop offset="0.4" stop-color="#fff1d6" stop-opacity="0.6"/><stop offset="1" stop-color="#fff1d6" stop-opacity="0"/></radialGradient>
+      <symbol id="tomoshi" viewBox="0 0 140 90">
+        <!-- 立山のピンのまわりの灯り（数は出さない。図は例）。琥珀＝現地から、白い紙＝家から -->
+        <g class="flicker"><circle cx="24" cy="44" r="12" fill="url(#glow-amber)"/><circle cx="24" cy="44" r="3" fill="#ffd89a" stroke="#d9772a" stroke-width="1"/></g>
+        <g class="flicker d2"><circle cx="98" cy="28" r="10" fill="url(#glow-paper)"/><circle cx="98" cy="28" r="2.8" fill="#fbf8f0" stroke="#8a7a68" stroke-width="0.9"/></g>
+        <g class="flicker d3"><circle cx="116" cy="60" r="12" fill="url(#glow-amber)"/><circle cx="116" cy="60" r="3" fill="#ffd89a" stroke="#d9772a" stroke-width="1"/></g>
+        <g class="flicker"><circle cx="50" cy="72" r="10" fill="url(#glow-paper)"/><circle cx="50" cy="72" r="2.8" fill="#fbf8f0" stroke="#8a7a68" stroke-width="0.9"/></g>
+        <g class="flicker d2"><circle cx="82" cy="80" r="9" fill="url(#glow-amber)"/><circle cx="82" cy="80" r="2.6" fill="#ffd89a" stroke="#d9772a" stroke-width="1"/></g>
+        <g class="flicker d3"><circle cx="14" cy="70" r="8" fill="url(#glow-paper)"/><circle cx="14" cy="70" r="2.4" fill="#fbf8f0" stroke="#8a7a68" stroke-width="0.9"/></g>
+        <g class="flicker"><circle cx="128" cy="36" r="7" fill="url(#glow-paper)"/><circle cx="128" cy="36" r="2.2" fill="#fbf8f0" stroke="#8a7a68" stroke-width="0.9"/></g>
+      </symbol>
+      <symbol id="pin" viewBox="0 0 30 40">
+        <path d="M15,39 C15,39 3,24 3,14 A12,12 0 0 1 27,14 C27,24 15,39 15,39 Z" fill="#3f5f8f" stroke="#faf7f0" stroke-width="2"/>
+        <circle cx="15" cy="14" r="4.5" fill="#faf7f0"/>
+      </symbol>
+      <symbol id="i-auto" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></g></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19 15.5A8 8 0 0 1 8.5 5a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="site-header">
+    <a class="brand" href="index.html"><span data-name>ゆめうつつ</span><small>（仮）</small></a>
+    <nav class="site-nav" aria-label="サイトの中">
+      <a href="index.html" class="wide">ゲームのトップ</a>
+      <a href="#hiraki">土地ひらき</a>
+      <a href="#yasumi">休み処と協賛</a>
+      <a href="#tsukurite" class="wide">作り手・監修</a>
+      <a href="partners.html" aria-current="page">協力したい方へ</a>
+    </nav>
+    <a class="btn btn-small header-play" href="index.html">トップへ</a>
+    <div class="sample-dock">
+      <div class="sample-panel" id="sample-panel" hidden>
+        <h2>見本の切り替え</h2>
+        <p>PO と方向を合わせるための見本です。名前はどれも仮で、商標はまだ調べていません。</p>
+        <fieldset>
+          <legend>ゲームの名前（仮）</legend>
+          <div class="seg">
+            <button type="button" data-set="name" data-value="yumeutsutsu" aria-pressed="true">ゆめうつつ（推奨）</button>
+            <button type="button" data-set="name" data-value="enishi" aria-pressed="false">えにし旅帳</button>
+            <button type="button" data-set="name" data-value="tomoshibi" aria-pressed="false">灯の土地</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>背景の時間</legend>
+          <div class="seg">
+            <button type="button" data-set="time" data-value="auto" aria-pressed="true">スクロール</button>
+            <button type="button" data-set="time" data-value="0" aria-pressed="false">昼</button>
+            <button type="button" data-set="time" data-value="1" aria-pressed="false">夕</button>
+            <button type="button" data-set="time" data-value="2" aria-pressed="false">夜</button>
+          </div>
+        </fieldset>
+      </div>
+      <button class="sample-toggle" id="sample-toggle" type="button" aria-expanded="false" aria-controls="sample-panel"><b>見本</b><span class="visually-hidden">（名前と背景の時間を切り替える）</span></button>
+    </div>
+    <button class="icon-btn" id="theme-btn" type="button" aria-label="テーマの切り替え">
+      <svg data-icon="auto" aria-hidden="true"><use href="#i-auto"/></svg>
+      <svg data-icon="light" aria-hidden="true" style="display:none"><use href="#i-sun"/></svg>
+      <svg data-icon="dark" aria-hidden="true" style="display:none"><use href="#i-moon"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- 最初の画面: ゲームの画面から始める（00 §3.1） -->
+    <section class="hero p-hero" data-time="0.9" aria-labelledby="p-title">
+      <div class="hero-inner p-intro">
+        <div class="hero-copy">
+          <p class="hero-kicker">協力したい方へ</p>
+          <h1 id="p-title">このゲームの中に、<wbr>あなたの土地が<wbr>できます。</h1>
+          <p class="hero-lead"><span data-name>ゆめうつつ</span>（仮）は、妖怪と仲良くなりながら日本の土地を旅するゲームです。土地は「巻」として一つずつ増えていきます。家では3Dの箱庭でその土地を歩き、行ける人は現地で同じ妖怪に再会します。最初の巻は立山です。</p>
+          <p class="hero-lead"><strong>この土地を一緒にひらく方を探しています。</strong></p>
+          <p class="small soft" style="margin-top:14px">運営: AR City Vision</p>
+        </div>
+        <figure style="margin:0">
+          <div class="phone" role="img" aria-label="ゲームの絵地図の画面。立山のピンのまわりに灯りがあり、霞の中に「あなたの土地（例）」のぼんやりしたピンがある">
+            <div class="screen">
+              <svg viewBox="296 20 200 360" preserveAspectRatio="xMidYMid slice">
+                <use href="#emap" x="0" y="0" width="600" height="380"/>
+                <use href="#tomoshi" x="330" y="200" width="140" height="90"/>
+                <use href="#pin" x="385" y="200" width="30" height="40"/>
+                <g transform="translate(358 166)">
+                  <rect x="0" y="0" width="86" height="26" rx="8" fill="#faf7f0" stroke="rgba(42,38,34,.25)"/>
+                  <text x="43" y="18" text-anchor="middle" font-size="13" fill="#2a2622" style="font-family:var(--title-font)" letter-spacing="2">立山の巻</text>
+                </g>
+                <g transform="translate(372 104)" opacity="0.9">
+                  <circle r="26" fill="url(#glow-paper)" opacity="0.8"/>
+                  <circle r="11" fill="none" stroke="#3f5f8f" stroke-width="1.6" stroke-dasharray="3 4"/>
+                  <circle r="3" fill="#3f5f8f" opacity="0.6"/>
+                  <rect x="-58" y="18" width="116" height="24" rx="8" fill="rgba(250,247,240,.9)" stroke="rgba(42,38,34,.25)" stroke-dasharray="3 3"/>
+                  <text x="0" y="35" text-anchor="middle" font-size="11.5" fill="#2a2622" style="font-family:var(--title-font)">あなたの土地（例）</text>
+                </g>
+              </svg>
+              <div class="topbar"><span>絵地図</span><span>昼｜夜</span></div>
+              <div class="tabs"><span class="on">旅</span><span>帳</span><span>便り</span><span>支度</span></div>
+            </div>
+          </div>
+          <figcaption class="dev-caption" style="text-align:center">画面のイメージ（開発中）。「あなたの土地」は説明のための例です。</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <div class="section">
+      <nav class="subnav" aria-label="このページの中">
+        <a href="#hiraki" class="on">土地ひらき</a>
+        <a href="#yasumi">休み処と協賛</a>
+        <a href="#tsukurite">作り手・監修</a>
+        <a href="#soudan">相談の窓口</a>
+      </nav>
+    </div>
+
+    <div class="section" style="margin-top:22px">
+      <div class="doors" style="width:min(100%,var(--max));margin:0 auto">
+        <a class="door" href="#hiraki"><span class="who">自治体・観光協会の方</span><h3>土地ひらき（仮）</h3><p>ゲームの中に、あなたの土地の巻をひらく。</p><span class="go">流れと条件を見る</span></a>
+        <a class="door" href="#yasumi"><span class="who">お店・宿・企業の方</span><h3>休み処と協賛</h3><p>旅人の寄り道先になる。祭りを支える。</p><span class="go">約束を見る</span></a>
+        <a class="door" href="#tsukurite"><span class="who">作り手・監修の方</span><h3>作り手・監修の方へ</h3><p>絵・箱庭・音を作る。伝承を正しく伝える。</p><span class="go">関わり方を見る</span></a>
+      </div>
+    </div>
+
+    <div class="gap" aria-hidden="true"></div>
+
+    <!-- 土地ひらき -->
+    <section class="section" id="hiraki" data-time="1.1" aria-labelledby="hiraki-title">
+      <div class="panel">
+        <p class="eyebrow">自治体・観光協会の方へ</p>
+        <h2 id="hiraki-title">土地ひらき <span class="kari">（仮）</span></h2>
+        <p class="lead">自治体・観光協会と一緒に、ゲームの中に新しい土地（巻）をひらく取り組みです。家から箱庭でその土地を歩いた人が、行ける日に現地を訪ねる。そのきっかけを、妖怪と物語で作ります。</p>
+
+        <div class="block">
+          <h3>一つの土地の中身</h3>
+          <div class="cards4">
+            <div class="cell"><b>箱庭</b>家から入る3Dの舞台。数百m四方まで。街全体の複製は作りません。<span class="ex">立山の巻では: 立山の麓の 700m×400m</span></div>
+            <div class="cell"><b>現地の地点</b>箱庭と同じ地点の、実際の場所。お休みの範囲と予備の地点も。<span class="ex">現の旅で使います</span></div>
+            <div class="cell"><b>推し妖怪と物語</b>章・悩みごと・伝承の札。札には監修の状態が付きます。<span class="ex">立山の巻では: 光蔵坊（仮）ほか</span></div>
+            <div class="cell"><b>巻の題</b>土地ごとに題を付けます。<span class="ex">立山の巻では: 白い曼荼羅帳（仮）</span></div>
+            <div class="cell"><b>範囲の層</b>置いてよい所と、置かない所の決まり。下の図のとおりです。</div>
+            <div class="cell"><b>協力先の枠</b>休み処や、供物がもらえる場所。</div>
+            <div class="cell"><b>祭りの暦</b>ゲームの中だけの創作の祭りと、実在の祭礼でお休みにする日。</div>
+            <div class="cell"><b>出典とクレジット</b>地図と標高の出典、監修、作り手、協力先。</div>
+          </div>
+          <p class="callout"><b>AR について。</b>このゲームの主役は、家から入る3Dの箱庭と物語です。AR は、現地で妖怪をカメラの風景に重ねる場面で使います。何が AR で何が3Dかは、ご説明のときに分けてお話しします。</p>
+        </div>
+
+        <div class="block">
+          <h3>範囲の層 ― 置かない所は、仕組みで守る</h3>
+          <div class="layers">
+            <svg viewBox="0 0 360 260" role="img" aria-label="範囲の層の図。1 お休みの範囲は霧だけ。2 物語の範囲には妖怪の地点。3 道と広場に灯り。4 協力先の地点に休み処">
+              <rect width="360" height="260" style="fill:var(--map-land)"/>
+              <g fill="none" stroke-linecap="round">
+                <path d="M-10,196 C80,184 160,206 370,172" style="stroke:var(--map-line)" stroke-width="17"/>
+                <path d="M184,198 C190,140 204,90 214,-10" style="stroke:var(--map-line)" stroke-width="15"/>
+                <path d="M-10,196 C80,184 160,206 370,172" style="stroke:var(--map-road)" stroke-width="14"/>
+                <path d="M184,198 C190,140 204,90 214,-10" style="stroke:var(--map-road)" stroke-width="12"/>
+              </g>
+              <!-- 1 お休みの範囲（霧だけ。社寺は描かない） -->
+              <ellipse cx="82" cy="84" rx="76" ry="60" fill="none" style="stroke:var(--map-line)" stroke-width="1" stroke-dasharray="3 5"/>
+              <ellipse cx="82" cy="84" rx="60" ry="45" style="fill:var(--map-haze);stroke:var(--akane)" stroke-width="1.4" stroke-dasharray="5 4"/>
+              <ellipse cx="70" cy="80" rx="34" ry="12" style="fill:var(--map-plain)" opacity="0.6"/>
+              <ellipse cx="96" cy="96" rx="26" ry="9" style="fill:var(--map-plain)" opacity="0.5"/>
+              <!-- 2 物語の範囲 -->
+              <circle cx="276" cy="92" r="38" fill="none" style="stroke:var(--ai-text)" stroke-width="1.4" stroke-dasharray="5 4"/>
+              <circle cx="276" cy="92" r="9" style="fill:var(--ink)" opacity="0.18"/>
+              <circle cx="276" cy="92" r="4.5" style="fill:var(--ink)" opacity="0.55"/>
+              <!-- 3 道と広場の灯り -->
+              <g>
+                <circle cx="40" cy="192" r="7" fill="url(#glow-paper)"/><circle cx="40" cy="192" r="2.6" fill="#fbf8f0" stroke="#8a7a68" stroke-width="0.8"/>
+                <circle cx="128" cy="194" r="8" fill="url(#glow-amber)"/><circle cx="128" cy="194" r="2.8" fill="#ffd89a" stroke="#d9772a" stroke-width="0.9"/>
+                <circle cx="198" cy="120" r="7" fill="url(#glow-paper)"/><circle cx="198" cy="120" r="2.6" fill="#fbf8f0" stroke="#8a7a68" stroke-width="0.8"/>
+                <circle cx="250" cy="188" r="8" fill="url(#glow-amber)"/><circle cx="250" cy="188" r="2.8" fill="#ffd89a" stroke="#d9772a" stroke-width="0.9"/>
+              </g>
+              <!-- 4 協力先の地点（縁台と行灯。看板なし） -->
+              <g transform="translate(298 214)" style="stroke:var(--ink)" stroke-width="1.2" fill="none" stroke-linecap="round">
+                <circle cx="20" cy="-14" r="14" fill="url(#glow-amber)" stroke="none" opacity="0.8"/>
+                <path d="M-14,0 h26 M-11,0 v8 M9,0 v8"/>
+                <path d="M20,10 v-18"/><rect x="16" y="-18" width="8" height="10" style="fill:var(--map-road)"/>
+              </g>
+              <g style="font-family:var(--ui-font)" font-size="12" font-weight="600" text-anchor="middle">
+                <circle cx="148" cy="44" r="11" style="fill:var(--panel-solid);stroke:var(--ink)"/><text x="148" y="48" style="fill:var(--ink)">1</text>
+                <circle cx="326" cy="54" r="11" style="fill:var(--panel-solid);stroke:var(--ink)"/><text x="326" y="58" style="fill:var(--ink)">2</text>
+                <circle cx="96" cy="222" r="11" style="fill:var(--panel-solid);stroke:var(--ink)"/><text x="96" y="226" style="fill:var(--ink)">3</text>
+                <circle cx="262" cy="232" r="11" style="fill:var(--panel-solid);stroke:var(--ink)"/><text x="262" y="236" style="fill:var(--ink)">4</text>
+              </g>
+            </svg>
+            <ul class="layer-list">
+              <li><span class="no">1</span><div><h4>お休みの範囲</h4><span class="small soft">境内・ゆかりの地点と、そのまわりの余白</span><span class="can">何も置かない。霧だけ</span><span class="cannot">妖怪・灯り・置き手紙・休み処・協賛の名前・出し物</span></div></li>
+              <li><span class="no">2</span><div><h4>物語の範囲</h4><span class="small soft">妖怪の地点のまわり</span><span class="can">監修済みの妖怪と札、灯り、置き手紙</span><span class="cannot">休み処・協賛の名前・出し物</span></div></li>
+              <li><span class="no">3</span><div><h4>道と広場</h4><span class="small soft">歩道のある道・広場・公園</span><span class="can">灯り、置き手紙</span><span class="cannot">住宅の前、私有地、学校</span></div></li>
+              <li><span class="no">4</span><div><h4>協力先の地点</h4><span class="small soft">店・駅・案内所・施設</span><span class="can">休み処、供物の出どころ</span><span class="cannot">看板、遊びに割り込む表示</span></div></li>
+            </ul>
+          </div>
+          <p class="small soft" style="margin-top:12px">置いてはいけない所には、データを作るときと読み込むときの点検で、置けないようにします。余白の距離は土地ごとに決めます。</p>
+        </div>
+
+        <div class="block">
+          <h3>土地を開ける条件</h3>
+          <div class="stages" aria-label="土地の進み方"><span>準備中</span><i>→</i><span>噂</span><i>→</i><span>開いている</span></div>
+          <p>次がすべてそろうまで、土地は開けません。</p>
+          <ol class="checklist">
+            <li>物語が、少なくとも序章と1つの章まで、家だけで最後まで遊べる。</li>
+            <li>伝承の札がすべて「監修済み」。了承が要る札は、了承済みか外してある。</li>
+            <li>箱庭が境内の外の公道・広場だけで作られ、社殿・鳥居・宿坊・個人の家を写していない。</li>
+            <li>範囲の層の点検が通っている（休み処が境内や物語の地点と重なっていない）。</li>
+            <li>土地の持ち主・管理者が、地点の除外・時間帯の制限・表記の修正を申し出る窓口が公開されている。</li>
+            <li>地元の窓口（自治体・観光協会など）が一つ以上ある。</li>
+            <li>運営と地元の数人で試しに遊び、記録を残した。</li>
+          </ol>
+          <p class="small soft" style="margin-top:12px">監修や了承が取り下げられたとき、地元の窓口がなくなったとき、保守できなくなったときは、土地を閉じます。閉じた土地は絵地図から外し、遊んだ人の帳の記録は残します。</p>
+        </div>
+
+        <div class="block">
+          <h3>お願いしたいこと・土地に届くこと</h3>
+          <div class="cards2">
+            <div class="cell"><b>お願いしたいこと</b>
+              <ul style="margin:4px 0 0;padding-left:1.2em">
+                <li>地元の窓口になっていただくこと</li>
+                <li>推し妖怪と物語のご相談</li>
+                <li>案内板・駅・案内所など、現実の場所を現の旅の地点にすること</li>
+                <li>地元の方々との調整</li>
+              </ul>
+            </div>
+            <div class="cell"><b>土地に届くこと</b>
+              <ul style="margin:4px 0 0;padding-left:1.2em">
+                <li>家から土地を知った人が、現地に来るきっかけ</li>
+                <li>地点ごとの匿名の訪問数の集計（個人の位置は渡しません）</li>
+                <li>監修済みの範囲で、推し妖怪を観光の発信に使えること</li>
+                <li>交流の旅で、ほかの土地とつながること</li>
+              </ul>
+            </div>
+          </div>
+          <div class="cell" style="margin-top:12px"><b>交流の旅</b>二つの土地をつなぐ物語。便りを運ぶ妖怪が二つの土地を行き来して、両方の妖怪の悩みが一つにつながります。二つの土地の共同の企画にできます。</div>
+        </div>
+
+        <div class="block">
+          <h3>相談の流れ</h3>
+          <ol class="flow">
+            <li><b>相談</b><br>土地と物語の候補を、一緒に考えます。</li>
+            <li><b>調べ物と監修</b><br>伝承の出典を調べ、監修者と確かめます。</li>
+            <li><b>範囲を引く</b><br>お休みの範囲・物語の範囲を決め、点検します。</li>
+            <li><b>試し遊び</b><br>運営と地元の数人で遊び、記録を残します。</li>
+            <li><b>土地を開く</b><br>開ける条件がそろってから、絵地図に置きます。</li>
+          </ol>
+          <p class="small soft" style="margin-top:14px">伝承に触れるもの（妖怪・物語・札）を作るのは、運営・協定先・監修者だけです。条件は、ご相談のうえで決めます。</p>
+        </div>
+
+        <div class="block">
+          <h3>事例</h3>
+          <div class="cell"><b>立山（準備中）</b>最初の巻として、運営が制作しています。</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="gap" aria-hidden="true"></div>
+
+    <!-- 休み処と協賛 -->
+    <section class="section" id="yasumi" data-time="1.4" aria-labelledby="yasumi-title">
+      <div class="panel">
+        <p class="eyebrow">お店・宿・企業の方へ</p>
+        <h2 id="yasumi-title">休み処と協賛</h2>
+        <p class="lead">協賛は、遊びの邪魔をしない形でだけ入れます。旅の途中に広告は出しません。お店の名前が出るのは、旅人が自分から触れたときと、遊び終わりのお礼の場面だけです。</p>
+
+        <div class="block">
+          <h3>名前が出るところ・出ないところ</h3>
+          <div class="where">
+            <div class="yes"><h4>出るのは3か所だけ</h4><ul><li><b>休み処の札</b> ― 縁台と行灯に触れたときに出る文字</li><li><b>お礼の札</b> ― ゲームの中の祭りの終わりのクレジット</li><li><b>支度 ＞ クレジット</b></li></ul></div>
+            <div class="no"><h4>出さないところ</h4><ul><li>画面をふさぐ広告・動画広告・ポップアップ・バナー</li><li>箱庭の看板</li><li>境内・ゆかりの地点・物語の地点</li><li>帳（旅の記録の帳面）の中</li><li>妖怪との会話・出会いの途中</li></ul></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>見本</h3>
+          <div class="samples">
+            <figure style="margin:0">
+              <div class="fuda-scene">
+                <svg viewBox="0 0 360 210" role="img" aria-label="道ばたの縁台と行灯。看板はない">
+                  <defs>
+                    <linearGradient id="ys-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86bfd6"/><stop offset="0.6" stop-color="#cfe2d4"/><stop offset="1" stop-color="#f4e2b8"/></linearGradient>
+                  </defs>
+                  <rect width="360" height="210" fill="url(#ys-sky)"/>
+                  <circle cx="300" cy="34" r="40" fill="#ffe6a0" opacity="0.45"/>
+                  <path d="M0,70 C40,56 80,50 120,58 C160,40 200,34 240,48 C280,38 320,44 360,54 L360,100 L0,100 Z" fill="#b9cbd6" stroke="#9fb9ca"/>
+                  <path d="M0,90 C60,84 120,90 180,82 C240,90 300,82 360,86 L360,108 L0,108 Z" fill="#f6e7c2"/>
+                  <rect y="100" width="360" height="110" fill="#9cba78"/>
+                  <path d="M250,210 C246,170 236,130 222,100 L230,100 C252,130 280,170 300,210 Z" fill="#dcae74"/>
+                  <g fill="#5b8a68"><path d="M40,112 l9,-24 l9,24 Z M56,114 l11,-30 l11,30 Z"/><path d="M318,108 l8,-20 l8,20 Z"/></g>
+                  <!-- 縁台 -->
+                  <g stroke="#5a4636" stroke-width="2" stroke-linecap="round">
+                    <rect x="98" y="142" width="92" height="9" rx="2" fill="#b98a5e"/>
+                    <path d="M106,151 v20 M182,151 v20 M106,163 h76" fill="none"/>
+                  </g>
+                  <!-- 行灯 -->
+                  <circle cx="214" cy="128" r="26" fill="url(#glow-amber)" opacity="0.6"/>
+                  <g stroke="#5a4636" stroke-width="2" stroke-linecap="round"><path d="M214,172 v-34" fill="none"/><rect x="206" y="118" width="16" height="20" fill="#f3e8d0"/><path d="M202,118 q12,-8 24,0" fill="#6a5040"/></g>
+                </svg>
+                <div class="fuda">
+                  <span class="kyoryoku">協力先</span>
+                  <h4>麓の茶屋 <span class="rei">例</span></h4>
+                  <p class="muted" style="margin:0">供物: 昆布 <span class="rei">例</span></p>
+                  <p style="margin:6px 0 0">現地で立ち寄ると、ここでしか出ない供物がもらえます。買い物はしなくてかまいません。</p>
+                  <p class="assure">寄らなくても、物語は進みます。</p>
+                </div>
+              </div>
+              <figcaption class="dev-caption">休み処の札（見本）。店名と供物は例です。家から見たときは、何があるかが分かるだけで、供物はもらえません。</figcaption>
+            </figure>
+            <figure style="margin:0">
+              <div class="orei">
+                <p class="sub" style="margin:0">灯り市 <span class="rei">例</span> の夜を、支えてくれた方々</p>
+                <h4>お礼の札</h4>
+                <dl>
+                  <dt>妖怪</dt><dd>光蔵坊（仮）ほか</dd>
+                  <dt>監修</dt><dd>監修者の名前 <span class="rei">例</span></dd>
+                  <dt>作り手</dt><dd>絵・箱庭・音の作り手の名前 <span class="rei">例</span></dd>
+                  <dt>協賛</dt><dd>麓の茶屋 <span class="rei">例</span><br>里の菓子店 <span class="rei">例</span></dd>
+                </dl>
+              </div>
+              <figcaption class="dev-caption">お礼の札（見本）。ゲームの中の創作の祭りの終わりに出ます。ロゴは使わず、名前だけを並べます。名前はすべて例です。</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>協力先の約束</h3>
+          <p>このページにそのまま公開し、契約にも書きます。</p>
+          <ol class="oath">
+            <li><b>本編を進めるのに必須にしない。</b>協力先の地点や品がなくても、物語は最後まで遊べます。</li>
+            <li><b>遊びの途中に割り込まない。</b>広告・動画広告・ポップアップ・バナーは出しません。</li>
+            <li><b>協賛が出るのは3か所だけ。</b>休み処の札、お礼の札、支度のクレジット。帳には載せません。</li>
+            <li><b>境内とゆかりの地点、物語の地点に出さない。</b>宗教行事に協賛名を付けません。</li>
+            <li><b>授与品に似せない。</b>朱の印と墨書きの組み合わせ、お札・袋・紐の形を使いません。旅印は売らない・譲れない。</li>
+            <li><b>箱庭に看板を立てない。</b>休み処は縁台と行灯の共通の形。店の名前は札にだけ出します。</li>
+            <li><b>妖怪に企業名や商品名を言わせない。</b>好物は「昆布」のような一般の名前で言います。</li>
+            <li><b>「協力先」「協賛」と必ず表示する。</b>店の名前が出るところには印を付けます。</li>
+            <li><b>買い物を条件にしない。</b>供物は立ち寄るだけでもらえます。ゲームの中の品はお金で買えません。</li>
+            <li><b>子どもへの配慮。</b>一般公開のときは、13歳未満の方に協力先の地点を出しません。中学生以下に向けた宣伝はしません。</li>
+            <li><b>位置の履歴を渡さない。</b>報告は、地点ごとの匿名の訪問数の集計までです。</li>
+            <li><b>来訪数に応じた料金は、確かめ方を置いてから。</b>位置は偽装できるため、NFC タグか QR を置くまでは扱いません。</li>
+          </ol>
+          <p class="callout"><b>戻し方の決まり。</b>協力先を入れた後のテストや聞き取りで「広告っぽい」という声が目立ったら、休み処を地図と箱庭から外し、お礼の札だけに戻します。</p>
+        </div>
+
+        <div class="block">
+          <h3>関わり方</h3>
+          <div class="table-like">
+            <div class="tr"><div class="th">どなたか</div><div class="th">ゲームの中での姿</div><div class="th">していただくこと</div></div>
+            <div class="tr"><div>お店・宿・菓子店</div><div data-label="ゲームの中">現地の休み処。供物がもらえる場所</div><div data-label="していただくこと">立ち寄った旅人に供物を渡す。妖怪の好物にちなむ実物のおみやげの共同企画（食べ物に限る）</div></div>
+            <div class="tr"><div>企業</div><div data-label="ゲームの中">ゲームの中の祭りの協賛（お礼の札）。店舗があれば休み処</div><div data-label="していただくこと">協賛。箱庭の中の PR の場所や看板は扱いません</div></div>
+          </div>
+          <p class="small soft" style="margin-top:12px">いまは協力先を<strong>募集中</strong>です。実在の祭礼・宗教行事には、協賛を付けません。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="gap" aria-hidden="true"></div>
+
+    <!-- 作り手・監修 -->
+    <section class="section" id="tsukurite" data-time="1.7" aria-labelledby="tsukurite-title">
+      <div class="panel">
+        <p class="eyebrow">作り手・監修の方へ</p>
+        <h2 id="tsukurite-title">絵と音で、<wbr>土地を描く。<wbr>伝承を、<wbr>正しく伝える。</h2>
+
+        <div class="block">
+          <h3>作り手の方へ</h3>
+          <div class="cards2">
+            <div class="cell"><b>はじめは</b>運営からご依頼する形で、妖怪の板絵・箱庭・音を作っていただく予定です（いまは準備中）。お名前は、お礼の札とクレジットに載せます。</div>
+            <div class="cell"><b>後で（2年目以降、条件がそろってから）</b>開いている土地の「道と広場」に、伝承に触れない出し物（光の作品、祭りの灯りの意匠、箱庭の飾り、旅装の柄、音）を招待制で出せるようにする予定です。</div>
+          </div>
+          <p class="small soft" style="margin-top:12px">出し物には、お休みの範囲に置かないか、実在の神仏・寺社名・授与品を使わないか、地元の了承があるか、家でも楽しめるか、などの質問票を付けていただきます。ほかの団体のキャラクターは描きません。</p>
+        </div>
+
+        <div class="block">
+          <h3>見た目の決まり「光と霞」（要約）</h3>
+          <div class="swatches">
+            <div class="swatch"><div class="bar day"></div><div class="txt"><b>昼</b> ― 金色の午後。水色の空が、金色の霞に溶ける。</div></div>
+            <div class="swatch"><div class="bar dusk"></div><div class="txt"><b>夕</b> ― 逢魔が時。ばら色から藍へ。山の端が夕日を受ける。</div></div>
+            <div class="swatch"><div class="bar night"></div><div class="txt"><b>夜</b> ― 深い藍に、琥珀の灯りと朱い月がひとつ。</div></div>
+          </div>
+          <ul style="margin:14px 0 0;padding-left:1.2em;font-size:14.5px;line-height:1.8">
+            <li>角の丸い単純な形。細部を描き込まず、シルエットで読ませる。</li>
+            <li>光るのは、灯り・月・太陽・ましろ・光の粒だけ。</li>
+            <li>社寺・鳥居・灯籠・お札・御朱印は、どの時間帯でも描かない。境内は霧のまま。</li>
+          </ul>
+        </div>
+
+        <div class="block">
+          <h3>監修の方へ</h3>
+          <p>伝承の札には、出典と確からしさを付けます。本作の作り話には【創作】と書いて、伝承の事実と見分けられるようにします。札ごとに、次の状態で管理します。</p>
+          <div class="status-row"><span>下書き</span><i>→</i><span>監修中</span><i>→</i><span>監修済み</span><span>了承待ち</span></div>
+          <p class="small soft" style="margin-top:12px">監修の方のお名前は、了承をいただいてから載せます。</p>
+          <p class="callout"><b>祭礼を担う方々や社寺は、協賛の相手ではありません。</b>了承と相談の相手です。協賛のお願いはしません。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="gap" aria-hidden="true"></div>
+
+    <!-- 相談の窓口 -->
+    <section class="section" id="soudan" data-time="2" aria-labelledby="soudan-title">
+      <div class="panel contact-box">
+        <p class="eyebrow" style="justify-content:center">相談の窓口</p>
+        <h2 id="soudan-title">この土地を、<wbr>一緒にひらく方を<wbr>探しています。</h2>
+        <p>連絡先は、立山の画面をお見せできる時期に、このページでお知らせします。</p>
+        <p><span class="btn" aria-disabled="true">相談する（準備中）</span></p>
+        <p class="small soft">運営: AR City Vision</p>
+      </div>
+    </section>
+    <div class="gap" aria-hidden="true"></div>
+  </main>
+
+  <footer class="site-footer" data-time="2">
+    <div class="inner">
+      <div class="foot-cols">
+        <div>
+          <h4>遊ぶ</h4>
+          <ul>
+            <li><a href="index.html">ゲームのトップ</a></li>
+            <li><a href="index.html#journeys">遊び方</a></li>
+            <li><span class="later">よくある質問</span></li>
+          </ul>
+        </div>
+        <div>
+          <h4>土地と伝承</h4>
+          <ul>
+            <li><span class="later">土地と祈りへの配慮</span></li>
+            <li><span class="later">申し出の窓口</span></li>
+            <li><span class="later">伝承と監修</span></li>
+          </ul>
+        </div>
+        <div>
+          <h4>協力したい方へ</h4>
+          <ul>
+            <li><a href="#hiraki">土地ひらき</a></li>
+            <li><a href="#yasumi">休み処と協賛</a></li>
+            <li><a href="#tsukurite">作り手・監修の方へ</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>運営</h4>
+          <ul>
+            <li><span class="later">運営について</span></li>
+            <li><span class="later">プライバシー</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span class="foot-brand"><span data-name>ゆめうつつ</span>（仮）</span>
+        <span>運営: AR City Vision</span>
+        <span>背景の山並み: 地理院タイル（標高）を加工して作成／ゲームの箱庭: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a></span>
+        <span>このページは、方向を確かめるための見本です（非公開）。店名・名前・灯りは例です。</span>
+      </div>
+    </div>
+  </footer>
+
+  <div class="time-rail" aria-hidden="true"><span>昼</span><div class="track"><i class="bead"></i></div><span>夜</span></div>
+
+
+  <script src="assets/sky.js"></script>
+  <script src="assets/site.js"></script>
+</body>
+</html>
