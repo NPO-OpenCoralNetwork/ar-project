@@ -7,6 +7,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { STORY_KEY } from '../core/storage-keys'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import { loadStoryPack } from '../data/story-pack'
 import { bendDrop, fogShapeUniforms, inkRimUniforms } from './bend'
@@ -37,8 +38,6 @@ const SHOW_PERF = (() => {
   }
 })()
 const STORE_KEY = 'yume.v1'
-/** 物語の進み具合（会った・札・ピース・縁）。見た目などの設定（STORE_KEY）とは分ける */
-const STORY_KEY = 'yume.story.v1'
 
 interface Quality {
   id: 'low' | 'std' | 'high'

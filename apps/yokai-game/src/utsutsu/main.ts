@@ -20,6 +20,8 @@ import './style.css'
 import { type LatLon, type LocalXZ, toLocal } from '../core/geo'
 import type { MapLayers } from '../core/map-layers'
 import type { Fix } from '../core/location/types'
+import { PROMISES } from '../core/promises'
+import { PROMISE_KEY, SIM_KEY, STORY_KEY, TEST_KEY } from '../core/storage-keys'
 import { clueActive, resolveAppearance } from '../core/story/appearance'
 import { checkConditions } from '../core/story/dialogue'
 import { browserStorage, ProgressStore } from '../core/story/progress'
@@ -33,6 +35,7 @@ import { Sound } from '../yume/encounter/sound'
 import { stampDate, stampSvg } from '../yume/encounter/stamp'
 import { escapeHtml, MandalaView } from '../yume/encounter/ui'
 import { GenEncounter } from './encounter'
+import { mashiroSvg } from './mashiro'
 import { GeoSource, type GeoProblem, type LocationSource, SimSource } from './location'
 import { MapView } from './map-view'
 import {
@@ -50,10 +53,6 @@ import {
 const params = new URLSearchParams(window.location.search)
 const DEBUG = params.has('debug')
 const SIM_ALLOWED = params.has('sim') || DEBUG
-const STORY_KEY = 'yume.story.v1'
-const TEST_KEY = 'yume.story.test.v1'
-const SIM_KEY = 'yume.story.sim.v1'
-const PROMISE_KEY = 'yume.promises.v1'
 /** 地域パックの原点からこれより遠いと「現地で開いてください」 */
 const FAR_M = 1500
 
@@ -219,22 +218,7 @@ function showStart(): void {
   )
 }
 
-/** 三つの約束（04 §2.1、F-60）。初回は飛ばせない。台詞は【創作】 */
-const PROMISES: { mashiro: string; plain: string }[] = [
-  {
-    mashiro: '歩きながら、画面を見ないでね。気配は、立ち止まった人にしか見えないから。',
-    plain: '歩きながら画面を見ないでください。画面は開いたまま、ポケットに入れて歩けます。',
-  },
-  {
-    mashiro: '入っちゃいけない所や、祈りの場所では遊ばない。それから、夜は出歩かない。',
-    plain: '立入禁止の場所・私有地・境内では使いません。暗くなる前に帰りましょう。',
-  },
-  {
-    mashiro: '本物のライチョウや動物は、追いかけない。見るだけにしよう。',
-    plain: '野生の動物に近づいたり、追いかけたりしないでください。',
-  },
-]
-
+/** 三つの約束（04 §2.1、F-60。文は core/promises.ts）。初回は飛ばせない。入口で読んでいれば出さない */
 function withPromises(next: () => void): void {
   if (safeGet(PROMISE_KEY) === '1') {
     next()
@@ -302,19 +286,6 @@ function makeTestLand(): void {
     (e) => fail(e.code === e.PERMISSION_DENIED ? '位置の許可がありません。ブラウザの設定で、このページに位置情報を許可してください' : '位置が取れませんでした。空が見える所で、もう一度試してください'),
     { enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 },
   )
-}
-
-/** ましろ（紙の鳥【創作】）の小さな絵。眠っている（道中）か起きているか */
-function mashiroSvg(sleeping: boolean): string {
-  const eye = sleeping ? '<path d="M64,38 C66,40 69,40 71,38" fill="none" stroke="#3a332d" stroke-width="1.6" stroke-linecap="round"/>' : '<circle cx="67" cy="37" r="2.2" fill="#3a332d"/>'
-  const z = sleeping ? '<text x="88" y="22" font-size="12" fill="currentColor" font-family="serif">す…</text>' : ''
-  return `<svg class="mashiro" viewBox="0 0 120 90" aria-hidden="true">
-    <path d="M18,62 C30,40 52,30 70,30 C80,30 86,34 88,40 L100,44 L88,48 C84,60 70,70 50,70 C38,70 26,68 18,62 Z" fill="#fffdf7" stroke="#3a332d" stroke-width="1.6" stroke-linejoin="round"/>
-    <path d="M30,60 C40,50 52,46 64,48 C56,56 46,62 30,60 Z" fill="#f1ece0" stroke="#3a332d" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="M18,62 L8,58 L14,66 Z" fill="#fffdf7" stroke="#3a332d" stroke-width="1.2" stroke-linejoin="round"/>
-    ${eye}${z}
-    <path d="M20,74 C46,80 76,80 102,74" fill="none" stroke="#3a332d" stroke-opacity="0.25" stroke-width="1.2" stroke-linecap="round"/>
-  </svg>`
 }
 
 // ---------------------------------------------------------------- 遊ぶ（地図）
