@@ -2,10 +2,11 @@
 // ゲーム独自のデータなので、OSM 由来のデータ（ODbL）とは別のファイルに分けている（05 §5.1）。
 
 import { validateScript } from '../core/story/dialogue'
-import type { DialogueScript, LoreCard, LoreCardFile, MandalaDef, YokaiDef } from '../core/story/types'
+import type { DialogueScript, LoreCard, LoreCardFile, MandalaDef, SectionDef, SectionFile, YokaiDef } from '../core/story/types'
 import cardsJson from './lore-cards.json'
 import mandalaJson from './mandala.json'
 import kozoboScript from './scripts/kozobo.json'
+import sectionsJson from './sections.json'
 import yokaiJson from './yokai.json'
 
 export interface StoryPack {
@@ -13,6 +14,8 @@ export interface StoryPack {
   scripts: Record<string, DialogueScript>
   cards: Record<string, LoreCard>
   mandala: MandalaDef
+  /** 節と旅印 */
+  sections: SectionDef[]
   /** 点検で見つかった問題（空なら問題なし） */
   problems: string[]
 }
@@ -38,5 +41,8 @@ export function loadStoryPack(): StoryPack {
     if (c.confidence !== '確認済') problems.push(`札 ${c.id} の確度が「確認済」でない`)
     if (!c.source?.work) problems.push(`札 ${c.id} に出典がない`)
   }
-  return { yokai, scripts, cards, mandala, problems }
+  const sections = (sectionsJson as unknown as SectionFile).sections
+  for (const sec of sections)
+    for (const c of sec.requires) if ('piece' in c && !pieceIds.has(c.piece)) problems.push(`節 ${sec.id} のピース ${c.piece} がない`)
+  return { yokai, scripts, cards, mandala, sections, problems }
 }

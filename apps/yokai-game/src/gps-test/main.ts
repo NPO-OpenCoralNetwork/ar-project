@@ -5,7 +5,7 @@
 //   &labeldelay=6000 で自動ラベルの遅れを約6秒にする）
 import './style.css'
 import { audioState, playGoChime, playStopChime, playTick, resumeAudio, unlockAudio } from './chime'
-import { makeFix, type RawPosition } from './fix'
+import { makeFix, type RawPosition } from '../core/location/fix'
 import { exportText, fmtDuration, summaryRows } from './report'
 import { createSimWalker } from './sim'
 import { summarize } from './stats'
@@ -15,7 +15,7 @@ import {
   stepDetector,
   type DetectorState,
   type StillEvaluation,
-} from './stop-detector'
+} from '../core/location/stop-detector'
 import { drawTrack } from './track-canvas'
 import type { SessionLog, StopKind } from './types'
 

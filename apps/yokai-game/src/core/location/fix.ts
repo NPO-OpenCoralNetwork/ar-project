@@ -1,5 +1,5 @@
 // 端末（または模擬）の位置を、記録用の Fix に直す（純粋な関数）。
-import { toLocal, type LatLon } from '../core/geo'
+import { toLocal, type LatLon } from '../geo'
 import type { Fix } from './types'
 
 export interface RawPosition {

@@ -177,3 +177,25 @@ export interface YokaiDef {
   /** 夢の姿の高さ（m） */
   heightM?: number
 }
+
+/**
+ * 節（1回の外出の単位。20〜40分・3〜5か所。04 §2.4）。現地で requires をすべて満たすと、曼荼羅帳の巻末に旅印を押せる（02 F-45）。
+ * 旅印は駅スタンプのようなインク1色の絵柄で、日付が入る。御朱印・お守りに似せない（02 §4.5）。
+ */
+export interface SectionDef {
+  id: string
+  /** 地域パックの id（その土地を歩いているときだけ終えられる） */
+  region: string
+  title: string
+  /** 旅印の上に入る字 */
+  stampTitle: string
+  /** 旅印の絵柄（描画側で名前から引く） */
+  stampMotif: string
+  requires: Condition[]
+}
+
+export interface SectionFile {
+  version: 1
+  note?: string
+  sections: SectionDef[]
+}

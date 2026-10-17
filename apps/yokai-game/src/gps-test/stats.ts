@@ -1,5 +1,5 @@
 // 記録の集計（純粋な関数）。DOM に依存しない。Node のテストからも読み込む。
-import { compareWithReplay, DEFAULT_DETECTOR_CONFIG, quantile, replayDetector } from './stop-detector'
+import { compareWithReplay, DEFAULT_DETECTOR_CONFIG, quantile, replayDetector } from '../core/location/stop-detector'
 import type { Detection, Label, SessionLog, StopKind } from './types'
 
 /** 位置が来なかった空白とみなす間隔（ms） */

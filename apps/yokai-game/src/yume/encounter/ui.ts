@@ -11,6 +11,7 @@ import type { Beat, Notice } from '../../core/story/dialogue'
 import type { LoreCard, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
 import { PIECE_LABEL } from '../../core/story/types'
 import { ARTS, artToSvg } from './art'
+import { stampDate, stampFrameSvg, stampSvg } from './stamp'
 
 const CSS = /* css */ `
 .yh-credit { z-index: 60; }
@@ -111,6 +112,11 @@ const CSS = /* css */ `
 /* スマホ幅で出す短い断り書き（【創作】の構図であることは、どの幅でも隠さない） */
 .ym-note-sp { display: none; margin: 2px 0 0; width: min(560px, 100%); font-size: 11px; line-height: 1.5; opacity: 0.9; }
 .ym-reset { margin-top: auto; }
+.ym-back { align-self: stretch; }
+.ym-stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin: 6px 0 10px; }
+.ym-stamp { margin: 0; text-align: center; font-size: 12px; color: var(--csoft); }
+.ym-stamp svg { width: 100%; max-width: 150px; height: auto; display: block; margin: 0 auto 2px; }
+.ym-stamp small { font-size: 11px; }
 .ym-piece { cursor: pointer; }
 .ym-piece:focus-visible rect.frame { stroke: #b0603a; stroke-width: 2; }
 .ym-piece.new rect.ring { animation: ym-pulse 1.8s ease-in-out infinite; }
@@ -118,13 +124,14 @@ const CSS = /* css */ `
 @media (max-width: 620px) {
   .ym-body { flex-direction: column; align-items: center; gap: 8px; }
   .ym-scroll { height: auto; flex: 1; min-height: 0; width: auto; }
-  .ym-side { max-width: none; width: 100%; flex: none; flex-direction: row; align-items: stretch; }
+  .ym-side { max-width: none; width: 100%; flex: none; display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: stretch; }
+  .ym-side .ym-legend { grid-row: span 2; }
   .ym-legend { flex: 1; padding: 6px 10px; font-size: 11px; }
   .ym-legend p { display: none; }
   .ym-legend ul { grid-template-columns: 1fr 1fr; gap: 2px 8px; }
   .ym-note { display: none; }
   .ym-note-sp { display: block; }
-  .ym-reset { margin-top: 0; align-self: center; font-size: 12px; padding: 0 10px; }
+  .ym-reset, .ym-back { margin-top: 0; align-self: stretch; font-size: 12px; padding: 0 10px; }
 }
 /* ピースの詳しい表示・確認 */
 .ym-pop { position: absolute; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; padding: 16px 16px calc(56px + var(--sab)); background: rgba(24, 22, 30, 0.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
@@ -468,6 +475,8 @@ export interface MandalaState {
   piece(id: string): PieceState
   isNew(id: string): boolean
   card(id: string): LoreCard | undefined
+  /** 巻末の旅印（02 F-45）。at は押した日時（まだなら null） */
+  stamps?(): { id: string; title: string; stampTitle: string; motif: string; at: string | null }[]
 }
 
 const INK = '#3a332d'
@@ -512,6 +521,12 @@ export class MandalaView {
         </ul>
       </div>
       <p class="ym-note">${escapeHtml(def.note)}</p>`
+    if (state.stamps) {
+      const back = el('button', 'ym-btn ym-back', '巻末の旅印') as HTMLButtonElement
+      back.type = 'button'
+      back.addEventListener('click', () => this.openStamps())
+      side.appendChild(back)
+    }
     const reset = el('button', 'ym-btn ym-reset', '最初からやり直す') as HTMLButtonElement
     reset.type = 'button'
     reset.addEventListener('click', () => this.confirmReset())
@@ -622,7 +637,7 @@ export class MandalaView {
         const s = Math.min((p.w - pad * 2) / art.w, (p.h - pad * 2) / art.h)
         const ox = p.x + (p.w - art.w * s) / 2
         const oy = p.y + (p.h - art.h * s) / 2
-        artSvg = `<g transform="translate(${ox.toFixed(2)},${oy.toFixed(2)}) scale(${s.toFixed(4)})">${artToSvg(art, '#fffdf7', INK, 1.6)}</g>`
+        artSvg = `<g transform="translate(${ox.toFixed(2)},${oy.toFixed(2)}) scale(${s.toFixed(4)})">${artToSvg(art, '#fffdf7', INK, 1.6, 1, st === 'saishiki' || st === 'kin')}</g>`
       }
       const stroke = st === 'kin' ? '#c9a24a' : INK
       const sw = st === 'kin' ? 2.2 : 1.1
@@ -636,6 +651,23 @@ export class MandalaView {
     }
     const cls = `ym-piece${filled && this.state.isNew(p.id) ? ' new' : ''}`
     return `<g class="${cls}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeHtml(label)}"><title>${escapeHtml(label)}</title>${inner}</g>`
+  }
+
+  /** 巻末の旅印の頁。家では枠だけ見える */
+  openStamps(): void {
+    const list = this.state.stamps?.() ?? []
+    const items = list
+      .map(
+        (s) => `<figure class="ym-stamp">${s.at ? stampSvg({ title: s.stampTitle, date: stampDate(s.at), motif: s.motif }) : stampFrameSvg(s.stampTitle)}
+          <figcaption>${escapeHtml(s.title)}${s.at ? `<br><small>${escapeHtml(stampDate(s.at))}</small>` : ''}</figcaption></figure>`,
+      )
+      .join('')
+    this.showPop(`
+      <div class="yc-kind"><span>巻末</span></div>
+      <h3 class="yc-title">旅印</h3>
+      <div class="ym-stamps">${items}</div>
+      <p class="yc-foot" style="margin-top:4px">現地で節を終えた記念の印です。この印は売ったり譲ったりできません。</p>
+      <button class="yc-btn" type="button" data-act="close">もどる</button>`)
   }
 
   private findPiece(id: string): MandalaPieceDef | undefined {
@@ -657,7 +689,7 @@ export class MandalaView {
     }
     this.hooks.seen(id)
     const art = p.art ? ARTS[p.art] : undefined
-    const svg = art ? `<svg class="art" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1)}</svg>` : ''
+    const svg = art ? `<svg class="art" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1, 1, st === 'saishiki' || st === 'kin')}</svg>` : ''
     const cards = (p.cardIds ?? []).map((c) => this.state.card(c)).filter((c): c is LoreCard => !!c)
     const hint =
       st === 'hakubyo'

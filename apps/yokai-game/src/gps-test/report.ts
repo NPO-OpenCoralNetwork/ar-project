@@ -1,5 +1,5 @@
 // 集計を、チャットに貼れる文章と JSON にする（純粋な関数）。
-import { DEFAULT_DETECTOR_CONFIG } from './stop-detector'
+import { DEFAULT_DETECTOR_CONFIG } from '../core/location/stop-detector'
 import type { MatchResult, Summary } from './stats'
 import type { SessionLog } from './types'
 

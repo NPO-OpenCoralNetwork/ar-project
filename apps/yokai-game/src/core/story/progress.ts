@@ -4,6 +4,7 @@
 // - 縁は下がらない。夢の旅で上がるのは「なじみ」まで（BOND_CAP、05 §3）。
 // - ピースは下がらない。夢の旅では白描まで（PIECE_CAP）。
 // - 出会い・札・ピースには、最初から「現地で得たか」の印（onsite）を持たせる（02 F-46）。座標は残さない。
+// - 旅印（02 F-45）は現地で節を終えたときだけ押せる。日付（at）だけを持ち、場所は持たない。売ったり譲ったりする仕組みはない。
 
 import {
   BOND_CAP,
@@ -36,6 +37,8 @@ export interface Progress {
   cards: Record<string, Gained>
   pieces: Record<string, Gained & { state: PieceState }>
   flags: Record<string, boolean>
+  /** 旅印（節の id → 押した時。現地だけ） */
+  stamps: Record<string, Gained>
 }
 
 /** localStorage と同じ形（テストや、保存できない環境では差し替える） */
@@ -46,7 +49,7 @@ export interface KeyValueStore {
 }
 
 export function emptyProgress(): Progress {
-  return { v: 1, yokai: {}, cards: {}, pieces: {}, flags: {} }
+  return { v: 1, yokai: {}, cards: {}, pieces: {}, flags: {}, stamps: {} }
 }
 
 export const bondRank = (b: BondLevel): number => BOND_LEVELS.indexOf(b)
@@ -92,6 +95,10 @@ function sanitize(raw: unknown): Progress {
     p.pieces[id] = { ...c, state: pieceRank(st) > pieceRank(cap) ? cap : st }
   }
   for (const [k, v] of Object.entries(obj(r.flags))) if (typeof v === 'boolean') p.flags[k] = v
+  for (const [id, g] of Object.entries(obj(r.stamps))) {
+    const c = gainedOf(g)
+    if (c?.onsite) p.stamps[id] = c
+  }
   return p
 }
 
@@ -216,6 +223,18 @@ export class ProgressStore {
     this.state.pieces[id] = { ...this.gained(travel), state: want }
     this.commit()
     return { state: want, changed: true, capped }
+  }
+
+  stampOf(id: string): Gained | undefined {
+    return this.state.stamps[id]
+  }
+
+  /** 旅印を押す。現地（utsutsu）だけ。はじめてなら true */
+  stamp(id: string, travel: Travel): boolean {
+    if (travel !== 'utsutsu' || this.state.stamps[id]) return false
+    this.state.stamps[id] = this.gained(travel)
+    this.commit()
+    return true
   }
 
   flag(key: string): boolean {

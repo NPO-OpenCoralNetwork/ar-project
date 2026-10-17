@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "note": "節（1回の外出の単位。04 §2.4）と旅印（02 F-45）。段階3の仮: 麓の一の節は、光蔵坊に現地で会って色を入れたら終わり。段階4で悩みごとをつなぎ、3〜5か所にする。test は地元のテスト用の土地（端末の中だけ）で使う。",
+  "sections": [
+    {
+      "id": "fumoto-1",
+      "region": "iwakuraji",
+      "title": "麓 一の節",
+      "stampTitle": "立山のふもと",
+      "stampMotif": "yama-uchiwa",
+      "requires": [{ "piece": "fumoto-kozobo", "atLeast": "saishiki" }]
+    },
+    {
+      "id": "test-1",
+      "region": "test",
+      "title": "ためしの節",
+      "stampTitle": "ためしの旅",
+      "stampMotif": "yama-uchiwa",
+      "requires": [{ "piece": "fumoto-kozobo", "atLeast": "saishiki" }]
+    }
+  ]
+}

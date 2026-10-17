@@ -4,10 +4,13 @@
 // 光蔵坊（仮）: 山伏の装束の気配（頭襟・結袈裟の房・鈴懸・一本歯の下駄）、たたんだ羽、控えめな鼻、羽団扇。
 // 目は伏せ目、眉は少し下がり気味（昔のおごりを恥じている【創作の性格】）。こわく描かない。
 // 本番の絵ではない（04 §6.2: 本番の絵は段階5）。
+// 彩色（段階3）: 同じ部品に色（color）を持たせ、現地で会った姿と曼荼羅の彩色のピースに使う。光と霞（06）のやわらかい色で、こわくしない。
 
 export interface InkPart {
   /** 紙の白で塗る面（後の部品が前の部品を隠す） */
   fill?: string
+  /** 彩色（現地で会った本当の姿・曼荼羅の彩色のピース）で塗る色。なければ紙の白 */
+  color?: string
   /** 墨の線（太さは viewBox の単位） */
   lines: { d: string; w: number }[]
 }
@@ -67,52 +70,69 @@ const circle = (cx: number, cy: number, r: number) =>
 
 const pompoms = [...POMPOMS, ...POMPOMS.map(([x, y]): [number, number] => [200 - x, y])].map(([x, y]) => circle(x, y, 4.6))
 
+/** 彩色の色（仮）。羽は栗皮、髪は焦茶、肌は淡い肌色、袴は藍鼠、鈴懸と袖は生成り、房は柿・山吹・若竹、頭襟は墨 */
+const C = {
+  wing: '#8a7260',
+  hair: '#4b3f37',
+  skin: '#f0d7bb',
+  geta: '#a07a55',
+  hakama: '#6f7891',
+  robe: '#ece4cf',
+  fan: '#a39467',
+  tokin: '#3a3330',
+  pompoms: ['#cf7f5f', '#dbb560', '#7fa284'],
+}
+const tint = (p: InkPart, color: string): InkPart => ({ ...p, color })
+
 export const KOZOBO_ART: InkArt = {
   w: 200,
   h: 300,
   parts: [
-    part(WING_L, 1.6, ...WING_L_FEATHERS.map((d): [string, number] => [d, 0.9])),
-    part(mirror(WING_L, 100), 1.6, ...WING_L_FEATHERS.map((d): [string, number] => [mirror(d, 100), 0.9])),
-    part(LOCK_L, 1.2),
-    part(mirror(LOCK_L, 100), 1.2),
-    part(NECK, 1.1),
+    tint(part(WING_L, 1.6, ...WING_L_FEATHERS.map((d): [string, number] => [d, 0.9])), C.wing),
+    tint(part(mirror(WING_L, 100), 1.6, ...WING_L_FEATHERS.map((d): [string, number] => [mirror(d, 100), 0.9])), C.wing),
+    tint(part(LOCK_L, 1.2), C.hair),
+    tint(part(mirror(LOCK_L, 100), 1.2), C.hair),
+    tint(part(NECK, 1.1), C.skin),
     // 脚と下駄（袴の下）
     part(undefined, 0, ['M86,262 L86,276', 1.3], ['M114,262 L114,276', 1.3]),
-    part(GETA_L, 1.2, [GETA_TOOTH_L, 1.2]),
-    part(mirror(GETA_L, 100), 1.2, [mirror(GETA_TOOTH_L, 100), 1.2]),
-    part(HAKAMA, 1.6, ['M86,153 L80,262', 0.9], ['M100,153 L100,266', 0.9], ['M114,153 L120,262', 0.9]),
+    tint(part(GETA_L, 1.2, [GETA_TOOTH_L, 1.2]), C.geta),
+    tint(part(mirror(GETA_L, 100), 1.2, [mirror(GETA_TOOTH_L, 100), 1.2]), C.geta),
+    tint(part(HAKAMA, 1.6, ['M86,153 L80,262', 0.9], ['M100,153 L100,266', 0.9], ['M114,153 L120,262', 0.9]), C.hakama),
     // 鈴懸と衿、結袈裟（房をつなぐ帯）、帯
-    part(TORSO, 1.5, ['M89,100 L100,124 L111,100', 1.3], ['M84,103 L91,150', 1.1], ['M116,103 L109,150', 1.1], ['M70,151 L130,151', 2.2]),
-    ...pompoms.map((d) => part(d, 1.0)),
-    part(SLEEVE_L, 1.6, [SLEEVE_HEM_L, 0.8]),
-    part(mirror(SLEEVE_L, 100), 1.6, [mirror(SLEEVE_HEM_L, 100), 0.8]),
+    tint(part(TORSO, 1.5, ['M89,100 L100,124 L111,100', 1.3], ['M84,103 L91,150', 1.1], ['M116,103 L109,150', 1.1], ['M70,151 L130,151', 2.2]), C.robe),
+    ...pompoms.map((d, i) => tint(part(d, 1.0), C.pompoms[i % 3])),
+    tint(part(SLEEVE_L, 1.6, [SLEEVE_HEM_L, 0.8]), C.robe),
+    tint(part(mirror(SLEEVE_L, 100), 1.6, [mirror(SLEEVE_HEM_L, 100), 0.8]), C.robe),
     // 羽団扇と手
     part(undefined, 0, ['M106,156 L129,127', 1.6]),
-    part(FAN, 1.4, ['M130,125 L145,90', 0.7], ['M133,126 L154,104', 0.7], ['M130,124 L136,90', 0.7]),
-    part(HANDS, 1.2),
+    tint(part(FAN, 1.4, ['M130,125 L145,90', 0.7], ['M133,126 L154,104', 0.7], ['M130,124 L136,90', 0.7]), C.fan),
+    tint(part(HANDS, 1.2), C.skin),
     // 顔: 頭襟、伏せ目と少し下がった眉、小さな口、控えめな鼻
-    part(
-      FACE,
-      1.5,
+    tint(
+      part(
+        FACE,
+        1.5,
       ['M88,71 C90,73.2 93.5,73.2 95.5,71', 1.2],
       ['M104.5,71 C106.5,73.2 110,73.2 112,71', 1.2],
       ['M87,66 C90,64.6 93,64 96,64.2', 1.4],
       ['M104,64.2 C107,64 110,64.6 113,66', 1.4],
-      ['M97,86.5 C99.5,87.6 102.5,87.6 105,86.5', 1.0],
+        ['M97,86.5 C99.5,87.6 102.5,87.6 105,86.5', 1.0],
+      ),
+      C.skin,
     ),
-    part(TOKIN, 1.3, ['M94,61 C90,64 88,68 86,71', 0.8]),
-    part(NOSE, 1.2),
+    tint(part(TOKIN, 1.3, ['M94,61 C90,64 88,68 86,71', 0.8]), C.tokin),
+    tint(part(NOSE, 1.2), C.skin),
   ],
 }
 
 export const ARTS: Record<string, InkArt> = { kozobo: KOZOBO_ART }
 
-/** SVG の中身（<g> の中）として書き出す。曼荼羅帳のピースに使う */
-export function artToSvg(art: InkArt, paper: string, ink: string, lineScale = 1, fillOpacity = 1): string {
+/** SVG の中身（<g> の中）として書き出す。曼荼羅帳のピースと、現地の姿に使う。colored なら部品の色（彩色）で塗る */
+export function artToSvg(art: InkArt, paper: string, ink: string, lineScale = 1, fillOpacity = 1, colored = false): string {
   return art.parts
     .map(
       (p) =>
-        (p.fill ? `<path d="${p.fill}" fill="${paper}" fill-opacity="${fillOpacity}"/>` : '') +
+        (p.fill ? `<path d="${p.fill}" fill="${colored && p.color ? p.color : paper}" fill-opacity="${fillOpacity}"/>` : '') +
         p.lines
           .map((l) => `<path d="${l.d}" fill="none" stroke="${ink}" stroke-width="${(l.w * lineScale).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/>`)
           .join(''),

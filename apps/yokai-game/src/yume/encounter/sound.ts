@@ -13,7 +13,11 @@ export class Sound {
   private duckLevel = 0
   private lastBell = -10
 
-  constructor(enabled: boolean) {
+  /** withAmbient: まわりの音（風）を鳴らすか。現の旅では本物の風があるので鳴らさない（鈴だけ） */
+  constructor(
+    enabled: boolean,
+    private readonly withAmbient = true,
+  ) {
     this.enabledFlag = enabled
   }
 
@@ -36,6 +40,7 @@ export class Sound {
       master.gain.value = this.enabledFlag ? 1 : 0
       master.connect(ctx.destination)
       this.master = master
+      if (!this.withAmbient) return
       // 風: 茶色の雑音（2秒）をくり返し、低域通過で絞る。
       // つなぎ目: 2秒 + 50ms を作り、ループの終わりの 50ms を「ループの頭の直前の 50ms」へ等パワーで寄せる。
       // こうすると、ループの最後の1標本は生の r[fade-1]、次に鳴る頭は r[fade] で、元の雑音の続きのままつながる。

@@ -1,0 +1,105 @@
+/* 現の旅（段階3）の画面。色と書体は夢の旅（yume/hud.ts）と同じ和紙と墨。06「光と霞」の時間帯に合わせて、帯と札の色を変える */
+:root {
+  --washi: rgba(250, 247, 240, 0.9);
+  --washi-solid: #faf7f0;
+  --ink: #2a2622;
+  --ink-soft: rgba(42, 38, 34, 0.62);
+  --line: rgba(42, 38, 34, 0.22);
+  --ai: #2f4a7a;
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --ui-font: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --title-font: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; overscroll-behavior: none; }
+#app { position: fixed; inset: 0; }
+.um { position: absolute; inset: 0; }
+.um-canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.yh { position: absolute; inset: 0; pointer-events: none; font-family: var(--ui-font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.yh * { box-sizing: border-box; }
+.yh[data-time="night"] { --washi: rgba(26, 30, 58, 0.88); --washi-solid: #1d2244; --ink: #e8e4f2; --ink-soft: rgba(232, 228, 242, 0.66); --line: rgba(232, 228, 242, 0.24); }
+.yh[data-time="dusk"] { --washi: rgba(252, 244, 241, 0.9); --ink: #3e3240; --ink-soft: rgba(62, 50, 64, 0.62); --line: rgba(62, 50, 64, 0.22); }
+
+.uh-btn { pointer-events: auto; white-space: nowrap; font: inherit; font-size: 13px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 10px; min-height: 40px; min-width: 40px; padding: 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.uh-btn:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 1px; }
+.uh-btn.title { font-family: var(--title-font); letter-spacing: 0.08em; }
+.uh-btn[aria-pressed="false"] { color: var(--ink-soft); }
+.uh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; gap: 6px; align-items: center; max-width: calc(100vw - 190px); }
+.uh-tl .uh-btn { flex: none; }
+.uh-land { font-family: var(--title-font); font-size: 13px; letter-spacing: 0.08em; padding: 6px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uh-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; gap: 6px; }
+.uh-tools { position: absolute; right: calc(10px + var(--sar)); top: calc(62px + var(--sat)); display: flex; flex-direction: column; gap: 6px; }
+.uh-tools .uh-btn { width: 40px; padding: 0; font-size: 17px; }
+.uh-tools .uh-btn.here { font-size: 11px; line-height: 1.2; }
+.uh-tools .uh-btn.here[hidden] { display: none; }
+.uh-north { width: 40px; height: 40px; border-radius: 50%; background: var(--washi); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--title-font); font-size: 11px; font-weight: 600; line-height: 1; }
+.uh-north::before { content: ""; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--ink); margin-bottom: 2px; }
+.uh-chip { position: absolute; left: 50%; top: calc(58px + var(--sat)); transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 999px; background: var(--washi); border: 1px solid var(--line); white-space: nowrap; max-width: calc(100vw - 120px); overflow: hidden; text-overflow: ellipsis; }
+.uh-chip:empty { display: none; }
+
+/* 状態の帯（世界の言葉＋普通の言葉。01-app-ux §3.3） */
+.uh-band { position: absolute; left: 50%; bottom: calc(30px + var(--sab)); transform: translateX(-50%); width: min(560px, calc(100vw - 20px - var(--sal) - var(--sar))); background: var(--washi); border: 1px solid var(--line); border-radius: 14px; padding: 9px 14px 8px; box-shadow: 0 6px 22px rgba(40, 30, 20, 0.1); }
+.uh-band b { display: block; font-family: var(--title-font); font-weight: 600; font-size: 15.5px; letter-spacing: 0.06em; }
+.uh-band span { display: block; font-size: 12.5px; color: var(--ink-soft); margin-top: 1px; }
+.uh-band.rest { background: rgba(255, 255, 255, 0.95); }
+.uh-stop { position: absolute; left: 50%; bottom: calc(108px + var(--sab)); transform: translate(-50%, 8px); opacity: 0; pointer-events: none; transition: opacity 0.4s, transform 0.4s;
+  display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--washi-solid); color: var(--ink); font: inherit; cursor: pointer; min-height: 52px; -webkit-tap-highlight-color: transparent; }
+.uh-stop.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.uh-stop svg { width: 36px; height: 36px; transform: rotate(-90deg); flex: none; }
+.uh-stop .bg { fill: none; stroke: var(--line); stroke-width: 3; }
+.uh-stop .fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.uh-stop b { font-family: var(--title-font); font-weight: 600; font-size: 15px; letter-spacing: 0.1em; display: block; text-align: left; }
+.uh-stop small { display: block; font-size: 11px; color: var(--ink-soft); text-align: left; }
+.uh-toast { position: absolute; left: 50%; top: calc(96px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.04em; padding: 8px 16px; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 12px; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; }
+.uh-toast.on { opacity: 1; }
+.uh-toast small { display: block; font-family: var(--ui-font); font-size: 11px; color: var(--ink-soft); margin-bottom: 2px; letter-spacing: 0.1em; }
+.yh .yh-credit { position: absolute; right: calc(8px + var(--sar)); bottom: calc(6px + var(--sab)); font-size: 10px; line-height: 1.4; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 2px 7px; text-align: right; max-width: calc(100vw - 16px); z-index: 80; }
+.yh-credit a { color: inherit; text-decoration: none; pointer-events: auto; }
+.uh-debug { position: absolute; left: calc(8px + var(--sal)); bottom: calc(112px + var(--sab)); font: 10.5px/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 3px 6px; white-space: pre; }
+
+/* 全面の札（はじめ・三つの約束・許可・道中・旅印） */
+.uh-sheet { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: calc(16px + var(--sat)) 16px calc(16px + var(--sab)); background: rgba(243, 238, 226, 0.97); pointer-events: auto; overflow: auto; }
+.uh-sheet[hidden] { display: none; }
+.uh-card { width: min(400px, 100%); background: var(--washi-solid); color: #2a2622; border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 16px; padding: 22px 22px 18px; box-shadow: 0 10px 34px rgba(60, 50, 40, 0.12); }
+.uh-card h1 { margin: 0 0 4px; font-family: var(--title-font); font-weight: 700; font-size: 22px; letter-spacing: 0.12em; }
+.uh-card h2 { margin: 0 0 10px; font-family: var(--title-font); font-weight: 600; font-size: 17px; letter-spacing: 0.08em; }
+.uh-card h3 { margin: 18px 0 6px; font-size: 12px; font-weight: 600; color: rgba(42, 38, 34, 0.62); letter-spacing: 0.1em; }
+.uh-card p { margin: 6px 0; font-size: 14px; line-height: 1.75; }
+.uh-card p.soft { font-size: 12.5px; color: rgba(42, 38, 34, 0.62); }
+.uh-card .speaker { font-family: var(--title-font); font-size: 16px; line-height: 1.85; margin: 10px 0 2px; }
+.uh-card .speaker::before { content: "ましろ　"; font-size: 12px; color: rgba(42, 38, 34, 0.62); letter-spacing: 0.1em; }
+.uh-card .count { font-size: 11px; color: rgba(42, 38, 34, 0.55); letter-spacing: 0.12em; }
+.uh-card .big { display: block; width: 100%; margin-top: 14px; font: inherit; font-family: var(--title-font); font-size: 16px; letter-spacing: 0.1em; min-height: 50px; color: #faf7f0; background: #2f4a7a; border: 0; border-radius: 12px; cursor: pointer; }
+.uh-card .sub { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; min-height: 44px; color: #2a2622; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; cursor: pointer; text-align: center; text-decoration: none; line-height: 44px; }
+.uh-card .sub[disabled] { opacity: 0.5; }
+.uh-card .row { display: flex; gap: 8px; }
+.uh-card .row > * { flex: 1; }
+.uh-card .err { color: #8a3a2a; font-size: 13px; }
+.uh-card svg.mashiro { display: block; width: 120px; height: 90px; margin: 0 auto 6px; }
+.uh-sheet.transit { background: rgba(28, 33, 64, 0.96); }
+.uh-sheet.transit .uh-card { background: #232a52; color: #e8e4f2; border-color: rgba(232, 228, 242, 0.2); text-align: center; }
+.uh-sheet.transit .uh-card p.soft { color: rgba(232, 228, 242, 0.7); }
+.uh-stamp-page { position: relative; margin: 10px auto 4px; width: 200px; height: 200px; border-radius: 6px; background: linear-gradient(170deg, #fbf6e9, #f1e7d1); box-shadow: inset 0 0 0 1px rgba(42, 38, 34, 0.15); display: flex; align-items: center; justify-content: center; }
+.uh-stamp-page .slot { width: 160px; height: 160px; }
+.uh-stamp-page .slot svg { width: 100%; height: 100%; }
+.uh-stamp-page .slot.pressed { animation: uh-press 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes uh-press { 0% { opacity: 0; transform: scale(1.5); } 60% { opacity: 1; transform: scale(0.96); } 100% { opacity: 1; transform: scale(1); } }
+
+/* 位置シミュレーター（開発用。F-06） */
+.uh-sim { position: absolute; left: calc(8px + var(--sal)); top: calc(58px + var(--sat)); width: min(300px, calc(100vw - 70px)); max-height: calc(100vh - 260px); overflow: auto; pointer-events: auto; font-size: 12px; background: rgba(255, 252, 245, 0.95); color: #2a2622; border: 1px dashed rgba(181, 82, 59, 0.6); border-radius: 12px; padding: 8px 10px; }
+.uh-sim summary { cursor: pointer; font-weight: 600; color: #8a3a2a; }
+.uh-sim .g { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
+.uh-sim .g > span { width: 3.6em; color: rgba(42, 38, 34, 0.62); }
+.uh-sim button { font: inherit; font-size: 12px; min-height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid rgba(42, 38, 34, 0.25); background: #fff; color: #2a2622; cursor: pointer; }
+.uh-sim button[aria-pressed="true"] { background: #2f4a7a; color: #fff; border-color: #2f4a7a; }
+.uh-sim label { display: inline-flex; gap: 4px; align-items: center; }
+@media (max-width: 520px) {
+  .uh-band b { font-size: 14.5px; }
+  .uh-band span { font-size: 12px; }
+}
+
+/* 会話・曼荼羅帳の間は、地図の上の板を隠す（出典表示は隠さない） */
+.yh.talking .uh-tl, .yh.talking .uh-tr, .yh.talking .uh-tools, .yh.talking .uh-band, .yh.talking .uh-stop, .yh.talking .uh-chip, .yh.talking .uh-sim,
+.yh.modal-open .uh-tl, .yh.modal-open .uh-tr, .yh.modal-open .uh-tools, .yh.modal-open .uh-band, .yh.modal-open .uh-stop, .yh.modal-open .uh-chip, .yh.modal-open .uh-sim { visibility: hidden; }

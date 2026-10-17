@@ -170,19 +170,22 @@ export class DialogueRunner {
   }
 
   check(conds: Condition[] | undefined): boolean {
-    if (!conds?.length) return true
-    const p = this.ctx.progress
-    const yokaiDefault = this.script.yokaiId
-    return conds.every((c) => {
-      if ('met' in c) return p.hasMet(c.yokai ?? yokaiDefault) === c.met
-      if ('card' in c) return p.isCardOpened(c.card) === c.opened
-      if ('bondAtLeast' in c) return bondRank(p.bondOf(c.yokai ?? yokaiDefault)) >= bondRank(c.bondAtLeast)
-      if ('piece' in c) return pieceRank(p.pieceOf(c.piece)) >= pieceRank(c.atLeast)
-      if ('flag' in c) return p.flag(c.flag) === c.is
-      if ('travel' in c) return this.ctx.travel === c.travel
-      return false
-    })
+    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId)
   }
+}
+
+/** 条件（すべて満たすと真）。yokai を省いた条件は yokaiDefault の妖怪で見る。台本の入口・選択肢と、節の終わり（旅印）で使う */
+export function checkConditions(conds: Condition[] | undefined, p: ProgressStore, travel: Travel, yokaiDefault = ''): boolean {
+  if (!conds?.length) return true
+  return conds.every((c) => {
+    if ('met' in c) return p.hasMet(c.yokai ?? yokaiDefault) === c.met
+    if ('card' in c) return p.isCardOpened(c.card) === c.opened
+    if ('bondAtLeast' in c) return bondRank(p.bondOf(c.yokai ?? yokaiDefault)) >= bondRank(c.bondAtLeast)
+    if ('piece' in c) return pieceRank(p.pieceOf(c.piece)) >= pieceRank(c.atLeast)
+    if ('flag' in c) return p.flag(c.flag) === c.is
+    if ('travel' in c) return travel === c.travel
+    return false
+  })
 }
 
 /**

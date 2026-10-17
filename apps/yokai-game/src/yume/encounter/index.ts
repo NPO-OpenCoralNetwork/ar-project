@@ -88,6 +88,11 @@ export class Encounters {
         piece: (id) => d.progress.pieceOf(id),
         isNew: (id) => d.progress.pieceOf(id) !== 'empty' && !d.progress.flag(`seen:${id}`),
         card: (id) => d.story.cards[id],
+        // 家では枠だけ見える（旅印は現地で節を終えたときだけ。02 F-45）
+        stamps: () =>
+          d.story.sections
+            .filter((s) => s.region === 'iwakuraji')
+            .map((s) => ({ id: s.id, title: s.title, stampTitle: s.stampTitle, motif: s.stampMotif, at: d.progress.stampOf(s.id)?.at ?? null })),
       },
       {
         close: () => this.closeMandala(),
