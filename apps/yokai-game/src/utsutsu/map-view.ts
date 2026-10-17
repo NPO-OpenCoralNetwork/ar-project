@@ -439,8 +439,8 @@ export class MapView {
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (this.pointers.size === 1) {
         this.drag = { x: e.clientX, y: e.clientY, moved: 0 }
-        // 地点の札に指を置いた（長押しで耳を澄ます。知らせる先があるときだけ）
-        if (this.hooks.hold) {
+        // 地点の札に指を置いた（長押しで耳を澄ます。知らせる先があるときだけ。マウスは左ボタンだけ）
+        if (this.hooks.hold && e.button === 0) {
           const r = c.getBoundingClientRect()
           const id = this.hitSpot(e.clientX - r.left, e.clientY - r.top)
           if (id) {

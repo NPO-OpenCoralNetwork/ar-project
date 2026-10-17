@@ -405,8 +405,11 @@ function startMap(t: TestLand): void {
       root.classList.remove('talking')
       refreshSpots()
       refreshBadge()
-      // キーボードで遊んでいたら、名所のボタンへ戻す
-      if (root.classList.contains('yd-keys')) spotBtns.get(selected ?? spotId)?.focus({ preventScroll: true })
+      // キーボードで遊んでいたら、名所のボタンへ戻す（札を拾って消えた調べる地点なら、見えている名所の先頭へ）
+      if (root.classList.contains('yd-keys')) {
+        const b = spotBtns.get(selected ?? spotId)
+        ;(b && !b.hidden ? b : spotLayer.querySelector<HTMLButtonElement>('.ez-spot:not([hidden])'))?.focus({ preventScroll: true })
+      }
     },
   })
 
@@ -479,11 +482,12 @@ function startMap(t: TestLand): void {
     const name = metName(sp)
     return name ? `長押し・${name}にまた会いに` : '長押し・この名所で'
   }
-  // キーボード: 名所を選んでいれば、Space を押し続けると耳を澄ます（名所のボタンの上でも。ほかのボタンの上では、そのボタンに任せる）
+  // キーボード: 名所を選んでいれば、Space を押し続けると耳を澄ます（名所のボタンの上でも。ほかのボタンの上では、そのボタンに任せる）。
+  // 会話の枠が使った Space（最後の一言を送って会話を閉じたときも）では始めない
   let spaceHeld = false
   const busy = () => encounter.isOpen || mandala.isOpen || !sheet.hidden
   window.addEventListener('keydown', (e) => {
-    if (e.code !== 'Space' || e.repeat) return
+    if (e.code !== 'Space' || e.repeat || e.defaultPrevented) return
     const tg = e.target as HTMLElement | null
     const onSpot = !!tg?.classList?.contains('ez-spot')
     if (tg && !onSpot && /^(BUTTON|A|INPUT|TEXTAREA|SELECT|SUMMARY)$/.test(tg.tagName)) return
@@ -502,6 +506,8 @@ function startMap(t: TestLand): void {
   let gaugeSpot: string | null = null
   /** 澄みきったあとは、指・ボタン・キーをいちど離すまで、次を始めない */
   let spent = false
+  /** 満ちていたのは、地図に置いた指か（ほかは「耳を澄ます」のボタン・Space キー）。途切れたときの言葉を合わせる */
+  let byFinger = true
   let lastT = performance.now()
   const frame = (now: number) => {
     requestAnimationFrame(frame)
@@ -516,13 +522,14 @@ function startMap(t: TestLand): void {
       gauge.reset()
       gaugeSpot = target.id
     }
+    if (target) byFinger = !!holdSpot
     const ev = gauge.update(dt, { near: !!target, held: !!target, speed: 0, inRest: !!target && inRest(target), blocked: b })
     if (ev === 'start') {
       log(`listen:start ${target?.id}`)
       sound.bell(0.3)
     } else if (ev === 'interrupted') {
       log('listen:interrupted')
-      toast('……気配が、ふっと遠のいた。指を置いたままにすると、また聞こえる。', '')
+      toast(`……気配が、ふっと遠のいた。${byFinger ? '指を置いたまま' : '押したまま'}にすると、また聞こえる。`, '')
     } else if (ev === 'complete' && target) {
       spent = true
       log(`listen:complete ${target.id}`)
