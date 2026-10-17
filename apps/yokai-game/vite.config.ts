@@ -11,6 +11,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         gpsTest: resolve(import.meta.dirname, 'gps-test.html'),
         utsutsu: resolve(import.meta.dirname, 'utsutsu.html'),
+        ezu: resolve(import.meta.dirname, 'ezu.html'),
       },
     },
   },

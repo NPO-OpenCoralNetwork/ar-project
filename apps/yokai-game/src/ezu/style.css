@@ -1,0 +1,89 @@
+/* 白描の絵地図（家の側。テスト用の土地）の画面。色と書体は現の旅（utsutsu/style.css）と同じ和紙と墨。時間（昼・夕・夜）で板の色を変える */
+:root {
+  --washi: rgba(250, 247, 240, 0.92);
+  --washi-solid: #faf7f0;
+  --ink: #2a2622;
+  --ink-soft: rgba(42, 38, 34, 0.64);
+  --line: rgba(42, 38, 34, 0.22);
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --ui-font: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --title-font: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f1e3; overscroll-behavior: none; }
+#app { position: fixed; inset: 0; }
+.ez-map { position: absolute; inset: 0; }
+.um-canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.yh { position: absolute; inset: 0; pointer-events: none; font-family: var(--ui-font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.yh * { box-sizing: border-box; }
+.yh[data-time="dusk"] { --washi: rgba(252, 243, 234, 0.92); --washi-solid: #fbf1e6; --ink: #3d2a28; --ink-soft: rgba(61, 42, 40, 0.64); --line: rgba(61, 42, 40, 0.22); }
+.yh[data-time="night"] { --washi: rgba(38, 44, 68, 0.9); --washi-solid: #262c44; --ink: #ebe7f3; --ink-soft: rgba(235, 231, 243, 0.68); --line: rgba(235, 231, 243, 0.26); }
+
+.ez-btn { pointer-events: auto; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--washi); border: 1px solid var(--line); border-radius: 10px; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; text-decoration: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.ez-btn:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 1px; }
+.ez-btn.title { font-family: var(--title-font); letter-spacing: 0.08em; }
+.ez-btn small { font-size: 11px; color: var(--ink-soft); }
+.ez-btn[aria-pressed="false"] { color: var(--ink-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
+/* 曼荼羅帳の「新」（新しいピースがある。印は ui.ts の .ym-badge。色だけでなく字で） */
+.ez-btn.has-new .ym-badge { display: block; }
+.ez-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; max-width: calc(100vw - 230px - var(--sal) - var(--sar)); }
+.ez-title { font-family: var(--title-font); font-size: 13.5px; letter-spacing: 0.08em; line-height: 1.35; padding: 5px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; }
+.ez-title small { display: block; font-family: var(--ui-font); font-size: 10.5px; letter-spacing: 0.04em; color: var(--ink-soft); }
+.ez-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; gap: 6px; }
+.ez-tools { position: absolute; right: calc(10px + var(--sar)); top: calc(64px + var(--sat)); display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.ez-tools .ez-btn { width: 44px; padding: 0; font-size: 18px; }
+.ez-tools .ez-btn.fit { font-size: 12px; }
+.ez-north { width: 44px; height: 44px; border-radius: 50%; background: var(--washi); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--title-font); font-size: 11px; font-weight: 600; line-height: 1; }
+.ez-north::before { content: ""; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--ink); margin-bottom: 2px; }
+/* はじめての一言（耳を澄ますまで出す） */
+.ez-hint { position: absolute; left: 50%; bottom: calc(124px + var(--sab)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); text-align: center; font-family: var(--title-font); font-size: 14.5px; letter-spacing: 0.06em; padding: 7px 16px 8px; background: var(--washi); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 20px rgba(40, 30, 20, 0.1); }
+.ez-hint[hidden] { display: none; }
+.ez-hint small { display: none; font-family: var(--ui-font); font-size: 11px; letter-spacing: 0.02em; color: var(--ink-soft); }
+/* マウスとキーボードの端末では、もう一つのやり方も書く */
+@media (pointer: fine) { .ez-hint small { display: block; } }
+.ez-toast { position: absolute; left: 50%; top: calc(118px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.6s; font-family: var(--title-font); font-size: 14.5px; letter-spacing: 0.04em; padding: 8px 16px; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 12px; width: max-content; max-width: calc(100vw - 120px); text-align: center; text-wrap: balance; word-break: auto-phrase; }
+.ez-toast.on { opacity: 1; }
+.ez-toast .s { display: inline-block; }
+.ez-toast small { display: block; font-family: var(--ui-font); font-size: 11px; color: var(--ink-soft); margin-bottom: 2px; letter-spacing: 0.1em; }
+/* 台詞の印（「台本・創作」。会話の枠の印と同じ形） */
+.ez-toast small .tag { display: inline-block; margin-left: 8px; font-style: normal; font-size: 10px; letter-spacing: 0.04em; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; line-height: 1.5; }
+.yh .yh-credit { position: absolute; right: calc(8px + var(--sar)); bottom: calc(6px + var(--sab)); font-size: 10.5px; line-height: 1.4; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 3px 8px; text-align: right; max-width: calc(100vw - 16px); z-index: 80; }
+.yh-credit a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; pointer-events: auto; }
+/* 名所のボタン（キーボードと読み上げのため。指の操作は地図が受けるので、指は通す） */
+.ez-spots { position: absolute; inset: 0; overflow: hidden; }
+.ez-spot { position: absolute; left: 0; top: 0; width: 56px; height: 48px; margin: 0; padding: 0; border: 0; border-radius: 10px; background: transparent; pointer-events: none; color: transparent; font-size: 1px; }
+.ez-spot:focus-visible { outline: 2.5px solid var(--ink); outline-offset: 0; }
+
+/* 全面の札（はじめ・土地がない・三つの約束） */
+.ez-sheet { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: calc(16px + var(--sat)) 16px calc(16px + var(--sab)); background: rgba(247, 241, 227, 0.97); pointer-events: auto; overflow: auto; }
+.ez-sheet[hidden] { display: none; }
+.ez-card { width: min(400px, 100%); margin: auto; background: var(--washi-solid); color: #2a2622; border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 16px; padding: 22px 22px 18px; box-shadow: 0 10px 34px rgba(60, 50, 40, 0.12); }
+.yh .ez-card { --washi-solid: #faf7f0; }
+.ez-card h1 { margin: 0 0 6px; font-family: var(--title-font); font-weight: 700; font-size: 22px; letter-spacing: 0.12em; }
+.ez-card h2 { margin: 0 0 10px; font-family: var(--title-font); font-weight: 600; font-size: 17px; letter-spacing: 0.08em; }
+.ez-card p { margin: 6px 0; font-size: 14px; line-height: 1.75; }
+.ez-card p.soft { font-size: 12.5px; color: rgba(42, 38, 34, 0.64); }
+.ez-card .count { font-size: 11px; color: rgba(42, 38, 34, 0.58); letter-spacing: 0.12em; margin: 0 0 4px; }
+.ez-card .notes { list-style: none; margin: 12px 0 8px; padding: 9px 12px; border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; background: rgba(255, 255, 255, 0.5); font-size: 14px; line-height: 1.7; }
+.ez-card .notes li::before { content: "・"; }
+.ez-card .speaker { font-family: var(--title-font); font-size: 16px; line-height: 1.85; margin: 10px 0 2px; }
+.ez-card .speaker::before { content: "ましろ　"; font-size: 12px; color: rgba(42, 38, 34, 0.64); letter-spacing: 0.1em; }
+/* ましろの台詞は【創作】なので、会話の枠の外でも「台本・創作」の印をつける（会話の枠の印と同じ形） */
+.ez-card .speaker::after { content: "台本・創作"; display: inline-block; margin-left: 8px; vertical-align: 0.12em; font-family: var(--ui-font); font-size: 10px; letter-spacing: 0.04em; line-height: 1.5; color: rgba(42, 38, 34, 0.64); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.ez-card .big { display: block; box-sizing: border-box; width: 100%; margin-top: 14px; font: inherit; font-family: var(--title-font); font-size: 16px; letter-spacing: 0.1em; min-height: 50px; line-height: 50px; text-align: center; text-decoration: none; color: #faf7f0; background: #2f4a7a; border: 0; border-radius: 12px; cursor: pointer; }
+.ez-card .sub { display: block; box-sizing: border-box; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; min-height: 44px; line-height: 44px; color: #2a2622; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; cursor: pointer; text-align: center; text-decoration: none; }
+.ez-card .big:focus-visible, .ez-card .sub:focus-visible { outline: 2px solid #2a2622; outline-offset: 2px; }
+.ez-card svg.mashiro { display: block; width: 120px; height: 90px; margin: 0 auto 6px; }
+
+/* 会話・曼荼羅帳の間は、地図の上の板を隠す（出典表示は隠さない） */
+.yh.talking .ez-tl, .yh.talking .ez-tr, .yh.talking .ez-tools, .yh.talking .ez-hint, .yh.talking .ez-toast, .yh.talking .ez-spots,
+.yh.modal-open .ez-tl, .yh.modal-open .ez-tr, .yh.modal-open .ez-tools, .yh.modal-open .ez-hint, .yh.modal-open .ez-toast, .yh.modal-open .ez-spots { visibility: hidden; }
+@media (max-width: 520px) {
+  .ez-btn { font-size: 13px; padding: 0 10px; }
+  .ez-hint { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ez-toast { transition: none; }
+}
