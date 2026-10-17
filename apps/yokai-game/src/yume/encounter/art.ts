@@ -7,6 +7,9 @@
 // 彩色（段階3）: 同じ部品に色（color）を持たせ、現地で会った姿と曼荼羅の彩色のピースに使う。光と霞（06）のやわらかい色で、こわくしない。
 
 import { artToSvg, circle, type InkArt, type InkPart, mirror, part, tint } from './ink'
+import { GAME_ART } from './arts/game'
+import { KARABOZU_ART } from './arts/karabozu'
+import { MINOMOSHI_ART } from './arts/minomoshi'
 
 export { artToSvg }
 export type { InkArt, InkPart }
@@ -101,4 +104,5 @@ export const KOZOBO_ART: InkArt = {
   ],
 }
 
-export const ARTS: Record<string, InkArt> = { kozobo: KOZOBO_ART }
+/** 妖怪ごとの絵（yokai.json の art から引く）。光蔵坊はこのファイル、ほかは arts/*.ts（段階3で足した里の3体） */
+export const ARTS: Record<string, InkArt> = { kozobo: KOZOBO_ART, game: GAME_ART, karabozu: KARABOZU_ART, minomoshi: MINOMOSHI_ART }
