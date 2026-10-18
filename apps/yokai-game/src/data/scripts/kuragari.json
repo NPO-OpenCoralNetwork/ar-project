@@ -4,7 +4,7 @@
   "yokaiId": "kuragari",
   "creative": true,
   "review": "下書き",
-  "note": "くらがり（本作オリジナル。04 §4.1）の台本。台詞はすべて【創作】（性格: 曼荼羅帳の影に住む、ましろの影のような存在。一人称を持たず、自分のことを「影は」と言う。言葉は短く低く、〜だ。呼び方は、はじめは無く、#9 を解いてから「見習い」。04 §4.1）。会うのは便りの画面の「逢魔が時」（帳の影。家でも。04 §3.6）だけで、箱庭・現地には出ない（段階4b）。伝承の事実は札 mandala-1・mandala-2（03 #4）でだけ出す。どの入口も、時間のピース（timePiece）を通る（会話を始めた時が立山の逢魔が時なら、家でも彩色。金は稽古で。04 §3.6 例外）。悩み #9「影は、こわがられるために」（とりもつ・くらがり⇄ましろ。04 付録A）: はじめての夕暮れに問いを受ける（kg-q9-asked。悩みが3つなら、ましろが「また今度にしよう」と保留にし、次の夕暮れに入口 ask で頼まれる）→ ましろの便り「影のこと」を読む（kg-mashiro-read。tayori.json）→ 次の夕暮れに、伝え方を3つから選ぶ → 札 mandala-2 と「なじみ」（kg-q9-done）。失敗はなく、選び方で台詞が変わるだけ。はじめての会話が札の前で途切れたら、次の夕暮れに続きから（入口 resume）。こわがらせない（04 §5.1「こわがらなくていい。話すだけだ」）。どの終わりも、灯りと家のほうへ向けて閉じる。夜の外出に誘わない。",
+  "note": "くらがり（本作オリジナル。04 §4.1）の台本。台詞はすべて【創作】（性格: 曼荼羅帳の影に住む、ましろの影のような存在。一人称を持たず、自分のことを「影は」と言う。言葉は短く低く、〜だ。呼び方は、はじめは無く、#9 を解いてから「見習い」。04 §4.1）。会うのは便りの画面の「逢魔が時」（帳の影。家でも。04 §3.6）だけで、箱庭・現地には出ない（段階4b）。伝承の事実は札 mandala-1・mandala-2（03 #4）でだけ出す。どの入口も、時間のピース（timePiece）を通る（会話を始めた時が立山の逢魔が時なら、家でも彩色。金は稽古で。04 §3.6 例外）。悩み #9「影は、こわがられるために」（とりもつ・くらがり⇄ましろ。04 付録A）: はじめての夕暮れに問いを受ける（kg-q9-asked。悩みが3つなら、ましろが「また今度にしよう」と保留にし、次の夕暮れに入口 ask で頼まれる）→ ましろの便り「影のこと」を読む（kg-mashiro-read。tayori.json）→ 次の夕暮れに、伝え方を3つから選ぶ → 札 mandala-2 と「なじみ」（kg-q9-done）。失敗はなく、選び方で台詞が変わるだけ。はじめての会話が札の前で途切れたら、次の夕暮れに続きから（入口 resume）。札のあと、頼みごと（qr。聞いた印 kg-q9-heard）の前で途切れたら、次の夕暮れは問いから（入口 resume-ask。問いを聞かないまま「このあいだの問い」にしない）。便りを読んでも、その日（物語の日）にもうくらがりと話していれば、答えを聞くのは次の夕暮れ（入口 soon。metToday で見る。E2 はいつも E1 とはべつの夕暮れ。04 §3.6 の流れ）。答えを聞きはじめた（e1 の問いまで。kg-q9-answering）あとで閉じたら、同じ夕暮れでも続きから。こわがらせない（04 §5.1「こわがらなくていい。話すだけだ」）。どの終わりも、灯りと家のほうへ向けて閉じる。夜の外出に誘わない。",
   "speakers": {
     "kuragari": { "name": "くらがり", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
@@ -12,7 +12,9 @@
   "entries": [
     { "id": "first", "label": "はじめて（帳の影）", "when": [{ "met": false }], "node": "k1" },
     { "id": "resume", "label": "はじめての会話が、札の前で途切れた", "when": [{ "met": true }, { "card": "mandala-1", "opened": false }], "node": "k2" },
+    { "id": "resume-ask", "label": "はじめての会話が、問いの前で途切れた", "when": [{ "met": true }, { "card": "mandala-1", "opened": true }, { "flag": "kg-q9-heard", "is": false }, { "flag": "kg-q9-asked", "is": false }], "node": "k5r" },
     { "id": "wait", "label": "ましろの便りを、まだ読んでいない", "when": [{ "flag": "kg-q9-asked", "is": true }, { "flag": "kg-mashiro-read", "is": false }], "node": "w1" },
+    { "id": "soon", "label": "ましろの便りを読んだが、きょうはもう話した（答えは次の夕暮れに）", "when": [{ "flag": "kg-q9-asked", "is": true }, { "flag": "kg-mashiro-read", "is": true }, { "flag": "kg-q9-done", "is": false }, { "flag": "kg-q9-answering", "is": false }, { "metToday": "any" }], "node": "e0" },
     { "id": "e2", "label": "ましろの便りを読んだ（#9 の答え）", "when": [{ "flag": "kg-q9-asked", "is": true }, { "flag": "kg-mashiro-read", "is": true }, { "flag": "kg-q9-done", "is": false }], "node": "e1" },
     { "id": "again", "label": "また会う（#9 を解いたあと）", "when": [{ "flag": "kg-q9-done", "is": true }], "node": "a1" },
     { "id": "ask", "label": "#9 を頼む（前の夕暮れは悩みでいっぱいだった）", "when": [{ "met": true }, { "flag": "kg-q9-asked", "is": false }, { "questRoom": true }], "node": "s1" },
@@ -83,6 +85,7 @@
     },
     "qr": {
       "lines": [{ "speaker": "kuragari", "text": "紙の鳥にも、聞いてみてくれるか。影が、こわいかどうか。" }],
+      "effects": [{ "flag": "kg-q9-heard", "value": true }],
       "choices": [
         { "text": "うん、聞いてみる", "next": "qa", "when": [{ "questRoom": true }] },
         { "text": "いまは、ほかの頼まれごとで手いっぱいなんだ", "next": "qf", "when": [{ "questRoom": false }] }
@@ -123,10 +126,28 @@
       "effects": [{ "timePiece": "fumoto-kuragari" }],
       "next": "a4"
     },
+    "k5r": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……夕暮れだ。" },
+        { "speaker": "kuragari", "text": "このあいだの、話のつづきだ。" }
+      ],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "next": "k5"
+    },
     "w1": {
       "lines": [
         { "speaker": "kuragari", "text": "紙の鳥には、聞いてみたか。" },
         { "speaker": "mashiro", "text": "（……手紙、帳の「便り」にはさんでおいたんだけど）" },
+        { "speaker": "kuragari", "text": "急がない。夕暮れは、また来る。" }
+      ],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "next": "a4"
+    },
+    "e0": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……影は、まだ、ここにいる。" },
+        { "speaker": "mashiro", "text": "（……手紙、読んでくれたんだね）" },
+        { "speaker": "mashiro", "text": "（なんて伝えるかは、次の夕暮れまで、いっしょに考えよう）" },
         { "speaker": "kuragari", "text": "急がない。夕暮れは、また来る。" }
       ],
       "effects": [{ "timePiece": "fumoto-kuragari" }],
@@ -137,7 +158,7 @@
         { "speaker": "kuragari", "text": "……夕暮れだ。" },
         { "speaker": "kuragari", "text": "紙の鳥は、なんと言っていた。" }
       ],
-      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "effects": [{ "timePiece": "fumoto-kuragari" }, { "flag": "kg-q9-answering", "value": true }],
       "choices": [
         { "text": "ましろは、こわかったって", "next": "e2a" },
         { "text": "ましろも、話したがってる", "next": "e2b" },

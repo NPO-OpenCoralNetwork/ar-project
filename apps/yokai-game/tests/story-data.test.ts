@@ -82,7 +82,7 @@ const fork = (k: MemKV, c: TestClock): ProgressStore => {
   ok(p.pieceOf('fumoto-kuragari') === 'hakubyo' && !p.get().pieces['fumoto-kuragari']?.colored, '昼に話したら、時間のピースは白描（色は入らない）')
 }
 
-// はじめての会話が途中で閉じても、次の夕暮れに続きから（resume・ask）
+// はじめての会話が途中で閉じても、次の夕暮れに続きから（resume・resume-ask・ask）。問いを聞かないまま「このあいだの問い」にしない
 {
   const c = clockAt(DUSK1)
   const p = store(undefined, c)
@@ -97,10 +97,37 @@ const fork = (k: MemKV, c: TestClock): ProgressStore => {
   const qc = clockAt(DUSK1)
   const q = store(undefined, qc)
   const r3 = kuragari(q, qc, [0], 10)
-  ok(q.isCardOpened('mandala-1') && q.pieceOf('fumoto-kuragari') === 'empty' && !q.flag('kg-q9-asked'), `札のあと、ピースの前で閉じた（${r3.trail}）`)
+  const QUESTION = '影は、こわがられるために、いるのか。'
+  ok(
+    q.isCardOpened('mandala-1') && q.pieceOf('fumoto-kuragari') === 'empty' && !q.flag('kg-q9-asked') && !q.flag('kg-q9-heard') && !r3.seen.some((s) => s.includes(QUESTION)),
+    `札のあと、ピースと問いの前で閉じた（${r3.trail}）`,
+  )
   qc.set(DUSK2)
-  const r4 = kuragari(q, qc, [0])
-  ok(r4.trail === 's1>qa>cl' && q.flag('kg-q9-asked') && q.pieceOf('fumoto-kuragari') === 'saishiki', `次の夕暮れは入口 ask で頼まれ、彩色も入る（${r4.trail}）`)
+  const r4 = kuragari(q, qc, [0, 0])
+  ok(r4.trail === 'k5r>k5>q1>qr>qa>cl' && q.flag('kg-q9-asked') && q.pieceOf('fumoto-kuragari') === 'saishiki', `次の夕暮れは問いから（入口 resume-ask）。頼まれ、彩色も入る（${r4.trail}）`)
+  ok(r4.seen.some((s) => s.includes(QUESTION)) && !r4.seen.some((s) => s.includes('このあいだの問い')), '問いを聞いてから頼まれる（「このあいだの問い」とは言わない）')
+
+  // 悩みが3つのときも、問いから（そのあと「また今度」）
+  const fc = clockAt(DUSK1)
+  const f = store(undefined, fc)
+  for (const fl of ['tm1-asked', 'kz-q2-asked', 'q11-asked']) f.setFlag(fl, true)
+  kuragari(f, fc, [0], 10)
+  fc.set(DUSK2)
+  const r5 = kuragari(f, fc, [0])
+  ok(r5.trail === 'k5r>k5>q1>qr>qf>cl' && !f.flag('kg-q9-asked') && f.flag('kg-q9-heard'), `悩みが3つでも、問いを聞いていなければ問いから（${r5.trail}）`)
+  fc.set('2027-01-18T16:45')
+  ok(kuragari(f, fc, []).trail === 'f1>a4', '問いを聞いたあとは、入口 full')
+
+  // 頼みごと（qr）まで聞いて、答える前に閉じた → 次の夕暮れは入口 ask（「このあいだの問いだ」）
+  const probe = clockAt(DUSK1)
+  const atQr = kuragari(store(undefined, probe), probe, [0, 0, 0]).beats.findIndex((b) => b.kind === 'choices' && !!b.context?.text.includes('紙の鳥にも'))
+  const hc = clockAt(DUSK1)
+  const h = store(undefined, hc)
+  kuragari(h, hc, [0], atQr)
+  ok(atQr > 0 && h.flag('kg-q9-heard') && !h.flag('kg-q9-asked'), `頼みごとまで聞いて、答える前に閉じた（${atQr}拍目）`)
+  hc.set(DUSK2)
+  const r6 = kuragari(h, hc, [0])
+  ok(r6.trail === 's1>qa>cl' && h.flag('kg-q9-asked'), `問いを聞いていれば、次の夕暮れは入口 ask（${r6.trail}）`)
 }
 
 // 悩みが3つのとき: 「また今度」（qf）→ 次の夕暮れも full → 空きができたら ask
@@ -138,6 +165,22 @@ const fork = (k: MemKV, c: TestClock): ProgressStore => {
   ok(p.flag('kg-mashiro-read'), '「影のこと」を読むと kg-mashiro-read')
   ok(view?.title === '影のこと' && view.blocks[0].kind === 'head' && view.blocks[0].text === 'きみへ' && view.blocks.filter((b) => b.kind === 'p').length === 4, '「影のこと」は、きみへ・地の文4つ')
   ok(view?.blocks[view.blocks.length - 1].kind === 'sign', '終わりは「ましろ」')
+  // 同じ逢魔が時のうちに読んでも、答えを聞くのは次の夕暮れ（入口 soon。E2 は E1 とべつの夕暮れ）
+  c.set('2027-01-16T17:05')
+  ok(c.story().phase === 'oumagatoki', '1/16 17:05 も逢魔が時')
+  const s = kuragari(p, c, [])
+  ok(s.trail === 'e0>a4' && !p.flag('kg-q9-done') && p.bondOf('kuragari') === 'kaomishiri' && !p.isCardOpened('mandala-2'), `その日にもう話していれば、答えは次の夕暮れ（${s.trail}）`)
+  // 次の夕暮れに答えを聞きはじめて（e1 の問いまで）閉じたら、同じ夕暮れでも続きから（soon にしない）
+  {
+    const ic = clockAt(DUSK2)
+    const q = fork(k, ic)
+    const atE1 = kuragari(fork(k, ic), ic, [0]).beats.findIndex((b) => b.kind === 'choices')
+    const r1 = kuragari(q, ic, [], atE1)
+    ok(atE1 > 0 && !r1.ended && r1.trail === 'e1' && q.flag('kg-q9-answering') && !q.flag('kg-q9-done'), `E2 の問いで閉じた（${r1.trail}）`)
+    ic.set('2027-01-17T16:55')
+    const r2 = kuragari(q, ic, [1])
+    ok(r2.trail === 'e1>e2b>e3>e4>e5' && q.flag('kg-q9-done'), `同じ夕暮れのうちに、続きから（${r2.trail}）`)
+  }
 
   for (const [i, x] of ['a', 'b', 'c'].entries()) {
     const ec = clockAt(DUSK2)
@@ -389,6 +432,45 @@ for (const { yokai, script } of yobanashiOf) {
   ok(v?.title === 'ましろの便り' && texts.length === parts.length && texts.every((t) => t.length > 0 && !t.includes('{')), `どの部品も文になる（${texts.length}）`)
   ok(!!v?.blocks.some((b) => b.kind === 'ask'), '呼び名をまだ書いていなければ、聞くボタン')
   ok(!letterView('fumi:2027-01-12', p, story, memoOf('さくら'))?.blocks.some((b) => b.kind === 'ask'), '書いたあとは聞かない')
+}
+
+// ましろの便りの b 段（会話5回から）: 間柄が要る一行は、悩みが進むまで出ない（回数だけでは出さない）。出ないあいだは段のはじめの一行
+{
+  /** 会話5回の妖怪と、1/12〜1/17 に毎日少し遊んだときの、ましろの便りの言い回し */
+  const snips = (yokai: string, flag?: string) => {
+    const c = clockAt('2027-01-11T10:00')
+    const p = store(undefined, c)
+    p.meet(yokai, 'yume')
+    p.raiseBond(yokai, 'kaomishiri', 'yume')
+    for (let i = 0; i < 5; i++) p.noteTalk(yokai, 'yume')
+    p.noteSeen(yokai, 'yume')
+    if (flag) p.setFlag(flag, true)
+    const out: string[] = []
+    for (const d of ['12', '13', '14', '15', '16', '17']) {
+      deliverDue(env(p, c, `2027-01-${d}T08:00`))
+      out.push(...(p.letter(`fumi:2027-01-${d}`)?.parts ?? []).filter((x) => x.startsWith('snip:')).map((x) => x.slice(5)))
+      c.set(`2027-01-${d}T12:00`)
+      p.noteSeen(yokai, 'yume')
+    }
+    return out
+  }
+  const before = (yokai: string, held: string[], first: string, noRepeat = true) => {
+    const s = snips(yokai)
+    ok(s.length >= 5 && s.every((x) => !held.includes(x)) && s.includes(first), `${yokai}: 悩みの前は ${held.join('・')} を出さない（${s.join(' ')}）`)
+    if (noRepeat) ok(s.every((x, i) => i === 0 || x !== s[i - 1]), `${yokai}: 悩みの前でも、続けて同じ一行にならない`)
+  }
+  const after = (yokai: string, flag: string, held: string[]) => {
+    const s = snips(yokai, flag)
+    ok(s.some((x) => held.includes(x)), `${yokai}: ${flag} のあとは ${held.join('・')} も出る（${s.join(' ')}）`)
+  }
+  before('karabozu', ['b-b1', 'b-b2'], 'b-b3')
+  after('karabozu', 'tm1-done', ['b-b1', 'b-b2'])
+  before('game', ['g-b3'], 'g-b1')
+  after('game', 'tm1-done', ['g-b3'])
+  // くらがりは a 段も1行（04 §4.10）なので、続けて同じ一行になることがある
+  before('kuragari', ['r-b1'], 'r-b2', false)
+  after('kuragari', 'kg-q9-done', ['r-b1'])
+  for (const [y, tiers] of Object.entries(story.tayori.daily.snippets)) ok(!tiers.b[0]?.when?.length, `${y}: b 段のはじめの一行は、条件なし（代わりの一行）`)
 }
 
 done()
