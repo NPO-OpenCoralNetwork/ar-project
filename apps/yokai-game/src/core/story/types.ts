@@ -32,11 +32,14 @@ export const PIECE_LABEL: Record<PieceState, string> = {
   kin: '金の縁取り',
 }
 
-/** 旅ごとのピースの上限（05 §3: 曼荼羅は夢の旅では白描（線）まで） */
-export const PIECE_CAP: Record<Travel, PieceState> = { yume: 'hakubyo', utsutsu: 'kin' }
+/**
+ * 台本の効果で入るピースの上限（05 §3: 夢の旅では白描（線）まで、彩色は現地だけ）。
+ * 金の縁取りは台本では入れず、彩色済みのピースを稽古で語り返したときだけ（家でも現地でも。04 §3.6・F-41）
+ */
+export const PIECE_CAP: Record<Travel, PieceState> = { yume: 'hakubyo', utsutsu: 'saishiki' }
 
-/** 監修の状態（02 F-71） */
-export type ReviewState = '下書き' | '監修中' | '監修済み'
+/** 監修の状態（02 F-71）。了承待ち＝社寺・協力先などの了承が出るまで開かない札 */
+export type ReviewState = '下書き' | '監修中' | '監修済み' | '了承待ち'
 
 /** 伝承の札（03 の事実だけ。出典と確度を必ず付ける。04 §3.2 F-43） */
 export interface LoreCard {
@@ -78,6 +81,11 @@ export interface MandalaPieceDef {
   art?: string
   /** タップで開く札 */
   cardIds?: string[]
+  /**
+   * 稽古（語り返し）で並べる札（話の順）。彩色済みのピースで、ここの札を並べ終えると金の縁取り（04 §3.6）。
+   * pending: で始まる項目は、まだ作っていない札（いつも白紙）。札が1枚しかない妖怪は稽古を持たない
+   */
+  keiko?: string[]
   /** 掛軸の座標（viewBox の中の矩形） */
   x: number
   y: number
@@ -114,6 +122,13 @@ export type Condition =
   | { piece: string; atLeast: PieceState }
   | { flag: string; is: boolean }
   | { travel: Travel }
+  /** 持ち物（供物・届け物）の状態。none＝まだ、held＝持っている、given＝渡した */
+  | { item: string; state: ItemState }
+  /** 悩みをもう1つ抱えられるか（同時に3つまで。04 §2.4）。room: false で「いっぱい」 */
+  | { questRoom: boolean }
+
+/** 持ち物の状態 */
+export type ItemState = 'none' | 'held' | 'given'
 
 /**
  * 会話の途中に入る小さな遊び（失敗はない。04 §3.4・§3.5）。遊びの間のましろの台詞（【創作】）も台本に持つ
@@ -195,6 +210,10 @@ export type Effect =
   | { piece: string; state: PieceState }
   | { flag: string; value: boolean }
   | { game: GameSpec }
+  /** 持ち物を受け取る（供物・届け物。お金では買えない。04 §3.7） */
+  | { receive: string }
+  /** 持ち物を渡す（受け取った妖怪の好物なら、縁が「なじみ」まで上がるのは台本の bond で書く） */
+  | { deliver: string }
 
 export interface ScriptLine {
   /** speakers のキー */
@@ -250,6 +269,12 @@ export interface YokaiDef {
   art?: string
   /** 夢の姿の高さ（m） */
   heightM?: number
+  /** 縁帳に出す人となり（【創作】。伝承は札で別に出す） */
+  profile?: string
+  /** 好物（持ち物の id。渡すと「なじみ」。04 §3.3） */
+  likes?: string
+  /** 本作オリジナルの妖怪（伝承にない。縁帳で明記する。04 §3.3） */
+  original?: boolean
 }
 
 /**
@@ -326,4 +351,44 @@ export interface AppearanceTable {
   version: 1
   note?: string
   rows: AppearanceRow[]
+}
+
+// ---- 持ち物・悩み・妖怪の帳（段階4） ----
+
+/** 持ち物（供物・届け物。04 §3.7）。名産品は主役にせず、妖怪の好物として出す。札で言うことは 03 の確認済だけ */
+export interface ItemDef {
+  id: string
+  name: string
+  /** 渡したときに開く札（03 の名産の札） */
+  card?: string
+  note?: string
+}
+
+/**
+ * 悩みごと（04 §3.4・付録A）。進み具合はフラグ・札・持ち物で持ち、ここでは「始まった」「解けた」の見分け方と、帳に出す題だけを持つ。
+ * 抱えている＝start を満たし、done を満たさない。同時に3つまで（questRoom）。
+ */
+export interface QuestDef {
+  id: string
+  /** 付録A の番号 */
+  number: number
+  /** 帳に出す題（【創作】） */
+  title: string
+  type: '調べる' | '届ける' | 'とりもつ' | '番外'
+  /** かかわる妖怪 */
+  yokai: string[]
+  start: Condition[]
+  done: Condition[]
+}
+
+export interface QuestFile {
+  version: 1
+  note?: string
+  quests: QuestDef[]
+}
+
+export interface ItemFile {
+  version: 1
+  note?: string
+  items: ItemDef[]
 }

@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "note": "悩みごと（04 §3.4・付録A）。進み具合は台本のフラグ・札・持ち物で持ち、ここでは「始まった」「解けた」の見分け方と、帳に出す題だけを持つ。抱えている＝start を満たし done を満たさない。同時に抱えるのは3つまで（questRoom。04 §2.4）。題は【創作】。",
+  "quests": [
+    {
+      "id": "q1",
+      "number": 1,
+      "title": "親方とガメの仲直り",
+      "type": "とりもつ",
+      "yokai": [
+        "game",
+        "karabozu"
+      ],
+      "start": [
+        {
+          "flag": "tm1-asked",
+          "is": true
+        }
+      ],
+      "done": [
+        {
+          "flag": "tm1-done",
+          "is": true
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "number": 2,
+      "title": "光蔵坊の話を拾い集める",
+      "type": "調べる",
+      "yokai": [
+        "kozobo"
+      ],
+      "start": [
+        {
+          "flag": "kz-q2-asked",
+          "is": true
+        }
+      ],
+      "done": [
+        {
+          "flag": "kz-q2-done",
+          "is": true
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "number": 10,
+      "title": "光蔵坊に昆布を",
+      "type": "届ける",
+      "yokai": [
+        "kozobo"
+      ],
+      "start": [
+        {
+          "item": "konbu",
+          "state": "held"
+        }
+      ],
+      "done": [
+        {
+          "item": "konbu",
+          "state": "given"
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "number": 11,
+      "title": "ガメに白えびを",
+      "type": "届ける",
+      "yokai": [
+        "game"
+      ],
+      "start": [
+        {
+          "flag": "q11-asked",
+          "is": true
+        }
+      ],
+      "done": [
+        {
+          "item": "shiroebi",
+          "state": "given"
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "number": 12,
+      "title": "払わないで",
+      "type": "番外",
+      "yokai": [
+        "minomoshi"
+      ],
+      "start": [
+        {
+          "met": true,
+          "yokai": "minomoshi"
+        }
+      ],
+      "done": [
+        {
+          "card": "mino-1",
+          "opened": true
+        }
+      ]
+    }
+  ]
+}

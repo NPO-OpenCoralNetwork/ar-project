@@ -625,9 +625,22 @@ export class DialogueView {
   }
 }
 
+/** 縁の段階ごとの糸の形（04 §3.3。数字では見せない） */
+const BOND_THREAD: Record<string, string> = {
+  kaomishiri: '縁の糸が一本、結ばれた。',
+  najimi: '糸がより合わさって、より糸になった。',
+  katarinakama: '糸が組まれて、組紐になった。',
+  enishi: '糸に、ほどけない結び目ができた。',
+}
+
 function noticeHtml(n: Notice, yokaiName: (id: string) => string): string {
   if (n.type === 'bond') {
-    return `<b>${escapeHtml(yokaiName(n.yokai))}と「${escapeHtml(n.label)}」になった</b><span>縁の糸が一本、結ばれた。</span>`
+    return `<b>${escapeHtml(yokaiName(n.yokai))}と「${escapeHtml(n.label)}」になった</b><span>${escapeHtml(BOND_THREAD[n.level] ?? '')}</span>`
+  }
+  if (n.type === 'item') {
+    return n.action === 'receive'
+      ? `<b>${escapeHtml(n.name)}を受け取った</b><span>持ち物は、帳の「縁帳」で見られる。</span>`
+      : `<b>${escapeHtml(n.name)}を渡した</b><span>喜んでもらえたみたい。</span>`
   }
   const where = n.travel === 'yume' ? '夢の旅では線（白描）まで。色は、現地でこの地点に立つと入る。' : ''
   return `<b>曼荼羅帳に、${escapeHtml(n.label)}のピースが一つ入った</b><span>${where}右上の「曼荼羅帳」で見られる。</span>`

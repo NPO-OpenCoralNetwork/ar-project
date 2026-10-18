@@ -77,6 +77,16 @@ const spots: Spot[] = [
     placeKind: 'road',
     clueId: 'kozobo-shirabe-2',
   },
+  {
+    // 白えびを受け取る地点（ガメの悩み #11。04 §3.7「里の決まった地点」。仕組みは調べる地点と同じ）。
+    // 北北東へのびる細い道の突き当たり（家の少ない所）。光蔵坊の地点から約 173m、調べる地点2 から約 174m、線路から約 68m。
+    // OSM では行き止まりの道なので、現地で住宅の前や私有地に当たらないかを確かめる（07 §7.2）
+    id: 'iwakuraji-c3',
+    label: 'この地点',
+    position: { lat: 36.6090943, lon: 137.3181198 },
+    placeKind: 'road',
+    clueId: 'shiroebi',
+  },
 ]
 
 export const iwakurajiPack: RegionPack = {

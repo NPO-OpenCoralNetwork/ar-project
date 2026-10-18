@@ -148,7 +148,13 @@
           "cardIds": [
             "kozobo-1",
             "kozobo-2",
-            "kozobo-3"
+            "kozobo-3",
+            "konbu-1"
+          ],
+          "keiko": [
+            "kozobo-2",
+            "kozobo-3",
+            "pending:kozobo-3rd"
           ],
           "x": 114,
           "y": 484,
@@ -176,7 +182,8 @@
           "yokaiId": "game",
           "art": "game",
           "cardIds": [
-            "game-1"
+            "game-1",
+            "shiroebi-1"
           ],
           "x": 40,
           "y": 580,
@@ -202,6 +209,11 @@
           "yokaiId": "minomoshi",
           "art": "minomoshi",
           "cardIds": [
+            "mino-1",
+            "mino-2",
+            "mino-3"
+          ],
+          "keiko": [
             "mino-1",
             "mino-2",
             "mino-3"

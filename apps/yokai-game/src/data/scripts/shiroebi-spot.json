@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "id": "shiroebi-spot",
+  "creative": true,
+  "review": "下書き",
+  "note": "白えびを受け取る地点（悩み #11「ガメに白えび」。04 §3.7「里の決まった地点」）。妖怪はおらず、ましろだけが話す（台詞は【創作】）。風が包みを運んでくるのは【創作】の届き方で、名産の事実は札 shiroebi-1 でだけ出す（ガメに渡したとき）。気配を出す条件は clues.json（頼まれていて、まだ受け取っていない間）。現地では集落の中なので、ましろが「声をひそめて」と言う（04 §3.1）。",
+  "speakers": {
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "label": "現地で受け取る", "when": [{ "travel": "utsutsu" }, { "flag": "q11-asked", "is": true }, { "item": "shiroebi", "state": "none" }], "node": "u_find" },
+    { "label": "受け取る", "when": [{ "flag": "q11-asked", "is": true }, { "item": "shiroebi", "state": "none" }], "node": "find" },
+    { "label": "もう受け取った", "when": [{ "item": "shiroebi", "state": "held" }], "node": "got" },
+    { "label": "渡したあと", "when": [{ "item": "shiroebi", "state": "given" }], "node": "got" },
+    { "label": "まだ頼まれていない", "node": "quiet" }
+  ],
+  "nodes": {
+    "u_find": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……しっ。家のそばだから、声はひそめてね。" },
+        { "speaker": "mashiro", "text": "……立ち止まったら、風が、なにか運んできた。" },
+        { "speaker": "mashiro", "text": "白えびの包みだ。だれかが、海のほうから届けてくれたのかな。" }
+      ],
+      "effects": [{ "receive": "shiroebi" }],
+      "next": "find_end"
+    },
+    "find": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……耳を澄ましたら、風が、なにか運んできた。" },
+        { "speaker": "mashiro", "text": "白えびの包みだ。だれかが、海のほうから届けてくれたのかな。" }
+      ],
+      "effects": [{ "receive": "shiroebi" }],
+      "next": "find_end"
+    },
+    "find_end": {
+      "lines": [{ "speaker": "mashiro", "text": "ガメに、持っていこう。" }],
+      "end": true
+    },
+    "got": {
+      "lines": [{ "speaker": "mashiro", "text": "ここで、白えびを受け取ったんだった。" }],
+      "end": true
+    },
+    "quiet": {
+      "lines": [{ "speaker": "mashiro", "text": "……風のにおいがする。でも、いまは、なにもない。" }],
+      "end": true
+    }
+  }
+}

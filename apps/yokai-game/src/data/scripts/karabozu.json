@@ -4,7 +4,7 @@
   "yokaiId": "karabozu",
   "creative": true,
   "review": "下書き",
-  "note": "カーラボーズ（ガメの親方）の台本。台詞はすべて【創作】（性格: 無口で頑固な世話焼き。見習いに最初の仕事を頼む。一人称「おれ」。呼び方は顔見知りの間「人の子」、仲直り（tm1-done）から「見習い」（04 §3.3）。04 §4.1）。伝承の事実は札 karabozu-1（03 #18）でだけ出す。腕の話は台詞では語らず、札にまかせる。富山の売薬の起源とは結びつけない（03 #18）。悩み #1「ガメ⇄カーラボーズ」（とりもつ・伝言2か所。04 付録A）の親方の側: 伝言を頼む（tm1-asked）→ ガメの返事を伝える（伝え方を選ぶ）→ 仲直り（tm1-done）で札と「なじみ」。失敗はなく、選び方で台詞が変わるだけ（04 §3.4）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない・川に近寄らない案内を必ず入れる（安全）。土地の呼び名（富山市では河童を「ガメ」と呼ぶ）は札 game-1 だけで出し、台詞では「この辺では」と言わない（伝承は札だけ。04 §3.2）。富山弁の監修までは、ぶっきらぼうな言い方にとどめる。",
+  "note": "カーラボーズ（ガメの親方）の台本。台詞はすべて【創作】（性格: 無口で頑固な世話焼き。見習いに最初の仕事を頼む。一人称「おれ」。呼び方は顔見知りの間「人の子」、仲直り（tm1-done）から「見習い」（04 §3.3）。04 §4.1）。伝承の事実は札 karabozu-1（03 #18）でだけ出す。腕の話は台詞では語らず、札にまかせる。富山の売薬の起源とは結びつけない（03 #18）。悩み #1「ガメ⇄カーラボーズ」（とりもつ・伝言2か所。04 付録A）の親方の側: 伝言を頼む（tm1-asked）→ ガメの返事を伝える（伝え方を選ぶ）→ 仲直り（tm1-done）で札と「なじみ」。失敗はなく、選び方で台詞が変わるだけ（04 §3.4）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない・川に近寄らない案内を必ず入れる（安全）。土地の呼び名（富山市では河童を「ガメ」と呼ぶ）は札 game-1 だけで出し、台詞では「この辺では」と言わない（伝承は札だけ。04 §3.2）。富山弁の監修までは、ぶっきらぼうな言い方にとどめる。 段階4: 仲直り（resolve）のお返しに昆布を渡す（持ち物 konbu。04 §3.7「序章でカーラボーズからのお返し」。悩み #10 のはじまり）。前に仲直りを済ませた保存には、次に会ったときに渡す（gift_late）。",
   "speakers": {
     "karabozu": { "name": "カーラボーズ", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
@@ -16,6 +16,7 @@
     { "label": "ガメの返事を伝える", "when": [{ "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }], "node": "deliver" },
     { "label": "伝言を運んでいる途中", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-done", "is": false }], "node": "waiting" },
     { "label": "まだ仕事を頼んでいない", "when": [{ "flag": "tm1-asked", "is": false }], "node": "ask_again" },
+    { "label": "お返しをまだもらっていない（仲直りのあと）", "when": [{ "flag": "tm1-done", "is": true }, { "item": "konbu", "state": "none" }], "node": "gift_late" },
     { "label": "また会う", "node": "again" }
   ],
   "nodes": {
@@ -112,12 +113,21 @@
         { "speaker": "karabozu", "text": "礼に、昔の話をひとつ。……恥ずかしい話だがな。" }
       ],
       "effects": [{ "openCard": "karabozu-1" }, { "bond": "najimi" }, { "flag": "tm1-done", "value": true }],
+      "next": "gift"
+    },
+    "gift": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……それから、これを持っていけ。" },
+        { "speaker": "karabozu", "text": "昆布だ。おれが持っていても、しかたがない。だれかに、やるといい。" }
+      ],
+      "effects": [{ "receive": "konbu" }],
       "next": "resolve_end"
     },
     "resolve_end": {
       "lines": [
         { "speaker": "karabozu", "text": "……ガメには、まだ言うなよ。" },
-        { "speaker": "mashiro", "text": "ふふ、言わないよ。" }
+        { "speaker": "mashiro", "text": "ふふ、言わないよ。" },
+        { "speaker": "mashiro", "text": "昆布かあ。……だれにあげようか。" }
       ],
       "end": true
     },
@@ -156,6 +166,14 @@
         { "text": "札を、もう一度読みたい", "next": "reread", "when": [{ "card": "karabozu-1", "opened": true }] },
         { "text": "あいさつに来ただけ", "next": "greet" }
       ]
+    },
+    "gift_late": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……おう、見習い。渡しそびれておった。" },
+        { "speaker": "karabozu", "text": "礼の品だ。昆布だ。だれかに、やるといい。" }
+      ],
+      "effects": [{ "receive": "konbu" }],
+      "next": "again_close"
     },
     "reread": {
       "lines": [{ "speaker": "karabozu", "text": "……物好きだな。" }],

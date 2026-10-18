@@ -102,7 +102,13 @@ export class GenEncounter {
     const form = y ? (opts.form ?? 'color') : 'none'
     const art = y?.art ? ARTS[y.art] : undefined
     if (!script || (opts.yokaiId && !y) || (form !== 'none' && !art)) return false
-    const runner = new DialogueRunner(script, { progress: this.d.progress, cards: this.d.story.cards, travel: opts.travel ?? 'utsutsu' })
+    const runner = new DialogueRunner(script, {
+      progress: this.d.progress,
+      cards: this.d.story.cards,
+      travel: opts.travel ?? 'utsutsu',
+      items: this.d.story.items,
+      quests: this.d.story.quests,
+    })
     this.active = { spotId, runner }
     if (!y || !art || form === 'none') this.fig.innerHTML = ''
     else if (form === 'dream')

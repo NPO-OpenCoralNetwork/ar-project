@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "調べる地点（04 §3.4）の台本と、気配を出す条件。地点の座標は地域パック（iwakuraji-pack.ts）とテスト用の土地（test-land.ts）に置き、clueId でこの表を引く。showWhen を満たす間だけ気配を出す（頼まれていて、札をまだ拾っていない間。拾い漏れの地点は、悩みを解いたあとも残る）。",
+  "note": "調べる地点（04 §3.4）の台本と、気配を出す条件。地点の座標は地域パック（iwakuraji-pack.ts）とテスト用の土地（test-land.ts）に置き、clueId でこの表を引く。showWhen を満たす間だけ気配を出す（頼まれていて、札をまだ拾っていない間。拾い漏れの地点は、悩みを解いたあとも残る）。 段階4: 調べる地点と同じ仕組みで、持ち物を受け取る地点も置く（白えび）。",
   "clues": [
     {
       "id": "kozobo-shirabe-1",
@@ -31,6 +31,21 @@
         }
       ],
       "note": "光蔵坊の悩み #2 の札②"
+    },
+    {
+      "id": "shiroebi",
+      "script": "shiroebi-spot",
+      "showWhen": [
+        {
+          "flag": "q11-asked",
+          "is": true
+        },
+        {
+          "item": "shiroebi",
+          "state": "none"
+        }
+      ],
+      "note": "ガメの悩み #11 の白えび（里の決まった地点）"
     }
   ]
 }

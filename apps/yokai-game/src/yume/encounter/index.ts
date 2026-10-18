@@ -341,7 +341,7 @@ export class Encounters {
   private beginAppear(target: Listenable): void {
     const { spot, script, yokaiId } = target
     const { player, rig, progress, story } = this.d
-    const runner = new DialogueRunner(script, { progress, cards: story.cards, travel: 'yume' })
+    const runner = new DialogueRunner(script, { progress, cards: story.cards, travel: 'yume', items: story.items, quests: story.quests })
     if (!yokaiId) {
       // 調べる地点: 姿は浮かばない。霞が寄り、印が溶けたら、ましろが話しはじめる（カメラは寄らない・向きも変えない）
       this.active = { spot, runner, veil: 0, piece: false }

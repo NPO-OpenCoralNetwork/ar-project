@@ -4,7 +4,7 @@
   "yokaiId": "game",
   "creative": true,
   "review": "下書き",
-  "note": "ガメ（富山市での河童の呼び名。03 #18）の台本。台詞はすべて【創作】（性格: 人懐っこい。親方に叱られて気まずい。腕の話の河童かどうかは語らない。一人称「おいら」、呼び方「きみ」。04 §4.1）。伝承の事実は札 game-1（03 #18）でだけ出す。悩み #1「ガメ⇄カーラボーズ」（とりもつ）のガメの側: 親方の伝言を、伝え方を選んで伝える（tm1-soft）→ ガメの返事をあずかる（tm1-reply）→ 仲直りのあと、お礼に札と「なじみ」（tm1-game-thanked）。ガメから先に会ってもよい（そのときは親方のことを聞かされる）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない・川に近寄らない案内を必ず入れる（安全）。土地の呼び名（富山市では河童を「ガメ」と呼ぶ）は札 game-1 だけで出し、台詞では「この辺では」と言わない（伝承は札だけ。04 §3.2）。伝え方（tm1-soft）は、親方に返事を伝えるときの選択肢に効く。",
+  "note": "ガメ（富山市での河童の呼び名。03 #18）の台本。台詞はすべて【創作】（性格: 人懐っこい。親方に叱られて気まずい。腕の話の河童かどうかは語らない。一人称「おいら」、呼び方「きみ」。04 §4.1）。伝承の事実は札 game-1（03 #18）でだけ出す。悩み #1「ガメ⇄カーラボーズ」（とりもつ）のガメの側: 親方の伝言を、伝え方を選んで伝える（tm1-soft）→ ガメの返事をあずかる（tm1-reply）→ 仲直りのあと、お礼に札と「なじみ」（tm1-game-thanked）。ガメから先に会ってもよい（そのときは親方のことを聞かされる）。現地ではじめて会うときは、夢で会っていれば再会の台詞、色（彩色）とその場だけの台詞が加わる。川に入らない・川に近寄らない案内を必ず入れる（安全）。土地の呼び名（富山市では河童を「ガメ」と呼ぶ）は札 game-1 だけで出し、台詞では「この辺では」と言わない（伝承は札だけ。04 §3.2）。伝え方（tm1-soft）は、親方に返事を伝えるときの選択肢に効く。 悩み #11「ガメに白えび」（届ける）: 仲直りのお礼のあとに「ほしいもの」を聞くと頼まれる（q11-asked）。白えびは里の決まった地点（clues.json の shiroebi）で受け取り、持って会うと渡せる。札 shiroebi-1（03 #23）が開く。同時に抱える悩みが3つなら、ましろが「また今度にしよう」と保留にする（04 §2.4）。",
   "speakers": {
     "game": { "name": "ガメ", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
@@ -15,6 +15,7 @@
     { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
     { "label": "親方の伝言を伝える", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }], "node": "message" },
     { "label": "仲直りのお礼", "when": [{ "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": false }], "node": "thanks" },
+    { "label": "白えびを持ってきた", "when": [{ "item": "shiroebi", "state": "held" }], "node": "shiroebi_give" },
     { "label": "また会う", "node": "again" }
   ],
   "nodes": {
@@ -137,9 +138,48 @@
       "choices": [
         { "text": "親方って？", "next": "who_boss", "when": [{ "flag": "tm1-asked", "is": false }] },
         { "text": "まだ、親方に伝えてないんだ", "next": "wait_boss", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }] },
+        { "text": "なにか、ほしいものはある？", "next": "shiroebi_ask", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": true }, { "flag": "q11-asked", "is": false }, { "questRoom": true }] },
+        { "text": "なにか、ほしいものはある？", "next": "shiroebi_full", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": true }, { "flag": "q11-asked", "is": false }, { "questRoom": false }] },
         { "text": "札を、もう一度読みたい", "next": "reread", "when": [{ "card": "game-1", "opened": true }] },
         { "text": "あいさつに来ただけ", "next": "greet" }
       ]
+    },
+    "shiroebi_ask": {
+      "lines": [
+        { "speaker": "game", "text": "ほしいもの？　……白えび！" },
+        { "speaker": "game", "text": "一度でいいから、食べてみたいなあ。" },
+        { "speaker": "mashiro", "text": "白えび……どこかで、手に入るかな。" }
+      ],
+      "effects": [{ "flag": "q11-asked", "value": true }],
+      "next": "shiroebi_ask_end"
+    },
+    "shiroebi_ask_end": {
+      "lines": [{ "speaker": "game", "text": "見つけたら、教えてね！　おいら、道のそばで待ってるから。" }],
+      "end": true
+    },
+    "shiroebi_full": {
+      "lines": [
+        { "speaker": "mashiro", "text": "（いまは、ほかの頼まれごとでいっぱいだね。……また今度にしよう）" },
+        { "speaker": "game", "text": "うん、また今度ね！" }
+      ],
+      "end": true
+    },
+    "shiroebi_give": {
+      "lines": [
+        { "speaker": "game", "text": "あっ、そのにおい……白えび！？" },
+        { "speaker": "game", "text": "ほんとに、もらっていいの！？" },
+        { "speaker": "mashiro", "text": "ガメのために、持ってきたんだよ。" },
+        { "speaker": "mashiro", "text": "白えびのことも、昔の記録があるみたい。" }
+      ],
+      "effects": [{ "deliver": "shiroebi" }, { "openCard": "shiroebi-1" }, { "bond": "najimi" }],
+      "next": "shiroebi_end"
+    },
+    "shiroebi_end": {
+      "lines": [
+        { "speaker": "game", "text": "へへ……きみ、ほんとにいいやつだね。" },
+        { "speaker": "game", "text": "川には入っちゃだめだよ。またね！" }
+      ],
+      "end": true
     },
     "reread": {
       "lines": [{ "speaker": "game", "text": "いいよ。……ほら。" }],

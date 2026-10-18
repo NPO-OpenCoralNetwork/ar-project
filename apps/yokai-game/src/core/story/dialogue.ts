@@ -15,10 +15,13 @@ import {
   type EtokiHandCard,
   type GameResult,
   type GameSpec,
+  type ItemDef,
+  type ItemState,
   type LoreCard,
   PIECE_LABEL,
   PIECE_STATES,
   type PieceState,
+  type QuestDef,
   type ScriptChoice,
   type ScriptSpeaker,
   type Travel,
@@ -27,6 +30,7 @@ import {
 export type Notice =
   | { type: 'bond'; yokai: string; level: BondLevel; label: string; capped: boolean }
   | { type: 'piece'; piece: string; state: PieceState; label: string; capped: boolean; travel: Travel }
+  | { type: 'item'; item: string; name: string; action: 'receive' | 'deliver' }
 
 export type Beat =
   | { kind: 'line'; speakerId: string; speaker: ScriptSpeaker; text: string }
@@ -52,6 +56,10 @@ export interface DialogueContext {
   progress: ProgressStore
   cards: Record<string, LoreCard>
   travel: Travel
+  /** 持ち物（お知らせに名前を出す） */
+  items?: Record<string, ItemDef>
+  /** 悩みごと（同時に3つまでの判定 questRoom に使う） */
+  quests?: QuestDef[]
 }
 
 type Step = { kind: 'line'; speaker: string; text: string } | { kind: 'effect'; effect: Effect } | { kind: 'goto'; node: string } | { kind: 'choices' } | { kind: 'end' }
@@ -62,6 +70,8 @@ export class DialogueRunner {
   private lastLine: Extract<Beat, { kind: 'line' }> | null = null
   private current: Beat | null = null
   private visibleChoices: { index: number; text: string; next: string }[] = []
+  private ended = false
+  private spoke = false
   /** 通った場面（確認用） */
   readonly trail: string[] = []
 
@@ -118,14 +128,22 @@ export class DialogueRunner {
     else this.queue.push({ kind: 'end' })
   }
 
+  /** 会話の終わり。妖怪と最後まで話したら、回数と最後に会った時を残す（縁の段階は上げない） */
+  private finish(): Beat {
+    if (!this.ended && this.spoke && this.script.yokaiId) this.ctx.progress.noteTalk(this.script.yokaiId, this.ctx.travel)
+    this.ended = true
+    return (this.current = { kind: 'end' })
+  }
+
   private advance(): Beat {
     for (let guard = 0; guard < 200; guard++) {
       const step = this.queue.shift()
-      if (!step) return (this.current = { kind: 'end' })
+      if (!step) return this.finish()
       if (step.kind === 'line') {
         const speaker = this.script.speakers[step.speaker] ?? { name: step.speaker, role: 'yokai' as const }
         const beat = { kind: 'line' as const, speakerId: step.speaker, speaker, text: step.text }
         this.lastLine = beat
+        this.spoke = true
         return (this.current = beat)
       }
       if (step.kind === 'effect') {
@@ -142,16 +160,16 @@ export class DialogueRunner {
         this.visibleChoices = (node?.choices ?? [])
           .map((c, index) => ({ index, text: c.text, next: c.next, when: c.when }))
           .filter((c) => this.check(c.when))
-        if (!this.visibleChoices.length) return (this.current = { kind: 'end' })
+        if (!this.visibleChoices.length) return this.finish()
         return (this.current = {
           kind: 'choices',
           context: this.lastLine,
           options: this.visibleChoices.map(({ index, text }) => ({ index, text })),
         })
       }
-      return (this.current = { kind: 'end' })
+      return this.finish()
     }
-    return (this.current = { kind: 'end' })
+    return this.finish()
   }
 
   /** 効果を適用する。画面に見せるもの（札・お知らせ）があれば拍を返す */
@@ -169,7 +187,8 @@ export class DialogueRunner {
     }
     if ('openCard' in e) {
       const card = this.ctx.cards[e.openCard]
-      if (!card) return null
+      // 了承待ちの札は、了承が出るまで開かない（02 F-71）
+      if (!card || card.review === '了承待ち') return null
       const first = progress.openCard(card.id, travel)
       return { kind: 'card', card, first }
     }
@@ -181,6 +200,13 @@ export class DialogueRunner {
     if ('flag' in e) {
       progress.setFlag(e.flag, e.value)
       return null
+    }
+    if ('receive' in e || 'deliver' in e) {
+      const id = 'receive' in e ? e.receive : e.deliver
+      const changed = 'receive' in e ? progress.receive(id, travel) : progress.deliver(id, travel)
+      if (!changed) return null
+      const name = this.ctx.items?.[id]?.name ?? id
+      return { kind: 'notice', notice: { type: 'item', item: id, name, action: 'receive' in e ? 'receive' : 'deliver' } }
     }
     if ('game' in e) {
       if (e.game.type !== 'etoki') return { kind: 'game', game: e.game, yokai }
@@ -196,12 +222,23 @@ export class DialogueRunner {
   }
 
   check(conds: Condition[] | undefined): boolean {
-    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId ?? '')
+    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId ?? '', this.ctx.quests)
   }
 }
 
-/** 条件（すべて満たすと真）。yokai を省いた条件は yokaiDefault の妖怪で見る。台本の入口・選択肢と、節の終わり（旅印）で使う */
-export function checkConditions(conds: Condition[] | undefined, p: ProgressStore, travel: Travel, yokaiDefault = ''): boolean {
+/** 同時に抱えられる悩みの数（04 §2.4。4つ目はましろが「また今度にしよう」と保留にする） */
+export const QUEST_LIMIT = 3
+
+/** いま抱えている悩み（始まっていて、まだ解けていない） */
+export function activeQuests(quests: QuestDef[], p: ProgressStore, travel: Travel): QuestDef[] {
+  return quests.filter((q) => checkConditions(q.start, p, travel, q.yokai[0]) && !checkConditions(q.done, p, travel, q.yokai[0]))
+}
+
+/**
+ * 条件（すべて満たすと真）。yokai を省いた条件は yokaiDefault の妖怪で見る。台本の入口・選択肢と、節の終わり（旅印）で使う。
+ * quests を渡さないとき、questRoom はいつも「空きあり」
+ */
+export function checkConditions(conds: Condition[] | undefined, p: ProgressStore, travel: Travel, yokaiDefault = '', quests?: QuestDef[]): boolean {
   if (!conds?.length) return true
   return conds.every((c) => {
     if ('met' in c) return p.hasMet(c.yokai ?? yokaiDefault) === c.met
@@ -210,6 +247,8 @@ export function checkConditions(conds: Condition[] | undefined, p: ProgressStore
     if ('piece' in c) return pieceRank(p.pieceOf(c.piece)) >= pieceRank(c.atLeast)
     if ('flag' in c) return p.flag(c.flag) === c.is
     if ('travel' in c) return travel === c.travel
+    if ('item' in c) return p.itemState(c.item) === c.state
+    if ('questRoom' in c) return (!quests || activeQuests(quests, p, travel).length < QUEST_LIMIT) === c.questRoom
     return false
   })
 }
@@ -218,7 +257,7 @@ export function checkConditions(conds: Condition[] | undefined, p: ProgressStore
  * 台本の点検（読み込み時と確認用）。行き先のない場面、知らない話し手・札、
  * 話し手が出てこない入口などを、文で返す（空なら問題なし）。
  */
-export function validateScript(script: DialogueScript, cards: Record<string, LoreCard>, pieceIds: Set<string>): string[] {
+export function validateScript(script: DialogueScript, cards: Record<string, LoreCard>, pieceIds: Set<string>, itemIds?: Set<string>): string[] {
   const errs: string[] = []
   const nodes = script.nodes
   const has = (id: string) => Object.prototype.hasOwnProperty.call(nodes, id)
@@ -251,13 +290,19 @@ export function validateScript(script: DialogueScript, cards: Record<string, Lor
       if ('openCard' in e && !cards[e.openCard]) errs.push(`${script.id}: 場面 ${id} の札 ${e.openCard} がない`)
       if ('piece' in e && !pieceIds.has(e.piece)) errs.push(`${script.id}: 場面 ${id} のピース ${e.piece} が曼荼羅にない`)
       if (('meet' in e || 'bond' in e) && !script.yokaiId) errs.push(`${script.id}: 場面 ${id} は妖怪のいない台本なので、会う・縁の効果は使えない`)
+      const item = 'receive' in e ? e.receive : 'deliver' in e ? e.deliver : null
+      if (item !== null && itemIds && !itemIds.has(item)) errs.push(`${script.id}: 場面 ${id} の持ち物 ${item} がない`)
       if ('game' in e) errs.push(...validateGame(e.game, cards).map((m) => `${script.id}: 場面 ${id} の${m}`))
     }
     for (const c of n.choices ?? []) for (const w of c.when ?? []) if (!script.yokaiId && needsYokai(w)) errs.push(`${script.id}: 場面 ${id} の選択肢の条件に妖怪を書く`)
+    for (const c of n.choices ?? []) for (const w of c.when ?? []) if ('item' in w && itemIds && !itemIds.has(w.item)) errs.push(`${script.id}: 場面 ${id} の条件の持ち物 ${w.item} がない`)
   }
   for (const e of script.entries) for (const w of e.when ?? []) if (!script.yokaiId && needsYokai(w)) errs.push(`${script.id}: 入口 ${e.node} の条件に妖怪を書く`)
+  for (const e of script.entries) for (const w of e.when ?? []) if ('item' in w && itemIds && !itemIds.has(w.item)) errs.push(`${script.id}: 入口 ${e.node} の条件の持ち物 ${w.item} がない`)
   return errs
 }
+
+const ITEM_STATES: ItemState[] = ['none', 'held', 'given']
 
 /** 妖怪のいない台本で、妖怪を省いた「会ったか」「縁」の条件は使えない */
 const needsYokai = (c: Condition): boolean => ('met' in c || 'bondAtLeast' in c) && !c.yokai
@@ -293,6 +338,8 @@ function maxVisibleChoices(choices: ScriptChoice[], yokaiDefault: string): numbe
     if ('bondAtLeast' in c) return `bond:${c.yokai ?? yokaiDefault}`
     if ('piece' in c) return `piece:${c.piece}`
     if ('flag' in c) return `flag:${c.flag}`
+    if ('item' in c) return `item:${c.item}`
+    if ('questRoom' in c) return 'questRoom'
     return 'travel'
   }
   const domain = new Map<string, number[]>()
@@ -302,6 +349,7 @@ function maxVisibleChoices(choices: ScriptChoice[], yokaiDefault: string): numbe
       if (domain.has(k)) continue
       if ('bondAtLeast' in c) domain.set(k, BOND_LEVELS.map((_, i) => i))
       else if ('piece' in c) domain.set(k, PIECE_STATES.map((_, i) => i))
+      else if ('item' in c) domain.set(k, ITEM_STATES.map((_, i) => i))
       else domain.set(k, [0, 1])
     }
   const keys = [...domain.keys()]
@@ -311,6 +359,8 @@ function maxVisibleChoices(choices: ScriptChoice[], yokaiDefault: string): numbe
     if ('bondAtLeast' in c) return v >= bondRank(c.bondAtLeast)
     if ('piece' in c) return v >= pieceRank(c.atLeast)
     if ('flag' in c) return (v === 1) === c.is
+    if ('item' in c) return ITEM_STATES[v] === c.state
+    if ('questRoom' in c) return (v === 1) === c.questRoom
     return (v === 1) === (c.travel === 'utsutsu')
   }
   let most = 0
