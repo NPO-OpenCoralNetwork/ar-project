@@ -1,6 +1,7 @@
 // 地元のテスト用の土地（02 F-07「チームの地元の地点にテスト用の妖怪を割り当てる」）。
 // いまいる所のまわり（約 800m 四方）の OSM データを OSM API から読み、素の地図・お休みの範囲・地点をその場で作る。
-// 地点は3種類: 決まった妖怪の地点（4つまで）、調べる地点（光蔵坊の悩み #2。2つまで）、水辺の道の地点（寄り道。出現の表の「水辺」。2つまで）。
+// 地点は4種類: 決まった妖怪の地点（4つまで）、調べる地点（光蔵坊の悩み #2。2つまで）、水辺の道の地点（寄り道。出現の表の「水辺」。2つまで）、
+// 白えびを受け取る地点（ガメの悩み #11。1つ。仕組みは調べる地点と同じ clueId。04 §3.7「里の決まった地点」）。
 //
 // - 作った土地は、この端末の中（localStorage）にだけ置く。リポジトリにもサーバーにも入れない（テストする人の家の近くの位置なので）。
 //   OSM API には範囲（緯度経度の四角）だけが伝わる。
@@ -19,6 +20,9 @@
 // - 水辺の道の地点: 同じ決まりの公道のうち、川・用水・小川の縁（線は幅の半分を引く）か水の面の縁（閉じない縁の線も）から 20m 以内を、
 //   水に沿って通っている所（前後 12m も同じくらいの近さ。橋・暗渠の上・河原（水路の幅の内）・水を横切る所は外す）。ほかのどの地点からも 90m 以上、2つまで。
 //   側溝（ditch・drain）は水辺に数えない。水辺の道が無ければ置かない（地点は道の上。水には近づけない）。
+// - 白えびを受け取る地点: 調べる地点と同じ決まりで、いちばん最後に1つ（ほかの地点は版3と同じ順に選ぶので、同じ所で作れば、ほぼ同じ場所になる）。
+//   白えびはガメに届けるものなので、ガメを置けたときだけ置く。
+// - 地点は 0.1m に丸めて残す。離す距離（120m・90m）も、丸めた座標ではかる（版3 では丸めで 89.97m になることがあった）。
 // - どの地点も「住宅の前でないか」「2分立ち止まっても邪魔にならないか」は分からないので、歩いてみて合わなければ作り直す。
 // OSM のデータは ODbL（© OpenStreetMap contributors）。
 
@@ -26,7 +30,7 @@ import { type LatLon, toLocal } from '../core/geo'
 import type { MapLayers, XZ } from '../core/map-layers'
 import type { PlaceKind } from '../core/story/types'
 
-/** テスト用の土地の地点。yokaiId＝決まった妖怪、clueId＝調べる地点、placeKind＝寄り道の地点（出現の表で妖怪を引く） */
+/** テスト用の土地の地点。yokaiId＝決まった妖怪、clueId＝調べる地点（白えびを受け取る地点も）、placeKind＝寄り道の地点（出現の表で妖怪を引く） */
 export interface TestSpot {
   id: string
   x: number
@@ -37,8 +41,8 @@ export interface TestSpot {
 }
 
 export interface TestLand {
-  /** 3: 調べる地点・水辺の道の地点を置くようになった版（2 までの土地は作り直してもらう） */
-  version: 3
+  /** 4: 白えびを受け取る地点を置くようになった版（3: 調べる地点・水辺の道の地点。3 までの土地は作り直してもらう） */
+  version: 4
   createdAt: string
   origin: LatLon
   map: MapLayers
@@ -75,6 +79,9 @@ export const TEST_SPOTS_MAX = TEST_YOKAI.length
 /** 調べる地点（clues.json の id。光蔵坊の悩み #2） */
 const TEST_CLUES = ['kozobo-shirabe-1', 'kozobo-shirabe-2']
 export const TEST_CLUES_MAX = TEST_CLUES.length
+/** 持ち物を受け取る地点（clues.json の id。ガメの悩み #11 の白えび。仕組みは調べる地点と同じ） */
+const TEST_PICKUPS = ['shiroebi']
+export const TEST_PICKUPS_MAX = TEST_PICKUPS.length
 /** 水辺の道の地点の数（いちばん多いとき） */
 export const TEST_WANDER_MAX = 2
 /** 調べる地点・水辺の道の地点を、ほかのどの地点からも離す距離（m） */
@@ -91,7 +98,7 @@ export function loadTestLand(): TestLand | null {
     const s = localStorage.getItem(KEY)
     if (!s) return null
     const t = JSON.parse(s) as TestLand
-    return t?.version === 3 && t.spots?.length ? t : null
+    return t?.version === 4 && t.spots?.length ? t : null
   } catch {
     return null
   }
@@ -448,39 +455,48 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     }
   }
   samples.sort((a, b) => b.score - a.score || a.dStart - b.dStart)
+  /** 地点は 0.1m に丸めて残すので、離す距離も丸めた座標ではかる（丸めで 120m・90m を割らないように） */
+  const r10 = (p: XZ): XZ => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]
   const picked: XZ[] = []
   // 1つ目は、点数が上位のうち、いまいる所にいちばん近いもの（すぐ試せるように）
   const top = samples.filter((s) => s.score >= (samples[0]?.score ?? 0) - 20)
   const first = [...top].sort((a, b) => a.dStart - b.dStart)[0]
-  if (first) picked.push(first.p)
+  if (first) picked.push(r10(first.p))
   for (const s of samples) {
     if (picked.length >= TEST_YOKAI.length) break
-    if (picked.some((q) => Math.hypot(q[0] - s.p[0], q[1] - s.p[1]) < 120)) continue
-    picked.push(s.p)
+    const p = r10(s.p)
+    if (picked.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 120)) continue
+    picked.push(p)
   }
   if (!picked.length) throw new Error('近くに、気配を置ける公道が見つかりませんでした（OSM に道が少ないか、社寺・墓地が近すぎます）。少し移動して、もう一度作ってください')
   const yokai = picked.length >= 3 ? TEST_YOKAI : TEST_YOKAI_FEW
-  const round = (p: XZ) => ({ x: Math.round(p[0] * 10) / 10, z: Math.round(p[1] * 10) / 10 })
-  const spots: TestSpot[] = picked.map((p, i) => ({ id: `test-${i + 1}`, ...round(p), yokaiId: yokai[i] }))
+  const at = (p: XZ) => ({ x: p[0], z: p[1] })
+  const spots: TestSpot[] = picked.map((p, i) => ({ id: `test-${i + 1}`, ...at(p), yokaiId: yokai[i] }))
   // 調べる地点・水辺の道の地点（ほかのどの地点からも OTHER_GAP_M 以上）
   const taken = [...picked]
   const pickMore = (cands: typeof samples, n: number): XZ[] => {
     const out: XZ[] = []
     for (const s of cands) {
       if (out.length >= n) break
-      if (taken.some((q) => Math.hypot(q[0] - s.p[0], q[1] - s.p[1]) < OTHER_GAP_M)) continue
-      out.push(s.p)
-      taken.push(s.p)
+      const p = r10(s.p)
+      if (taken.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < OTHER_GAP_M)) continue
+      out.push(p)
+      taken.push(p)
     }
     return out
   }
   const waterSide = samples.filter((s) => s.waterSide)
-  pickMore([...samples.filter((s) => !s.nearWater), ...samples.filter((s) => s.nearWater)], TEST_CLUES.length).forEach((p, i) =>
-    spots.push({ id: `test-c${i + 1}`, ...round(p), clueId: TEST_CLUES[i] }),
-  )
-  pickMore(waterSide, TEST_WANDER_MAX).forEach((p, i) => spots.push({ id: `test-w${i + 1}`, ...round(p), placeKind: 'mizube' }))
+  /** 調べる地点の候補の順（水の縁から WATER_NEAR_M 以内の道は、ほかが無いときだけ） */
+  const clueOrder = [...samples.filter((s) => !s.nearWater), ...samples.filter((s) => s.nearWater)]
+  pickMore(clueOrder, TEST_CLUES.length).forEach((p, i) => spots.push({ id: `test-c${i + 1}`, ...at(p), clueId: TEST_CLUES[i] }))
+  pickMore(waterSide, TEST_WANDER_MAX).forEach((p, i) => spots.push({ id: `test-w${i + 1}`, ...at(p), placeKind: 'mizube' }))
+  // 白えびを受け取る地点（調べる地点と同じ決まり。ほかの地点を動かさないよう、いちばん最後に選ぶ。ガメがいるときだけ）
+  if (yokai.includes('game'))
+    pickMore(clueOrder, TEST_PICKUPS.length).forEach((p, i) =>
+      spots.push({ id: `test-c${TEST_CLUES.length + i + 1}`, ...at(p), clueId: TEST_PICKUPS[i] }),
+    )
   return {
-    version: 3,
+    version: 4,
     createdAt: new Date().toISOString(),
     origin,
     map,

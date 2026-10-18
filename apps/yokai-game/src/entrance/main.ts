@@ -4,21 +4,27 @@
 // - 三つの約束（F-60。文は core/promises.ts、札は ui/promise-sheet.ts）: 初回だけ、どちらを選んでも旅に入る前に1画面ずつ見せる。飛ばせない。
 //   読み終えたら PROMISE_KEY を保存する（旅のページも同じ保存を見るので、もう一度は聞かない。旅のページから始めた人には、そのページで見せる）。
 // - つづき: 進み具合（STORY_KEY。二つの旅で共通）に会った妖怪や開いた札があれば、数を小さく添える。
+// - 引き継ぎ（試作。02 F-51）: 旅の下に小さな入り口だけを置き、#hikitsugi で札（ui/transfer-sheet.ts）を開く。
+//   入口の地のまま中身を入れ替える（覆いにしない）。ブラウザの「戻る」でも入口へ戻れる。テスト用の土地の場所は運ばない。
+//   進み具合があれば、端末の保存を長く残すよう一度だけ静かに頼む（persistOnce）。
 // - チームのテスト用: 白描の絵地図（ezu.html）と、この端末にテスト用の土地があるか（日付だけ。位置は出さない）。
 //   ?debug のときだけ GPS の検証へも。
 // - three.js も箱庭の板（yume/hud.ts）も読み込まない（最初の読み込みを軽くする。ページはふつうにスクロール・拡大できる）。
-// URL: ?debug と ?sim は、旅のページへそのまま渡す。
+// URL: ?debug と ?sim は、旅のページへそのまま渡す。#hikitsugi は引き継ぎの札。
 
 import './style.css'
 import { STORY_KEY } from '../core/storage-keys'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import { phrases, promisesRead, withPromises } from '../ui/promise-sheet'
+import { persistOnce, showTransfer } from '../ui/transfer-sheet'
 import { mashiroSvg } from '../utsutsu/mashiro'
 import { loadTestLand, testLandIsOld } from '../utsutsu/test-land'
 import { stampDate } from '../yume/encounter/stamp'
 
 const params = new URLSearchParams(window.location.search)
 const DEBUG = params.has('debug')
+/** 引き継ぎの札の印（URL の #） */
+const HIKITSUGI = '#hikitsugi'
 
 /** 旅のページへ、URL の印（?debug・?sim）をそのまま渡す */
 function pass(href: string, keys: string[] = ['debug', 'sim']): string {
@@ -116,6 +122,7 @@ function showHome(): void {
           ? `<p class="en-cont"><b>つづき</b>会った妖怪 ${c.met}・開いた札 ${c.cards}${c.stamps ? `・旅印 ${c.stamps}` : ''}<small>この端末の中の記録です。二つの旅で共通です。</small></p>`
           : ''
       }
+      <a class="en-link en-hiki" href="${HIKITSUGI}" data-hikitsugi>引き継ぎ（試作）<small>${phrases('別の端末で、続きを遊ぶ')}</small></a>
       <section class="en-test" aria-labelledby="en-test-h">
         <h2 id="en-test-h">チームのテスト用</h2>
         <a class="en-link" href="${pass('./ezu.html', ['debug'])}">白描の絵地図<small>テスト用の土地を、家で</small></a>
@@ -159,8 +166,53 @@ function showPromises(j: Journey): void {
   })
 }
 
-showHome()
+// ---------------------------------------------------------------- 引き継ぎ（試作。札は ui/transfer-sheet.ts）
+
+/** 入口から #hikitsugi へ来たか（それなら「入口へもどる」は、ブラウザの「戻る」と同じにする） */
+let fromHome = false
+
+function showHikitsugi(): void {
+  app.innerHTML = '<main class="en en-sheet"></main>'
+  window.scrollTo(0, 0)
+  showTransfer({ host: app.querySelector('main') as HTMLElement, back: { label: '入口へもどる', go: leaveHikitsugi } })
+}
+
+function leaveHikitsugi(): void {
+  if (fromHome) {
+    // hashchange で入口を描き直す
+    window.history.back()
+    return
+  }
+  window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  backHome()
+}
+
+/** 札から入口へ戻ったとき（キーボードの位置を、引き継ぎの入り口へ） */
+function backHome(): void {
+  showHome()
+  ;(app.querySelector('[data-hikitsugi]') as HTMLElement | null)?.focus()
+}
+
+function route(): void {
+  if (window.location.hash === HIKITSUGI) showHikitsugi()
+  else showHome()
+}
+
+window.addEventListener('hashchange', () => {
+  const inSheet = !!app.querySelector('.en-sheet')
+  if (window.location.hash === HIKITSUGI) {
+    fromHome = !inSheet
+    if (!inSheet) showHikitsugi()
+  } else {
+    fromHome = false
+    if (inSheet) backHome()
+    else showHome()
+  }
+})
+
+route()
+persistOnce()
 // 旅のページから「戻る」で帰ってきたとき（ページがそのまま残っていた場合）は、入口を描き直す（約束の途中の画面や古い数を見せない）
 window.addEventListener('pageshow', (e) => {
-  if (e.persisted) showHome()
+  if (e.persisted) route()
 })
