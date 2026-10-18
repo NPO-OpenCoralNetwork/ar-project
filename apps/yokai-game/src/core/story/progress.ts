@@ -14,7 +14,11 @@
 //   夢の旅で初めて会った時（dreamMet。縁帳の「夢で会った」）は、あとから足した。無い保存は、夢で得た印から作る。
 // - 保存の名前は storage-keys.ts。前の名前の保存は、いまの名前に保存が無いときだけ写す（migrateLegacySave。4a review F1）。
 //   一度写したか、この版でやり直したら、印を残して、もう写さない（やり直しても、保存は消す。4a review R1）。
+//   進み具合の無い保存（フラグだけ）は写さず、印だけ残す（hasProgress）。
+// - 「進み具合がある」は、会った妖怪・開いた札・ピース・持ち物・旅印のどれかがあること（hasProgress）。保存の鍵があるだけ、
+//   フラグ（「新」の印を見た、など）だけの保存は数えない（写す・引き継ぎコードに入れる・保存を長く残す頼み）。
 // - ほかのタブが同じ保存を書いたら、このタブの状態をそれに入れ替える（follow。開いたままのタブが、古い状態で書き戻さないように）。
+//   入れ替えたことは onReplace で知らせる（このタブで変えたときは来ない。地図の地点や開いている帳を描き直すため）。
 
 import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
 import {
@@ -90,19 +94,23 @@ export function emptyProgress(): Progress {
 export const bondRank = (b: BondLevel): number => BOND_LEVELS.indexOf(b)
 export const pieceRank = (s: PieceState): number => PIECE_STATES.indexOf(s)
 
-/** 読めない版の保存（版1・版2 のどちらでもない）。読み込まずに、別の鍵へ写して残す */
+/** この版より新しい版の保存（版が 2 より大きい数）。読み込まずに、別の鍵へ写して残す */
 export class UnknownVersion extends Error {}
+/** 読めない保存（表の形でない・版が無い・版が数でない、1・2 でもない）。新しい版とは分ける。これも読み込まずに、別の鍵へ写して残す */
+export class UnreadableSave extends Error {}
 
 /**
  * 壊れた保存や古い形を、読める形に直す（読めない項目は捨てる）。版1 は版2 に直す。
  * 手で書き換えた保存や、引き継ぎで読み込んだ保存でも、旅ごとの上限（夢は「なじみ」・白描まで）を超えないように丸める。
  * onsite は travel と食い違っていたら捨てる（02 F-46）。
+ * 版が 2 より大きい数なら UnknownVersion、表の形でない・版が無い（null・数でない）なら UnreadableSave を投げる（空として扱わない）
  */
 export function sanitize(raw: unknown): Progress {
   const p = emptyProgress()
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return p
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new UnreadableSave('進み具合の形ではない')
   const v = (raw as { v?: unknown }).v
-  if (v !== 1 && v !== 2) throw new UnknownVersion(String(v))
+  if (typeof v === 'number' && v > 2) throw new UnknownVersion(String(v))
+  if (v !== 1 && v !== 2) throw new UnreadableSave(`読めない版（${String(v)}）`)
   const r = raw as Partial<Omit<Progress, 'v'>>
   const isGained = (g: unknown): g is Gained => {
     if (!g || typeof g !== 'object') return false
@@ -161,6 +169,14 @@ export function sanitize(raw: unknown): Progress {
   return p
 }
 
+/**
+ * 進み具合があるか（会った妖怪・開いた札・ピース・持ち物・旅印のどれか）。
+ * フラグだけ（「新」の印を見た、など）や、縁の段階・会話の回数だけで会った印の無い妖怪は数えない
+ */
+export function hasProgress(p: Readonly<Progress>): boolean {
+  return Object.values(p.yokai).some((y) => !!y.met) || [p.cards, p.pieces, p.items, p.stamps].some((o) => Object.keys(o).length > 0)
+}
+
 /** いまの保存の名前 → 前の名前（storage-keys.ts。前の版のゲームが読み書きする） */
 const LEGACY_SAVE_KEYS: Record<string, string> = { [STORY_KEY]: LEGACY_STORY_KEY, [TEST_KEY]: LEGACY_TEST_KEY }
 /** 前の名前の保存を、もう扱った印（写した・この版でやり直した）。あれば、いまの名前に保存が無くても写さない */
@@ -171,6 +187,7 @@ const legacyDoneKey = (key: string): string => `${key}.legacy-done`
  * - 写すのは、いまの名前に保存が無く、まだ一度も写していない（この版でやり直してもいない）ときだけ。写したら印を残す
  *   （legacyDoneKey。あとでこの版でやり直しても、前の版で遊んでも、混ぜ戻さない）。
  * - 写すのは読める保存（版1・版2）だけ。直した形（sanitize）で写す。読めない保存（知らない版・壊れた JSON）は写さない。
+ * - 進み具合の無い保存（空・フラグだけ。hasProgress）は写さず、印だけ残す（空の保存を書くと、ほかの所が「進み具合あり」と取り違える）。
  * - 前の名前の保存は、消さず、書き換えもしない（前の版の保存で、控えにもなる）。
  */
 export function migrateLegacySave(storage: KeyValueStore, key: string): void {
@@ -182,7 +199,8 @@ export function migrateLegacySave(storage: KeyValueStore, key: string): void {
     if (raw === null) return
     const old = JSON.parse(raw) as { v?: unknown } | null
     if (old?.v !== 1 && old?.v !== 2) return
-    storage.setItem(key, JSON.stringify(sanitize(old)))
+    const p = sanitize(old)
+    if (hasProgress(p)) storage.setItem(key, JSON.stringify(p))
     storage.setItem(legacyDoneKey(key), '1')
   } catch {
     // 読めない・写せないときは、そのまま（前の名前の保存にも触れない）
@@ -192,6 +210,7 @@ export function migrateLegacySave(storage: KeyValueStore, key: string): void {
 export class ProgressStore {
   private state: Progress
   private readonly listeners = new Set<(p: Readonly<Progress>) => void>()
+  private readonly replaceListeners = new Set<(p: Readonly<Progress>) => void>()
 
   constructor(
     private readonly storage: KeyValueStore | null,
@@ -212,10 +231,20 @@ export class ProgressStore {
   }
 
   /**
+   * ほかのタブの保存に入れ替えたとき（follow）だけ呼ぶ。onChange のあとに呼ぶ。このタブで変えたとき・やり直したときは呼ばない。
+   * 地図の地点の出方や、開いている帳を描き直すのに使う（このタブで変えたときは、会話の終わり・帳の操作のあとに描き直している）
+   */
+  onReplace(fn: (p: Readonly<Progress>) => void): () => void {
+    this.replaceListeners.add(fn)
+    return () => this.replaceListeners.delete(fn)
+  }
+
+  /**
    * ほかのタブが同じ保存を書いたら、この状態をそれに入れ替えて知らせる（引き継ぎの読み込み・ほかのタブで進めた・やり直した）。
    * ページは、開いている間使う ProgressStore で、はじめに一度呼ぶ。
    * 合わせずに入れ替える（このタブは変えるたびにすぐ書くので、いまの状態はもう保存にある。合わせると、やり直しが戻ってしまう）。
-   * 読めない値（知らない版・壊れた JSON）なら、いまの状態のままにして、何も書かない。やめる関数を返す
+   * 読めない値（知らない版・壊れた JSON・形の違う値）なら、いまの状態のままにして、何も書かない。入れ替えたら onChange、続けて onReplace を呼ぶ。
+   * やめる関数を返す
    */
   follow(): () => void {
     const stop = this.storage?.subscribe?.(this.key, (raw) => {
@@ -227,6 +256,7 @@ export class ProgressStore {
       }
       this.state = next
       for (const fn of this.listeners) fn(this.state)
+      for (const fn of this.replaceListeners) fn(this.state)
     })
     return stop ?? (() => {})
   }
@@ -239,7 +269,7 @@ export class ProgressStore {
       s = this.storage.getItem(this.key)
       return s ? sanitize(JSON.parse(s)) : emptyProgress()
     } catch {
-      // 読めない保存（壊れた JSON・知らない版）は、次の保存で上書きする前に別の鍵へ写しておく
+      // 読めない保存（壊れた JSON・形の違う値・新しい版）は、次の保存で上書きする前に別の鍵へ写しておく
       if (s) {
         try {
           this.storage.setItem(`${this.key}.broken`, s)
@@ -419,22 +449,28 @@ export class ProgressStore {
   }
 
   /**
-   * 最初からやり直す（保存も消す）。前の名前の保存がある鍵では、先に「もう写さない」印を残す
+   * 最初からやり直す（保存も消す）。前の名前の保存がある鍵では、消したあとに「もう写さない」印を残す
    * （印が無いと、次に開いたときに前の名前の保存から写し直して、やり直しが戻ってしまう。migrateLegacySave。4a review R1）。
+   * 印は、保存を消してから書く（端末の空きが足りずに書けないときも、保存を消した分の空きで書ける。書けなければ、もう一度だけ試す。4a review F3）。
    * 空の保存は書かない（保存があるかを見る所が、やり直した端末を「進み具合あり」と取り違えないように）
    */
   reset(): void {
     this.state = emptyProgress()
     if (this.storage) {
       try {
-        if (LEGACY_SAVE_KEYS[this.key]) this.storage.setItem(legacyDoneKey(this.key), '1')
-      } catch {
-        // 印を書けなくても、保存は消す
-      }
-      try {
         this.storage.removeItem(this.key)
       } catch {
         // 消せなくても、次の保存で上書きされる
+      }
+      if (LEGACY_SAVE_KEYS[this.key]) {
+        for (let i = 0; i < 2; i++) {
+          try {
+            this.storage.setItem(legacyDoneKey(this.key), '1')
+            break
+          } catch {
+            // もう一度だけ試す
+          }
+        }
       }
     }
     for (const fn of this.listeners) fn(this.state)

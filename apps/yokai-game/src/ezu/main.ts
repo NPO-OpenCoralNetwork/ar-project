@@ -322,7 +322,7 @@ function startMap(t: TestLand): void {
   let lastClear = ''
   /** 調べる地点（持ち物を受け取る地点も）の札と気配の言い方 */
   const wordsOf = (sp: EzuSpot) => clueWords(sp.clueId ? story.clues[sp.clueId] : undefined)
-  // 名所の出方を見直す（はじめ・会話のあと・やり直したとき）。札は、会った妖怪は名前、まだなら「？」、調べる地点は clues.json の言い方（既定「古い話」）
+  // 名所の出方を見直す（はじめ・会話のあと・やり直したとき・ほかのタブの保存に入れ替えたとき）。札は、会った妖怪は名前、まだなら「？」、調べる地点は clues.json の言い方（既定「古い話」）
   const refreshSpots = () => {
     const vis = spots.filter(visible)
     map.setSpots(
@@ -385,6 +385,11 @@ function startMap(t: TestLand): void {
         ;(b && !b.hidden ? b : spotLayer.querySelector<HTMLButtonElement>('.ez-spot:not([hidden])'))?.focus({ preventScroll: true })
       }
     },
+  })
+  // ほかのタブの保存に入れ替えたら（引き継ぎの読み込み・やり直し）、名所の出方と札の名前も見直す。
+  // 会話の間は見直さない（話している名所を消さない）。会話が終わると onEnd で見直す
+  progress.onReplace(() => {
+    if (!encounter.isOpen) refreshSpots()
   })
 
   /** 名所の役目で、台本と姿の出し方が変わる。会えないときは、気配だけの言葉 */

@@ -8,9 +8,12 @@
 // - コードの形: 'YU1-' ＋ JSON（Envelope）を deflate-raw で縮めて base64url にしたもの。
 //   版2（10/18）: saves を土地の名前（iwakuraji・test）で持つ（端末の保存の名前を変えても、コードの形は変えないため。4a review F1）。
 //   版1: saves を保存の名前（yume.story.v1・yume.story.test.v1）で持っていた。読むときは土地の名前に直す（読める）。
+// - 書き出すのは、進み具合のある土地だけ（hasProgress。フラグだけの保存は運ばない）。どの土地にも無ければ、コードを作らない。
+// - 読めないコードは、わけを分けて断る（端末には何も書かない）: 新しい版のゲームで作ったコード（入れ物か中の保存の版が 2 より大きい数）は
+//   「新しい版」、中の保存が表の形でない・版が無い（数でない）なら「中身が読めません」、ほかの形の違いは「形は読めません」。
 
 import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
-import { type KeyValueStore, mergeProgress, migrateLegacySave, type Progress, sanitize, UnknownVersion } from './progress'
+import { hasProgress, type KeyValueStore, mergeProgress, migrateLegacySave, type Progress, sanitize, UnknownVersion } from './progress'
 
 /** 運んでよい土地 → 端末の保存の名前（これ以外は書き出さない・読み込まない） */
 export const TRANSFER_SAVES = { iwakuraji: STORY_KEY, test: TEST_KEY } as const
@@ -23,6 +26,13 @@ const V1_LANDS = new Map<string, TransferLand>([
 ])
 
 const PREFIX = 'YU1-'
+
+/** 読めないコードのわけ（札にそのまま出す） */
+const NEWER = '新しい版のゲームで作ったコードのようです。このページを読み込み直してから、もう一度試してください'
+const UNREADABLE = 'このコードの中身が読めません。書き出した端末で、もう一度コードを作ってください'
+const BAD_SHAPE = 'この引き継ぎコードの形は読めません'
+
+const isRecord = (o: unknown): o is Record<string, unknown> => !!o && typeof o === 'object' && !Array.isArray(o)
 
 interface Envelope {
   format: 'yumeutsutsu-save'
@@ -55,7 +65,7 @@ async function pipeThrough(bytes: Uint8Array, stream: CompressionStream | Decomp
   return new Uint8Array(await out.arrayBuffer())
 }
 
-/** 端末の保存から、引き継ぎコードを作る。運ぶものが何も無ければ null */
+/** 端末の保存から、引き継ぎコードを作る。進み具合のある土地だけを運ぶ。どの土地にも無ければ null */
 export async function exportTransferCode(storage: KeyValueStore, now = new Date()): Promise<string | null> {
   const saves: Envelope['saves'] = {}
   for (const land of TRANSFER_LANDS) {
@@ -64,7 +74,9 @@ export async function exportTransferCode(storage: KeyValueStore, now = new Date(
     const raw = storage.getItem(key)
     if (!raw) continue
     try {
-      saves[land] = sanitize(JSON.parse(raw))
+      const p = sanitize(JSON.parse(raw))
+      // 進み具合の無い保存（フラグだけ）は運ばない
+      if (hasProgress(p)) saves[land] = p
     } catch {
       // 読めない保存は運ばない
     }
@@ -79,31 +91,33 @@ export async function exportTransferCode(storage: KeyValueStore, now = new Date(
 export async function readTransferCode(code: string): Promise<Envelope> {
   const text = code.replace(/\s+/g, '')
   if (!text.startsWith(PREFIX)) throw new Error('引き継ぎコードではないようです')
-  let raw: { format?: unknown; v?: unknown; exportedAt?: unknown; saves?: unknown }
+  let raw: unknown
   try {
     const json = await pipeThrough(fromBase64Url(text.slice(PREFIX.length)), new DecompressionStream('deflate-raw'))
     raw = JSON.parse(new TextDecoder().decode(json))
   } catch {
     throw new Error('コードの一部が欠けているようです。もう一度、全部を写してください')
   }
-  const saves = raw?.saves
-  if (raw?.format !== 'yumeutsutsu-save' || (raw.v !== 1 && raw.v !== 2) || !saves || typeof saves !== 'object' || Array.isArray(saves))
-    throw new Error('この引き継ぎコードの形は読めません')
+  if (!isRecord(raw) || raw.format !== 'yumeutsutsu-save') throw new Error(BAD_SHAPE)
+  // 入れ物の版が新しい（新しい版のゲームが作ったコード）。中の形は見ない
+  if (typeof raw.v === 'number' && raw.v > 2) throw new Error(NEWER)
+  const saves = raw.saves
+  if ((raw.v !== 1 && raw.v !== 2) || !isRecord(saves)) throw new Error(BAD_SHAPE)
   // 版1 は保存の名前、版2 は土地の名前で持つ。知らない名前は読まない
   const env: Envelope = { format: 'yumeutsutsu-save', v: 2, exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '', saves: {} }
-  for (const [name, save] of Object.entries(saves as Record<string, unknown>)) {
+  for (const [name, save] of Object.entries(saves)) {
     const land = raw.v === 1 ? V1_LANDS.get(name) : TRANSFER_LANDS.find((l) => l === name)
-    if (land && save) env.saves[land] = save as Progress
-  }
-  // 中の保存が、このページで読める版か（読めなければ、読み込む前に断る。端末には何も書かない）
-  for (const land of TRANSFER_LANDS) {
-    if (!env.saves[land]) continue
+    if (!land) continue
+    // 中の保存が、このページで読める版か（読めなければ、読み込む前に断る。端末には何も書かない）。
+    // 表の形でない・版が無い（数でない）のは壊れたコード、版が 2 より大きい数なら新しい版のゲームで作ったコード
+    if (!isRecord(save) || typeof save.v !== 'number') throw new Error(UNREADABLE)
+    if (save.v > 2) throw new Error(NEWER)
     try {
-      sanitize(env.saves[land])
+      sanitize(save)
     } catch (e) {
-      if (e instanceof UnknownVersion) throw new Error('新しい版のゲームで作ったコードのようです。このページを読み込み直してから、もう一度試してください')
-      throw new Error('このコードの中身が読めません。書き出した端末で、もう一度コードを作ってください')
+      throw new Error(e instanceof UnknownVersion ? NEWER : UNREADABLE)
     }
+    env.saves[land] = save as unknown as Progress
   }
   return env
 }

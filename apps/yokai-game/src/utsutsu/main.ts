@@ -329,6 +329,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   const tl = el('div', 'uh-tl')
   const back = el('button', 'uh-btn', 'もどる') as HTMLButtonElement
   back.type = 'button'
+  // ページを読み込み直す（保存を長く残す頼みは、この押しでは試さない。persistOnTap）
+  back.dataset.leaves = ''
   back.addEventListener('click', () => window.location.reload())
   const landName = el('div', 'uh-land', escapeHtml(land.name + (kind === 'sim' ? '（シミュレーター）' : '')))
   tl.append(back, landName)
@@ -433,7 +435,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     const time: TimeSlot = engine.view.phase.phase
     return sp.placeKind ? resolveAppearance(story.appearance, sp.placeKind, time, progress, 'utsutsu') : null
   }
-  // 地点の出方を見直す（はじめ・時間帯が変わったとき・会話のあと・やり直したとき）。
+  // 地点の出方を見直す（はじめ・時間帯が変わったとき・会話のあと・やり直したとき・ほかのタブの保存に入れ替えたとき）。
   // 調べる地点は、頼まれていて札をまだ拾っていない間だけ出す。寄り道の地点は、表で妖怪が出るときだけ姿が現れる（ほかは気配だけ）
   const refreshSpots = () => {
     for (const s of land.spots) {
@@ -490,6 +492,11 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       if (how === 'finished') window.setTimeout(() => checkSections(), 700)
     },
   })
+  // ほかのタブの保存に入れ替えたら（引き継ぎの読み込み・やり直し）、地点の出方も見直す。
+  // 会話の間は見直さない（話している地点を消さない）。会話が終わると onEnd で見直す
+  progress.onReplace(() => {
+    if (!encounter.isOpen) refreshSpots()
+  })
 
   // 位置
   const onFix = (f: Fix) => engine.addFix(f)
@@ -516,7 +523,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       const card = showSheet(`
         <h2>位置が使えません</h2>
         <p>位置情報の許可がありません。iPhone は「設定 → プライバシーとセキュリティ → 位置情報サービス → Safari の Web サイト」を「使用中のみ」にし、このページを読み込み直してください。</p>
-        <button class="sub" type="button">はじめにもどる</button>`)
+        <button class="sub" type="button" data-leaves>はじめにもどる</button>`)
+      // ページを読み込み直す（data-leaves。保存を長く残す頼みは、この押しでは試さない）
       card.querySelector('button')!.addEventListener('click', () => window.location.reload())
     } else if (p === 'insecure') {
       showSheet(`<h2>位置が使えません</h2><p>この URL では位置が使えません。https のページ（GitHub Pages など）で開いてください。</p>`)

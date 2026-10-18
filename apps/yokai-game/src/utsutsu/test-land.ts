@@ -105,7 +105,8 @@ function parseTestLand(s: string | null): TestLand | null {
 
 /**
  * 前の名前（LEGACY_TESTLAND_KEY）にある版4 の土地を、いまの名前へ写す（4a review F1。storage-keys.ts）。
- * いまの名前に土地が無いときだけ。前の名前の土地は残す（前の版のゲームは版3 までしか読まず、作り直すと上書きするので名前を変えた）
+ * いまの名前に土地が無いときだけ。前の名前の土地は残す（前の版のゲームは版3 までしか読まず、作り直すと上書きするので名前を変えた）。
+ * 写した印は残さない（進み具合の legacy-done とは違う）。?cleartest で消すときは、前の名前の版4 の土地も消す（clearTestLand）
  */
 export function migrateTestLand(storage: KeyValueStore): void {
   try {

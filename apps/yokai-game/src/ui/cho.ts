@@ -400,6 +400,17 @@ export function createCho(o: ChoOptions): Cho {
   progress.onChange(refreshNew)
   refreshNew()
 
+  // ほかのタブの保存に入れ替えたら（引き継ぎの読み込み・やり直し）、開いている帳を、入れ替えたあとの進み具合で描き直す
+  // （会っていない妖怪の頁や、もう無いピースの表示を残さない）。閉じて、同じ頁（タブ）で開き直す。ピースの表示・確認の札も閉じる。
+  // 縁帳は、開いていた妖怪にまだ会っていれば、その頁のまま（会っていなければ一覧）。
+  // 稽古の間は、遊びを取り上げない。終えるかやめると、ピースの表示を、入れ替えたあとの進み具合で開き直す
+  // （openPiece が曼荼羅帳も描き直す。金の縁取りは、そのとき彩色のピースにだけ入る。goldPiece）
+  progress.onReplace(() => {
+    if (!view.isOpen || game) return
+    view.close()
+    view.open()
+  })
+
   const cho: Cho = {
     open(tab) {
       if (view.isOpen || game) return
@@ -513,11 +524,18 @@ class EnchoView {
     }
   }
 
-  /** 妖怪の頁。開いたら、いまの縁の段階を見た印をつける（「新」を消す） */
+  /**
+   * 妖怪の頁。開いたら、いまの縁の段階を見た印をつける（「新」を消す）。
+   * まだ会っていない妖怪なら、頁を開かず一覧へ（名前を出さない。印も書かない。ほかのタブでやり直したあとの古い行など）
+   */
   private showYokai(id: string, focus = true): void {
     const p = this.progress
     const y = this.story.yokai[id]
     if (!y) return
+    if (!p.hasMet(id)) {
+      this.showList(null, focus)
+      return
+    }
     this.yokai = id
     const lv = p.bondOf(id)
     const step = sheenStep(p.talksWith(id))
@@ -572,7 +590,7 @@ class EnchoView {
         ${cards.length ? `<div class="en-cards">${cards.map((c) => `<article class="yc-card">${cardHtml(c, { heading: 'h5' })}</article>`).join('')}</div>` : '<p class="en-small">まだ札は開いていない。話を聞くと、札が開く。</p>'}
       </section>`
     this.box.scrollTop = 0
-    // いまの縁の段階を見た（「新」を消す）
+    // いまの縁の段階を見た（「新」を消す。会った妖怪の頁だけ。上で確かめてある）
     p.setFlag(this.seenKey(id, lv), true)
     if (focus) (this.box.querySelector('.en-hd h3') as HTMLElement | null)?.focus({ preventScroll: true })
   }

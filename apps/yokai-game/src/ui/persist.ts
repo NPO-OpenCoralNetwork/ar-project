@@ -2,13 +2,15 @@
 // 札の見た目（transfer-sheet.css）を旅のページへ持ち込まないよう、引き継ぎの札とは分けて置く。
 //
 // - 頼むのは、進み具合があるときに、押したあとだけ（開いただけでは頼まない。Firefox は許可を尋ねる画面を出すので、わけの分かる時に）。
+//   進み具合は hasProgress（会った妖怪・札・ピース・持ち物・旅印）。保存の鍵があるだけ、フラグだけの保存では頼まない。
 // - 押すとすぐ別のページへ移る所（入口の旅のボタン）では頼まない。尋ねる画面はページを移ると消え、頼みが届かないまま
 //   「頼んだ」印だけが残ってしまう（4a review R2）。旅のページで遊びはじめてから押したとき（persistOnTap）、引き継ぎの札で読み込めたとき、
-//   入口で約束の札を出したとき（どれもページはそのまま）に頼む。
+//   入口で約束の札を出したとき（どれもページはそのまま）に頼む。旅のページでも、リンクと、ページを読み込み直すボタン
+//   （data-leaves。現の旅の「もどる」など）を押したときは試さない。
 // - 許されても許されなくても、もう一度は頼まない（PERSIST_KEY）。
 
 import { PERSIST_KEY } from '../core/storage-keys'
-import { browserStorage, migrateLegacySave } from '../core/story/progress'
+import { browserStorage, hasProgress, migrateLegacySave, sanitize } from '../core/story/progress'
 import { TRANSFER_SAVES } from '../core/story/transfer'
 
 /**
@@ -20,7 +22,14 @@ export function persistOnce(): boolean {
   if (!storage || !navigator.storage?.persist) return true
   const has = (key: string): boolean => {
     migrateLegacySave(storage, key)
-    return !!storage.getItem(key)
+    const raw = storage.getItem(key)
+    if (!raw) return false
+    try {
+      return hasProgress(sanitize(JSON.parse(raw)))
+    } catch {
+      // 読めない保存は、進み具合に数えない（引き継ぎコードにも入らない）
+      return false
+    }
   }
   try {
     if (storage.getItem(PERSIST_KEY)) return true
@@ -38,12 +47,13 @@ export function persistOnce(): boolean {
 
 /**
  * 旅のページで、遊びはじめたところで一度呼ぶ。このあと押す（指・クリック・キー）たびに persistOnce を試し、頼んだらやめる。
- * はじめての旅でも、妖怪に会って進み具合ができたあとに押したときに頼める。リンク（別のページへ移る）を押したときと、
- * キーを押し続けている間（繰り返し）は試さない。呼んだときの押し（はじめるボタン）は数えない（位置の許可を尋ねる画面と重ねない）
+ * はじめての旅でも、妖怪に会って進み具合ができたあとに押したときに頼める。リンク（別のページへ移る）と、
+ * data-leaves の印のあるボタン（ページを読み込み直す）を押したとき、キーを押し続けている間（繰り返し）は試さない。
+ * 呼んだときの押し（はじめるボタン）は数えない（位置の許可を尋ねる画面と重ねない）
  */
 export function persistOnTap(): void {
   const on = (e: Event) => {
-    if ((e as KeyboardEvent).repeat || (e.target as Element | null)?.closest?.('a[href]')) return
+    if ((e as KeyboardEvent).repeat || (e.target as Element | null)?.closest?.('a[href],[data-leaves]')) return
     if (!persistOnce()) return
     window.removeEventListener('pointerup', on, true)
     window.removeEventListener('keydown', on, true)
