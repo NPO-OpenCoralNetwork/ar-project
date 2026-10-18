@@ -44,7 +44,7 @@ export interface TestLand {
   map: MapLayers
   restZones: XZ[][]
   spots: TestSpot[]
-  /** 作ったときの数（確認用）。multipolygons は面にした relation、waterSide は水辺の道の候補。multipolygons・waterAreas は前に作った土地には無い */
+  /** 作ったときの数（確認用）。multipolygons は読んだ水の面・お休みの範囲の relation（輪が閉じなかったものも）、waterSide は水辺の道の候補。multipolygons・waterAreas は前に作った土地には無い */
   stats: {
     nodes: number
     ways: number
