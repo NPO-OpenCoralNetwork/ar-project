@@ -48,6 +48,8 @@ export interface LoreCard {
   title: string
   /** 札の本文。03 の内容だけ（言い換えない） */
   body: string
+  /** 札の種類。既定は伝承の札。名産の札（供物の 03 #21〜#23）は妖怪の伝承ではないので、見出しを分ける */
+  kind?: '伝承' | '名産'
   /** 札の番号の表示（例: 「札①」） */
   number?: string
   yokaiId?: string

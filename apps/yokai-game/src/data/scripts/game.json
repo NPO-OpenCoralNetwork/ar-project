@@ -16,6 +16,7 @@
     { "label": "親方の伝言を伝える", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }], "node": "message" },
     { "label": "仲直りのお礼", "when": [{ "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": false }], "node": "thanks" },
     { "label": "白えびを持ってきた", "when": [{ "item": "shiroebi", "state": "held" }], "node": "shiroebi_give" },
+    { "label": "白えびを渡したところで途切れた（札がまだ）", "when": [{ "item": "shiroebi", "state": "given" }, { "card": "shiroebi-1", "opened": false }], "node": "shiroebi_card" },
     { "label": "また会う", "node": "again" }
   ],
   "nodes": {
@@ -126,6 +127,7 @@
         { "text": "親方から、伝言をあずかってるよ", "next": "message", "when": [{ "flag": "tm1-asked", "is": true }, { "flag": "tm1-reply", "is": false }] },
         { "text": "まだ、親方に伝えてないんだ", "next": "wait_boss", "when": [{ "flag": "tm1-reply", "is": true }, { "flag": "tm1-done", "is": false }] },
         { "text": "親方とは、仲直りできた？", "next": "thanks", "when": [{ "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": false }] },
+        { "text": "白えびを持ってきたよ", "next": "shiroebi_give", "when": [{ "item": "shiroebi", "state": "held" }, { "flag": "tm1-asked", "is": true }, { "flag": "tm1-done", "is": true }, { "flag": "tm1-game-thanked", "is": true }] },
         { "text": "あいさつに来ただけ", "next": "greet", "when": [{ "flag": "tm1-game-thanked", "is": true }] }
       ]
     },
@@ -159,7 +161,8 @@
     },
     "shiroebi_full": {
       "lines": [
-        { "speaker": "mashiro", "text": "（いまは、ほかの頼まれごとでいっぱいだね。……また今度にしよう）" },
+        { "speaker": "mashiro", "text": "（いまは、ほかの頼まれごとでいっぱいだね）" },
+        { "speaker": "mashiro", "text": "ガメ、また今度でもいい？" },
         { "speaker": "game", "text": "うん、また今度ね！" }
       ],
       "end": true
@@ -169,9 +172,9 @@
         { "speaker": "game", "text": "あっ、そのにおい……白えび！？" },
         { "speaker": "game", "text": "ほんとに、もらっていいの！？" },
         { "speaker": "mashiro", "text": "ガメのために、持ってきたんだよ。" },
-        { "speaker": "mashiro", "text": "白えびのことも、昔の記録があるみたい。" }
+        { "speaker": "mashiro", "text": "白えびのことが、札に書いてあるみたい。" }
       ],
-      "effects": [{ "deliver": "shiroebi" }, { "openCard": "shiroebi-1" }, { "bond": "najimi" }],
+      "effects": [{ "openCard": "shiroebi-1" }, { "deliver": "shiroebi" }, { "bond": "najimi" }],
       "next": "shiroebi_end"
     },
     "shiroebi_end": {
@@ -180,6 +183,14 @@
         { "speaker": "game", "text": "川には入っちゃだめだよ。またね！" }
       ],
       "end": true
+    },
+    "shiroebi_card": {
+      "lines": [
+        { "speaker": "game", "text": "白えび、すっごくおいしかった！" },
+        { "speaker": "mashiro", "text": "白えびのことが、札に書いてあるみたい。" }
+      ],
+      "effects": [{ "openCard": "shiroebi-1" }],
+      "next": "shiroebi_end"
     },
     "reread": {
       "lines": [{ "speaker": "game", "text": "いいよ。……ほら。" }],

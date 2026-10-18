@@ -234,6 +234,9 @@ export function activeQuests(quests: QuestDef[], p: ProgressStore, travel: Trave
   return quests.filter((q) => checkConditions(q.start, p, travel, q.yokai[0]) && !checkConditions(q.done, p, travel, q.yokai[0]))
 }
 
+/** 同時に3つまでの数に入る悩み（番外は、その場で終わる遊びなので数えない） */
+const countsTowardLimit = (q: QuestDef): boolean => q.type !== '番外'
+
 /**
  * 条件（すべて満たすと真）。yokai を省いた条件は yokaiDefault の妖怪で見る。台本の入口・選択肢と、節の終わり（旅印）で使う。
  * quests を渡さないとき、questRoom はいつも「空きあり」
@@ -248,7 +251,7 @@ export function checkConditions(conds: Condition[] | undefined, p: ProgressStore
     if ('flag' in c) return p.flag(c.flag) === c.is
     if ('travel' in c) return travel === c.travel
     if ('item' in c) return p.itemState(c.item) === c.state
-    if ('questRoom' in c) return (!quests || activeQuests(quests, p, travel).length < QUEST_LIMIT) === c.questRoom
+    if ('questRoom' in c) return (!quests || activeQuests(quests, p, travel).filter(countsTowardLimit).length < QUEST_LIMIT) === c.questRoom
     return false
   })
 }

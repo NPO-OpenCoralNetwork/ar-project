@@ -113,7 +113,7 @@
         { "speaker": "karabozu", "text": "礼に、昔の話をひとつ。……恥ずかしい話だがな。" }
       ],
       "effects": [{ "openCard": "karabozu-1" }, { "bond": "najimi" }, { "flag": "tm1-done", "value": true }],
-      "next": "gift"
+      "next": "resolve_end"
     },
     "gift": {
       "lines": [
@@ -121,15 +121,18 @@
         { "speaker": "karabozu", "text": "昆布だ。おれが持っていても、しかたがない。だれかに、やるといい。" }
       ],
       "effects": [{ "receive": "konbu" }],
-      "next": "resolve_end"
+      "next": "gift_end"
+    },
+    "gift_end": {
+      "lines": [{ "speaker": "mashiro", "text": "昆布かあ。……だれにあげようか。" }],
+      "end": true
     },
     "resolve_end": {
       "lines": [
         { "speaker": "karabozu", "text": "……ガメには、まだ言うなよ。" },
-        { "speaker": "mashiro", "text": "ふふ、言わないよ。" },
-        { "speaker": "mashiro", "text": "昆布かあ。……だれにあげようか。" }
+        { "speaker": "mashiro", "text": "ふふ、言わないよ。" }
       ],
-      "end": true
+      "next": "gift"
     },
     "u_reunion": {
       "lines": [
