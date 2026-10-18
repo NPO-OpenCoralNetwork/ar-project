@@ -593,16 +593,17 @@ export class ProgressStore {
     this.commit()
   }
 
-  /** done = true、flag `yb:<yokai>:<entry>` = true（flagAt つき）を1回の書き込みで */
+  /**
+   * done = true、flag `yb:<yokai>:<entry>` = true（flagAt つき）を1回の書き込みで。
+   * flagAt は、もう立っている印（again を聞くたび）でも、いまに書き直す（夜話の順番は「いちばん長く聞いていない妖怪」。yobanashi.ts）
+   */
   finishNight(day: DayKey): void {
     const n = this.state.nights[day]
     if (!n || n.done) return
     n.done = true
     const key = `yb:${n.yokai}:${n.entry}`
-    if (this.state.flags[key] !== true) {
-      this.state.flags[key] = true
-      this.state.flagAt[key] = this.now().toISOString()
-    }
+    this.state.flags[key] = true
+    this.state.flagAt[key] = this.now().toISOString()
     this.commit()
   }
 

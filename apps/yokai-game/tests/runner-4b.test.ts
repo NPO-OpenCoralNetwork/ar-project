@@ -62,6 +62,43 @@ ok(Object.values(story.scripts).every((s) => check(s).length === 0), `テスト�
   ok(any.seen.includes('てんぐ: きょう会うた。'), 'metToday any')
 }
 
+// metToday は、ふつうの会話（record: 'talk'）でも会話を始めた時の lastMet で見る（最初の台詞の noteSeen で変わらない）
+{
+  const c = clockAt('2027-01-12T10:00')
+  const p = store(undefined, c)
+  talk(story, p, 'tengu', 'yume', [0]) // 10:00 に夢で会った（頼みを受けた → 次は again の入口）
+  c.set('2027-01-12T15:00')
+  const snapshot = c.story() // 会話の前に作る時計
+  c.advance(1) // 最初の台詞は、時計より少しあと
+  const yume = talk(story, p, 'tengu', 'yume', ['またね'], { clock: snapshot })
+  ok(yume.trail.startsWith('g1') && yume.seen.includes('てんぐ: きょうは夢の中じゃな。'), `talk でも、妖怪の最初の台詞のあとの metToday yume が成り立つ（${yume.seen.join(' | ')}）`)
+  ok(p.get().yokai.tengu?.lastMet?.at === new Date(c.ms).toISOString(), 'lastMet は、この会話の時に（noteSeen・noteTalk はそのまま）')
+  // 朝に現地で会い、昼に夢で話す: この会話の noteSeen が lastMet を夢にしても、「歩いて来た」まま
+  c.set('2027-01-12T09:00')
+  const q = store(undefined, c)
+  q.meet('tengu', 'utsutsu')
+  q.setFlag('qa-asked', true)
+  q.noteTalk('tengu', 'utsutsu')
+  c.set('2027-01-12T15:00')
+  const snap2 = c.story()
+  c.advance(1)
+  const site = talk(story, q, 'tengu', 'yume', ['またね'], { clock: snap2 })
+  ok(site.seen.includes('てんぐ: きょうは歩いて来たな。') && !site.seen.includes('てんぐ: きょうは夢の中じゃな。'), `talk でも、朝に現地で会ったことを見る（${site.seen.join(' | ')}）`)
+  ok(q.get().yokai.tengu?.lastMet?.travel === 'yume', 'lastMet そのものは、この会話（夢）に書き換わる')
+  // 前の日に会っただけ: この会話で会ったことは数えない
+  c.set('2027-01-13T15:00')
+  const snap3 = c.story()
+  c.advance(1)
+  const first = talk(story, q, 'tengu', 'yume', ['またね'], { clock: snap3 })
+  ok(!first.seen.some((l) => l.includes('きょうは')), `その日はじめての会話なら、metToday は偽（${first.seen.join(' | ')}）`)
+  // 同じ日の次の会話では、さっきの会話が「今日会った」になる
+  c.set('2027-01-13T16:00')
+  const snap4 = c.story()
+  c.advance(1)
+  const again = talk(story, q, 'tengu', 'yume', ['またね'], { clock: snap4 })
+  ok(again.seen.includes('てんぐ: きょうは夢の中じゃな。'), '同じ日の次の会話では、前の会話で会ったことを見る')
+}
+
 // noteSeen: 妖怪が最初に話したら、その日に会ったことに（回数は増やさない）
 {
   const c = clockAt('2027-01-11T10:00')

@@ -103,6 +103,26 @@ const listen = (p: ProgressStore, c: TestClock, picks: number[] = [0], stopAfter
   ok(tonight(c.story(), p, story).state === 'done' && p.flag('yb:kuragari:x'), 'つづきを聞き終えて done')
 }
 
+/** 1/11 から n 晩。その日に会う妖怪（会う順）を metOn で決め、来た妖怪の夜話を最後まで聞く。'(妖怪):(場面)' の並び（来なければ '-'） */
+const nights = (p: ProgressStore, c: TestClock, n: number, metOn: (i: number) => string[]): string[] => {
+  const heard: string[] = []
+  for (let i = 0; i < n; i++) {
+    const day = new Date(Date.UTC(2027, 0, 11 + i)).toISOString().slice(0, 10)
+    metOn(i).forEach((y, k) => seeAt(p, c, y, `${day}T${11 + k}:00`))
+    c.set(`${day}T20:00`)
+    const t = tonight(c.story(), p, story)
+    if (t.state !== 'offer') {
+      heard.push('-')
+      continue
+    }
+    listen(p, c)
+    heard.push(`${t.yokai}:${t.entry}`)
+  }
+  return heard
+}
+/** 並びが二人で交互か */
+const alternates = (heard: string[]): boolean => heard.every((h, i) => i === 0 || h.split(':')[0] !== heard[i - 1].split(':')[0])
+
 // 二人が7晩: 交互に、同じ（妖怪・場面）は聞き終えるまで繰り返さない。そのあと again
 {
   const c = clockAt('2027-01-11T10:00')
@@ -130,6 +150,44 @@ const listen = (p: ProgressStore, c: TestClock, picks: number[] = [0], stopAfter
   const before = heard.slice(0, firstAgain)
   ok(new Set(before).size === before.length, 'again の前は同じ（妖怪・場面）を繰り返さない')
   ok(Object.keys(p.get().nights).length === 7 && Object.values(p.get().nights).every((n) => n.done), '7晩とも記録')
+  ok(p.get().flagAt['yb:tengu:again'] === p.get().nights['2027-01-17'].at, 'again をくり返し聞くと、その印の時（flagAt）も新しくなる')
+}
+
+// 二人が12晩: again だけになっても交互のまま（どちらか一人が毎晩来ることはない）
+{
+  const c = clockAt('2027-01-11T10:00')
+  const p = store(undefined, c)
+  najimi(p, 'tengu')
+  najimi(p, 'kuragari')
+  const heard = nights(p, c, 12, () => ['kuragari', 'tengu'])
+  snap('twelve nights', heard)
+  const tail = Array.from({ length: 4 }, () => 'tengu:again kuragari:again').join(' ')
+  ok(heard.join(' ') === `tengu:a kuragari:x tengu:c kuragari:y ${tail}`, `12晩とも交互（${heard.join(' ')}）`)
+  // 場面の数がちがう（てんぐ 3・くらがり 2）: くらがりが again だけになっても、交互に回る
+  const c2 = clockAt('2027-01-11T10:00')
+  const q = store(undefined, c2)
+  najimi(q, 'tengu')
+  najimi(q, 'kuragari')
+  q.setFlag('qa-done', true)
+  const uneven = nights(q, c2, 12, () => ['tengu', 'kuragari'])
+  snap('uneven nights', uneven)
+  ok(alternates(uneven) && uneven.slice(0, 5).join(' ') === 'kuragari:x tengu:a kuragari:y tengu:b kuragari:again' && uneven[5] === 'tengu:c', `場面の数がちがっても交互（${uneven.join(' ')}）`)
+  ok(uneven.filter((h) => h.startsWith('kuragari')).length === 6 && uneven.filter((h) => h.startsWith('tengu')).length === 6, '12晩で6晩ずつ')
+}
+
+// あとからなじみになった妖怪: 先の妖怪が again だけになっていても、まだ聞いていない場面を聞ける
+{
+  const c = clockAt('2027-01-11T10:00')
+  const p = store(undefined, c)
+  najimi(p, 'tengu')
+  const heard = nights(p, c, 10, (i) => {
+    if (i === 3) najimi(p, 'kuragari') // 4晩目から、くらがりもなじみ
+    return i >= 3 ? ['tengu', 'kuragari'] : ['tengu']
+  })
+  snap('late joiner', heard)
+  ok(heard.slice(0, 3).join(' ') === 'tengu:a tengu:c tengu:again', `てんぐだけの3晩（${heard.slice(0, 3).join(' ')}）`)
+  ok(heard.includes('kuragari:x') && heard.includes('kuragari:y'), `くらがりも場面を聞き終える（${heard.join(' ')}）`)
+  ok(alternates(heard.slice(3)) && heard.slice(3).join(' ') === 'kuragari:x tengu:again kuragari:y tengu:again kuragari:again tengu:again kuragari:again', `4晩目からは交互（${heard.slice(3).join(' ')}）`)
 }
 
 // 開かなかった夜は、何も残さない

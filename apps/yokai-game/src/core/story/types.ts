@@ -140,7 +140,10 @@ export type Condition =
   | { item: string; state: ItemState }
   /** 悩みをもう1つ抱えられるか（同時に3つまで。04 §2.4）。questRoom: false で「いっぱい」 */
   | { questRoom: boolean }
-  /** その物語の日（立山の時刻、04:00 区切り）に、この妖怪と会ったか（lastMet）。'any' は夢でも現地でも。会話の時計が要る */
+  /**
+   * その物語の日（立山の時刻、04:00 区切り）に、この妖怪と会ったか（lastMet）。'any' は夢でも現地でも。会話の時計が要る。
+   * 会話の中では、会話を始めた時の lastMet で見る（その会話で会ったことは数えない）
+   */
   | { metToday: Travel | 'any'; yokai?: string }
 
 /** 条件の種類（このほかの鍵の条件は、点検で知らない条件として断る） */

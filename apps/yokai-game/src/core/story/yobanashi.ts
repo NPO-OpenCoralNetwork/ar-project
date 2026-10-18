@@ -31,7 +31,10 @@ function scriptOf(story: StoryData, yokai: string): DialogueScript | null {
   return s
 }
 
-/** 最後に夜話を聞いた時（ms。聞いたことが無ければ −∞） */
+/**
+ * 最後に夜話を聞いた時（ms。聞いたことが無ければ −∞）。yb:<妖怪>:* の印の flagAt のいちばん新しいもの。
+ * finishNight は、聞き終えるたびに（again をくり返し聞いても）flagAt を書き直すので、場面を聞き終えた妖怪も順番に回る
+ */
 function lastHeardMs(p: ProgressStore, yokai: string): number {
   const s = p.get()
   let best = -Infinity

@@ -5,7 +5,8 @@
 // 効果（札・ピース・縁）は、その拍に来たときに1回だけ適用して保存する（途中で閉じても、そこまでは残る）。
 //
 // 段階4b で足したもの（04 §3.8・§3.9、02 F-71）:
-// - 台詞の条件（line.when。台詞を出す時に見て、満たさなければ飛ばす）・入口の id と start(entryId)・その日に会ったか（metToday）。
+// - 台詞の条件（line.when。台詞を出す時に見て、満たさなければ飛ばす）・入口の id と start(entryId)・その日に会ったか（metToday。
+//   会話を始めた時の lastMet で見る。この会話の最初の台詞で残す noteSeen は数えない）。
 // - 差し込み {呼び名}（ましろの覚え書き。無ければ「きみ」。台詞と選択肢の字は、画面に渡す前に差し込む）。
 // - 会ったことの記録: talk（既定）は妖怪が最初に話したとき noteSeen、最後まで話したら noteTalk。
 //   visit（夜話）は最後まで話したら noteVisit だけ（会ったことにしない・縁も変えない）。
@@ -15,7 +16,7 @@
 
 import { isoInToday, type StoryClock } from './clock'
 import type { MemoReader } from './memo'
-import { type ProgressStore, bondRank, pieceRank } from './progress'
+import { type Gained, type ProgressStore, bondRank, pieceRank } from './progress'
 import { fillTokens, tokenProblems, YOBINA_TOKEN } from './text'
 import {
   BOND_LABEL,
@@ -102,6 +103,8 @@ export class DialogueRunner {
   private spoke = false
   /** 妖怪が最初に話した印を残したか（noteSeen は1回だけ） */
   private seen = false
+  /** 会話を始めた時の「最後に会った時」の写し（metToday はこれで見る。この会話の noteSeen で書き換わる前の値） */
+  private metBefore: ReadonlyMap<string, Gained> | null = null
   /** 通った場面（確認用） */
   readonly trail: string[] = []
 
@@ -116,6 +119,8 @@ export class DialogueRunner {
    */
   start(entryId?: string): Beat {
     if (this.script.needsConsent) return (this.current = { kind: 'end' })
+    // その日に会ったか（metToday）は、この会話より前のことで見る（最初の台詞の noteSeen が lastMet を「いま」にするため）
+    this.metBefore = lastMetSnapshot(this.ctx.progress)
     const byId = entryId === undefined ? undefined : this.script.entries.find((e) => e.id === entryId && this.check(e.when))
     const entry = byId ?? this.script.entries.find((e) => this.check(e.when))
     if (!entry) return (this.current = { kind: 'end' })
@@ -288,7 +293,7 @@ export class DialogueRunner {
   }
 
   check(conds: Condition[] | undefined): boolean {
-    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId ?? '', this.ctx.quests, this.ctx.clock)
+    return checkConditions(conds, this.ctx.progress, this.ctx.travel, this.script.yokaiId ?? '', this.ctx.quests, this.ctx.clock, this.metBefore ?? undefined)
   }
 }
 
@@ -308,9 +313,17 @@ export function activeQuests(quests: QuestDef[], p: ProgressStore, travel: Trave
 /** 同時に3つまでの数に入る悩み（番外は、その場で終わる遊びなので数えない） */
 const countsTowardLimit = (q: QuestDef): boolean => q.type !== '番外'
 
+/** 妖怪ごとの「最後に会った時」の写し（会話を始めた時に取る） */
+function lastMetSnapshot(p: ProgressStore): ReadonlyMap<string, Gained> {
+  const out = new Map<string, Gained>()
+  for (const [id, y] of Object.entries(p.get().yokai)) if (y.lastMet) out.set(id, { ...y.lastMet })
+  return out
+}
+
 /**
  * 条件（すべて満たすと真）。yokai を省いた条件は yokaiDefault の妖怪で見る。台本の入口・選択肢と、節の終わり（旅印）で使う。
- * quests を渡さないとき、questRoom はいつも「空きあり」。clock が無いとき metToday はいつも偽
+ * quests を渡さないとき、questRoom はいつも「空きあり」。clock が無いとき metToday はいつも偽。
+ * metBefore: metToday で見る「最後に会った時」（会話の中では、始めた時の写し。無ければいまの進み具合）
  */
 export function checkConditions(
   conds: Condition[] | undefined,
@@ -319,12 +332,14 @@ export function checkConditions(
   yokaiDefault = '',
   quests?: QuestDef[],
   clock?: StoryClock,
+  metBefore?: ReadonlyMap<string, Gained>,
 ): boolean {
   if (!conds?.length) return true
   return conds.every((c) => {
     if ('metToday' in c) {
       if (!clock) return false
-      const lm = p.get().yokai[c.yokai ?? yokaiDefault]?.lastMet
+      const id = c.yokai ?? yokaiDefault
+      const lm = metBefore ? metBefore.get(id) : p.get().yokai[id]?.lastMet
       return !!lm && isoInToday(lm.at, clock) && (c.metToday === 'any' || lm.travel === c.metToday)
     }
     if ('met' in c) return p.hasMet(c.yokai ?? yokaiDefault) === c.met
