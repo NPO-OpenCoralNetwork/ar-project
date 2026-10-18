@@ -5,8 +5,8 @@
 // - 歩いている間は出てこない。動くと途切れる（霞がゆっくり引く）。
 // - お休みの範囲（境内）では出会いを起こさない。
 // - 夜は、どの地点も気配だけ（04 §2.5「箱庭も夜は気配だけ」。決まりは core の canListenAtHome。白描の絵地図と同じ）。
-// - 会話の画面・曼荼羅帳を開いている間は、アバターを止める。
-// - 家で上がる縁は「なじみ」まで、曼荼羅は白描まで（ProgressStore が上限で止める）。
+// - 会話の画面・帳（曼荼羅帳・縁帳。ui/cho.ts）を開いている間は、アバターを止める。
+// - 家で上がる縁は「なじみ」まで、曼荼羅は白描まで（ProgressStore が上限で止める）。金の縁取りは、彩色済みのピースを帳の稽古で語り返したときだけ。
 //
 // 地点の役目（data.ts の SpotLocal.role。決め方は core の spotRole）:
 // - yokai: 決まった地点の妖怪。台本と絵のある妖怪だけ夢の姿が浮かぶ（ほかは気配だけ）。
@@ -23,6 +23,7 @@ import { ListenGauge } from '../../core/story/listen'
 import type { ProgressStore } from '../../core/story/progress'
 import type { DialogueScript } from '../../core/story/types'
 import type { StoryPack } from '../../data/story-pack'
+import { type Cho, createCho } from '../../ui/cho'
 import type { CameraRig } from '../camera'
 import type { SpotLocal } from '../data'
 import type { Field } from '../field'
@@ -32,7 +33,7 @@ import type { Player } from '../player'
 import { ARTS } from './art'
 import { DreamFigure } from './dream-figure'
 import type { Sound } from './sound'
-import { DialogueView, ListenButton, MandalaView, MistVeil } from './ui'
+import { DialogueView, ListenButton, MistVeil } from './ui'
 
 type Phase = 'roam' | 'appearing' | 'talking' | 'parting'
 
@@ -71,7 +72,8 @@ export class Encounters {
   private readonly listenBtn: ListenButton
   private readonly mist: MistVeil
   private readonly dialogue: DialogueView
-  private readonly mandala: MandalaView
+  /** 帳（曼荼羅帳・縁帳） */
+  private readonly cho: Cho
   /** 夢の姿（妖怪ごとに1つ。決まった地点の妖怪ははじめに作り、寄り道の妖怪は、はじめて浮かぶときに作る） */
   private readonly figures = new Map<string, DreamFigure>()
   private phase: Phase = 'roam'
@@ -113,29 +115,17 @@ export class Encounters {
       },
       { yokaiName: (id) => d.story.yokai[id]?.name ?? id, sound: d.sound },
     )
-    this.mandala = new MandalaView(
+    // 帳（立山のふもとの保存。旅印は現地で節を終えたときだけなので、家では枠だけ）。「新」の印は右上の「帳」のボタンに出す
+    this.cho = createCho({
       root,
-      d.story.mandala,
-      {
-        piece: (id) => d.progress.pieceOf(id),
-        isNew: (id) => d.progress.pieceOf(id) !== 'empty' && !d.progress.flag(`seen:${id}`),
-        // 開いた札だけ（ピースだけ先に入っても、札の本文は会話で開くまで見せない）
-        card: (id) => (d.progress.isCardOpened(id) ? d.story.cards[id] : undefined),
-        // 家では枠だけ見える（旅印は現地で節を終えたときだけ。02 F-45）
-        stamps: () =>
-          d.story.sections
-            .filter((s) => s.region === 'iwakuraji')
-            .map((s) => ({ id: s.id, title: s.title, stampTitle: s.stampTitle, motif: s.stampMotif, at: d.progress.stampOf(s.id)?.at ?? null })),
-      },
-      {
-        close: () => this.closeMandala(),
-        reset: () => this.resetAll(),
-        seen: (id) => {
-          d.progress.setFlag(`seen:${id}`, true)
-          this.refreshBadge()
-        },
-      },
-    )
+      story: d.story,
+      progress: d.progress,
+      travel: 'yume',
+      stampRegion: 'iwakuraji',
+      sound: d.sound,
+      onNew: (on) => d.hud.setMandalaNew(on),
+      onReset: () => this.afterReset(),
+    })
     // 決まった地点の夢の姿（台本と絵のある妖怪だけ）
     for (const spot of d.field.data.spots) {
       if (spot.role !== 'yokai' || !spot.yokaiId || !this.scriptOf(spot.yokaiId)) continue
@@ -156,16 +146,15 @@ export class Encounters {
     window.addEventListener('blur', () => (this.spaceHeld = false))
     d.progress.onChange(() => this.refreshMet())
     this.refreshMet()
-    this.refreshBadge()
     if (d.story.problems.length) console.warn('[story] 台本・データの点検:', d.story.problems)
   }
 
-  /** 会話・曼荼羅帳を開いている（アバターを止める） */
+  /** 会話・帳を開いている（アバターを止める） */
   get busy(): boolean {
-    return this.phase === 'appearing' || this.phase === 'talking' || this.mandala.isOpen
+    return this.phase === 'appearing' || this.phase === 'talking' || this.cho.isOpen
   }
 
-  /** 出会いの途中（耳を澄まし終えてから、別れ終わるまで）。この間は時間帯と曼荼羅帳のキーを止める（main.ts） */
+  /** 出会いの途中（耳を澄まし終えてから、別れ終わるまで）。この間は時間帯と帳のキーを止める（main.ts） */
   get engaged(): boolean {
     return this.phase !== 'roam'
   }
@@ -232,21 +221,11 @@ export class Encounters {
     return script ? { spot, script, yokaiId: spot.yokaiId } : null
   }
 
+  /** 帳を開く（右上の「帳」・M キー） */
   openMandala(): void {
     if (this.phase === 'appearing' || this.phase === 'talking') return
     this.d.player.walkTarget = null
-    this.mandala.open()
-  }
-
-  private closeMandala(): void {
-    this.mandala.close()
-    this.refreshBadge()
-  }
-
-  private refreshBadge(): void {
-    const p = this.d.progress
-    const hasNew = this.d.story.mandala.tiers.some((t) => t.pieces.some((pc) => p.pieceOf(pc.id) !== 'empty' && !p.flag(`seen:${pc.id}`)))
-    this.d.hud.setMandalaNew(hasNew)
+    this.cho.open()
   }
 
   /** 進み具合が変わったら、印を合わせる（会った妖怪は淡く小さく。調べる地点は、頼まれてから札を拾うまでだけ出す） */
@@ -277,7 +256,7 @@ export class Encounters {
         held: this.listenBtn.held(this.spaceHeld),
         speed: player.speed,
         inRest,
-        blocked: this.mandala.isOpen,
+        blocked: this.cho.isOpen,
       })
       if (ev === 'start') this.log.push(`listen:start ${target?.spot.id}`)
       if (ev === 'interrupted') {
@@ -286,7 +265,7 @@ export class Encounters {
       }
       const met = target?.yokaiId ? this.d.progress.hasMet(target.yokaiId) : false
       const sub = target && !target.yokaiId ? '長押し・古い話の気配' : met ? '長押し・また会いに' : '長押し・その場で止まる'
-      this.listenBtn.show(!!target && !this.mandala.isOpen, sub)
+      this.listenBtn.show(!!target && !this.cho.isOpen, sub)
       this.listenBtn.setProgress(this.gauge.progress)
       // 夜はどの地点も、ほかは台本のない妖怪の地点と、いまは出ない寄り道の地点が、気配だけ（夜の言葉は白描の絵地図と同じ）
       hud.showPrompt(near && !target ? (canListenAtHome(this.timeOfDay) ? 'かすかな気配。まだ声は遠い' : HOME_NIGHT_KEHAI) : null)
@@ -481,10 +460,7 @@ export class Encounters {
       this.endTalk('end')
       return
     }
-    if (beat.kind === 'notice' && beat.notice.type === 'piece') {
-      a.piece = true
-      this.refreshBadge()
-    }
+    if (beat.kind === 'notice' && beat.notice.type === 'piece') a.piece = true
     this.dialogue.show(beat)
   }
 
@@ -505,19 +481,16 @@ export class Encounters {
       this.d.rig.yawTarget = this.savedYaw
       this.savedYaw = null
     }
-    this.refreshBadge()
     // この会話でピースが入ったときだけ（調べる地点の札だけの会話や、前のピースをまだ見ていないだけのときは出さない）
-    if (why === 'end' && a.piece && this.d.hud.mandalaHasNew) this.d.hud.toast('曼荼羅帳に、ピースが一つ入った（右上の「曼荼羅帳」）', 4200)
+    if (why === 'end' && a.piece && this.cho.news().mandala) this.d.hud.toast('曼荼羅帳に、ピースが一つ入った（右上の「帳」）', 4200)
   }
 
-  private resetAll(): void {
-    this.d.progress.reset()
+  /** 帳の「最初からやり直す」のあと（保存はもう消してあり、帳も閉じてある） */
+  private afterReset(): void {
     this.gauge.reset()
-    this.refreshBadge()
     this.refreshMet()
     this.d.respawn()
-    // 曼荼羅帳を開いている間はお知らせが隠れるので、閉じてから知らせる（アバターがはじめの位置に戻ったのも見える）
-    this.closeMandala()
+    // 帳を開いている間はお知らせが隠れるので、閉じてから知らせる（アバターがはじめの位置に戻ったのも見える）
     this.d.hud.toast('最初からやり直した。はじめの場所に戻った', 4200)
     this.log.push('reset')
   }

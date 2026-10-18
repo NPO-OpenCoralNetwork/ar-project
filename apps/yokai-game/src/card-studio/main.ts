@@ -468,7 +468,7 @@ function renderLore() {
     number: t.showNumber ? t.number : '',
     source: { work: t.source },
   } as LoreCard
-  loreCardEl.innerHTML = cardHtml(card)
+  loreCardEl.innerHTML = cardHtml(card, { number: t.showNumber })
 }
 
 function redrawText() {
