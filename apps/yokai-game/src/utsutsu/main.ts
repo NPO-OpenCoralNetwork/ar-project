@@ -175,6 +175,8 @@ const log = (s: string) => {
 
 /** 札を開く前にキーボードの位置があった所（地図の上で札が出たとき。札を閉じたら戻す） */
 let sheetReturn: HTMLElement | null = null
+/** そこへ戻れないとき（会話のあとの旅印など。開く前の所が消えた・閉じた層の中）の行き先。地図を始めたら土地の名前 */
+let sheetHome: HTMLElement | null = null
 /** 全面の札の地を空けて出す（三つの約束の札は ui/promise-sheet.ts が置く） */
 function openSheet(cls = ''): HTMLDivElement {
   if (sheet.hidden) {
@@ -199,7 +201,10 @@ function hideSheet(): void {
   sheet.innerHTML = ''
   const back = sheetReturn
   sheetReturn = null
-  if (hadFocus && back?.isConnected) back.focus({ preventScroll: true })
+  if (!hadFocus) return
+  // 押したボタンが消えて、キーボードの位置が <body> に落ちないように
+  const to = back?.isConnected && !back.closest('[inert]') ? back : sheetHome
+  to?.focus({ preventScroll: true })
 }
 const sheetOpen = () => !sheet.hidden
 
@@ -366,6 +371,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   // 札（位置の許可の説明）を閉じると、押したボタンが消える。キーボードの位置は土地の名前へ（Tab で、右上の板から）
   landName.tabIndex = -1
   landName.focus({ preventScroll: true })
+  sheetHome = landName
 
   let toastTimer = 0
   // ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける。
