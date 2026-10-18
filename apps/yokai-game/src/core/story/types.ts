@@ -21,7 +21,7 @@ export const BOND_LABEL: Record<BondLevel, string> = {
 /** 旅ごとの縁の上限（05 §3: 家では「なじみ」まで。「語り仲間」「えにし」は現地） */
 export const BOND_CAP: Record<Travel, BondLevel> = { yume: 'najimi', utsutsu: 'enishi' }
 
-/** 曼荼羅のピースの状態（04 §3.6）。空白 → 白描（家・噂・夢）→ 彩色（現地だけ）→ 金の縁取り */
+/** 曼荼羅のピースの状態（04 §3.6）。空白 → 白描（家・噂・夢）→ 彩色（現地だけ。時間のピースは、ほんとうの逢魔が時なら家でも）→ 金の縁取り */
 export const PIECE_STATES = ['empty', 'hakubyo', 'saishiki', 'kin'] as const
 export type PieceState = (typeof PIECE_STATES)[number]
 
@@ -34,12 +34,16 @@ export const PIECE_LABEL: Record<PieceState, string> = {
 
 /**
  * 台本の効果で入るピースの上限（05 §3: 夢の旅では白描（線）まで、彩色は現地だけ）。
+ * ただ一つの例外は時間のピース（TIME_PIECES）: 逢魔が時（立山の時刻）に会えば、家でも彩色まで（timePiece の効果。04 §3.6）。
  * 金の縁取りは台本では入れず、彩色済みのピースを稽古で語り返したときだけ（家でも現地でも。04 §3.6・F-41）
  */
 export const PIECE_CAP: Record<Travel, PieceState> = { yume: 'hakubyo', utsutsu: 'saishiki' }
 
-/** 監修の状態（02 F-71）。了承待ち＝社寺・協力先などの了承が出るまで開かない札 */
-export type ReviewState = '下書き' | '監修中' | '監修済み' | '了承待ち'
+/** 監修の状態（02 F-71）。了承待ちは別の印 needsConsent（09 §5.7） */
+export type ReviewState = '下書き' | '監修中' | '監修済み'
+
+/** 時間のピース（04 §3.6 例外）。mandala.json の time: true と同じであること（story-pack の点検） */
+export const TIME_PIECES: ReadonlySet<string> = new Set(['fumoto-kuragari'])
 
 /** 伝承の札（03 の事実だけ。出典と確度を必ず付ける。04 §3.2 F-43） */
 export interface LoreCard {
@@ -65,6 +69,10 @@ export interface LoreCard {
   /** 03 の候補番号（例: 「03 #8」） */
   researchRef: string
   review: ReviewState
+  /** 了承待ち（02 F-71「別に」）。了承まで開かない・見せない。題と本文は空にする（04 §5.2） */
+  needsConsent?: true
+  /** 並べてはいけない組み合わせの印（04 §3.6: 雷鳥と立山権現・阿弥陀如来） */
+  topics?: ('raicho' | 'kami')[]
 }
 
 export interface LoreCardFile {
@@ -88,6 +96,10 @@ export interface MandalaPieceDef {
    * pending: で始まる項目は、まだ作っていない札（いつも白紙）。札が1枚しかない妖怪は稽古を持たない
    */
   keiko?: string[]
+  /** 時間のピース（逢魔が時に会えば、家でも彩色。金は稽古で） */
+  time?: true
+  /** ピースの表示の一言（状態ごと。無ければ画面の決まり文句） */
+  hint?: Partial<Record<'hakubyo' | 'saishiki' | 'kin', string>>
   /** 掛軸の座標（viewBox の中の矩形） */
   x: number
   y: number
@@ -128,6 +140,11 @@ export type Condition =
   | { item: string; state: ItemState }
   /** 悩みをもう1つ抱えられるか（同時に3つまで。04 §2.4）。questRoom: false で「いっぱい」 */
   | { questRoom: boolean }
+  /** その物語の日（立山の時刻、04:00 区切り）に、この妖怪と会ったか（lastMet）。'any' は夢でも現地でも。会話の時計が要る */
+  | { metToday: Travel | 'any'; yokai?: string }
+
+/** 条件の種類（このほかの鍵の条件は、点検で知らない条件として断る） */
+export const CONDITION_KEYS = ['met', 'card', 'bondAtLeast', 'piece', 'flag', 'travel', 'item', 'questRoom', 'metToday'] as const
 
 /** 持ち物の状態 */
 export type ItemState = 'none' | 'held' | 'given'
@@ -216,17 +233,28 @@ export type Effect =
   | { receive: string }
   /** 持ち物を渡す（受け取った妖怪の好物なら、縁が「なじみ」まで上がるのは台本の bond で書く） */
   | { deliver: string }
+  /** 開いている札を、もう一度見せる（開かない。了承待ち・まだ開いていない札は飛ばす） */
+  | { showCard: string }
+  /** 時間のピース。会話を始めた時が逢魔が時（立山）なら彩色（家でも）、そうでなければ白描 */
+  | { timePiece: string }
+
+/** 効果の種類（このほかの鍵の効果は、点検で知らない効果として断る） */
+export const EFFECT_KEYS = ['meet', 'bond', 'openCard', 'piece', 'flag', 'game', 'receive', 'deliver', 'showCard', 'timePiece'] as const
 
 export interface ScriptLine {
   /** speakers のキー */
   speaker: string
   text: string
+  /** この条件を満たすときだけ言う（台詞を出す時に見る。満たさなければ飛ばす） */
+  when?: Condition[]
 }
 
 export interface ScriptChoice {
   text: string
   next: string
   when?: Condition[]
+  /** 了承待ちの選択肢（了承まで出さない。02 F-71・04 §5.2） */
+  needsConsent?: true
 }
 
 /**
@@ -255,9 +283,13 @@ export interface DialogueScript {
   creative: true
   review: ReviewState
   note?: string
+  /** talk（既定）: 出会いの会話。yobanashi: 夜話（会ったことにしない。効果は showCard だけ） */
+  kind?: 'talk' | 'yobanashi'
+  /** 了承待ちの台本（了承まで始めない。02 F-71） */
+  needsConsent?: true
   speakers: Record<string, ScriptSpeaker>
-  /** 上から順に見て、条件を満たした最初の入口から始める */
-  entries: { when?: Condition[]; node: string; label?: string }[]
+  /** 上から順に見て、条件を満たした最初の入口から始める（id は夜話の場面の名前と、start(entryId) に使う） */
+  entries: { id?: string; when?: Condition[]; node: string; label?: string }[]
   nodes: Record<string, ScriptNode>
 }
 
@@ -277,6 +309,8 @@ export interface YokaiDef {
   likes?: string
   /** 本作オリジナルの妖怪（伝承にない。縁帳で明記する。04 §3.3） */
   original?: boolean
+  /** 夜話の台本（kind: 'yobanashi'。なじみ以上で、その日に会った夜に来る。04 §3.8） */
+  yobanashi?: string
 }
 
 /**
@@ -385,6 +419,8 @@ export interface QuestDef {
   yokai: string[]
   start: Condition[]
   done: Condition[]
+  /** 今日の絵解きでましろが振り返る一言（【創作】） */
+  recap?: string
 }
 
 export interface QuestFile {
@@ -397,4 +433,92 @@ export interface ItemFile {
   version: 1
   note?: string
   items: ItemDef[]
+}
+
+// ---- 便り（段階4b） ----
+
+/**
+ * 便りの部品。届いた時に、どの部品を使うかを id で残す（あとで文を直しても、届いた便りの組み立ては変えない）。
+ * p: ましろの地の文 / quote: 白描の頁の中の、妖怪の言葉 / card: 札の枠（題・本文・出典） /
+ * sheen: [艶0〜1段, 2段から]。届いた時に選ぶ（id.a / id.b）
+ */
+export type LetterPart =
+  | { id: string; p: string; when?: Condition[] }
+  | { id: string; quote: string; yokai: string; when?: Condition[] }
+  | { id: string; card: string; lead?: string }
+  | { id: string; sheen: [string, string]; yokai: string }
+
+/** 決まった便り（また聞き・悩みの便り）。文はすべて【創作】。伝承の事実は札の部品だけ */
+export interface LetterDef {
+  id: string
+  title: string
+  kind: 'matagiki' | 'quest'
+  /** だれの話か（妖怪の id） */
+  about?: string
+  /** このフラグが立った物語の日から days 日あと（0＝すぐ）の、はじめて開いたときに届く */
+  after: { flag: string; days: 0 | 1 }
+  /** はじめて読んだときに立てるフラグ */
+  onRead?: { flag: string }
+  /** 了承待ち（了承まで届けない。02 F-71） */
+  needsConsent?: true
+  parts: LetterPart[]
+}
+
+/** 「ましろの便り」の、妖怪の話の一行 */
+export interface SnippetLine {
+  id: string
+  text: string
+  when?: Condition[]
+}
+
+/** 「ましろの便り」（遊んだ日のあと、はじめて開いた日に1通。部品の組み合わせ） */
+export interface DailyLetterDef {
+  title: string
+  /** 呼び名を聞く一文（呼び名を書いても消してもいない間だけ出す） */
+  askName: string
+  open: string[]
+  close: string[]
+  /** そえる一言（1通に1つまで。max は、これまでの便りで使った回数の上限） */
+  hints: { id: 'etoki-before' | 'kuragari' | 'yobanashi' | 'etoki'; text: string; max: number }[]
+  /** 妖怪ごと。a＝艶0〜1段、b＝2段から */
+  snippets: Record<string, { a: SnippetLine[]; b: SnippetLine[] }>
+}
+
+export interface TayoriFile {
+  version: 1
+  note?: string
+  creative: true
+  review: ReviewState
+  letters: LetterDef[]
+  daily: DailyLetterDef
+  /** 夜話に来なかった、その日に会ったなじみの妖怪の気配（妖怪ごとに2つ。日で回す） */
+  nightKehai: Record<string, string[]>
+}
+
+/** 今日の絵解き（04 §2.4・§3.6）。ましろの振り返りと添え書きは【創作】。一言は選ぶだけ */
+export interface EtokiFile {
+  version: 1
+  note?: string
+  creative: true
+  review: ReviewState
+  /** ましろの振り返り。{呼び名}・{names} が使える */
+  recap: { open: string; met: string; metNone: string; newCard: string; pick: string; noCards: string }
+  /** 札の添え書き（クエストの日は QuestDef.recap）。{names} が使える */
+  caption: { met: string; none: string }
+  /** 一言の欄の見出し。{呼び名} が使える */
+  phraseLabel: string
+  phrases: { id: string; text: string }[]
+  lines: { saved: string; bye: string; pairBlocked: string }
+}
+
+/** core の仕組みが読む物語のデータ（StoryPack はこれを満たす） */
+export interface StoryData {
+  yokai: Record<string, YokaiDef>
+  scripts: Record<string, DialogueScript>
+  cards: Record<string, LoreCard>
+  quests: QuestDef[]
+  items: Record<string, ItemDef>
+  mandala: MandalaDef
+  tayori: TayoriFile
+  etoki: EtokiFile
 }

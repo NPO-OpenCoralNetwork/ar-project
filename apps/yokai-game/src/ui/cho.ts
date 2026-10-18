@@ -16,11 +16,14 @@
 //   白描 → 彩色 → 金と上がると、また「新」になる（前の seen:<ピース> は白描を見た印として読む）。数は出さない。
 //   帳のボタンの「新」はページが付ける（onNew）。連続の記録や、未読の数は作らない（04 §5.1）。
 
+import { sheenStep } from '../core/story/bond'
 import { checkConditions, etokiHand } from '../core/story/dialogue'
+import type { MemoStore } from '../core/story/memo'
 import type { Gained, ProgressStore } from '../core/story/progress'
 import { BOND_LABEL, type BondLevel, type EtokiSpec, type MandalaPieceDef, type PieceState, type Travel } from '../core/story/types'
 import type { StoryPack } from '../data/story-pack'
 import { ARTS, artToSvg } from '../yume/encounter/art'
+import type { Sound } from '../yume/encounter/sound'
 import { cardHtml, EtokiGame, escapeHtml, type KeikoState, MandalaView } from '../yume/encounter/ui'
 
 const STYLE = /* css */ `
@@ -120,10 +123,8 @@ const THREAD_NAME: Record<BondLevel, string> = {
   enishi: '結び目',
 }
 
-/** 糸の艶の段（会話を最後まで話した回数から。0〜1回: なし、2〜4回、5〜9回、10回から）。縁の段階は変えない */
-export function sheenStep(talks: number): 0 | 1 | 2 | 3 {
-  return talks >= 10 ? 3 : talks >= 5 ? 2 : talks >= 2 ? 1 : 0
-}
+/** 糸の艶の段（core/story/bond.ts。便りの言い回しと同じ段） */
+export { sheenStep }
 
 /** 艶の小さな字（色だけにしない）。tag は一覧の短い字、line は頁の文 */
 const SHEEN: { tag: string; line: string }[] = [
@@ -264,15 +265,28 @@ export interface ChoOptions {
   onNew?(on: boolean): void
   /** 最初からやり直した（保存はもう消してあり、帳も閉じてある） */
   onReset?(): void
+  /** 便り（段階4b）。あれば3つ目のタブ「便り」 */
+  tayori?: {
+    memo: MemoStore
+    /** home: 夜話・帳の影あり。site（現の旅）: 便りと絵解きだけ */
+    mode: 'home' | 'site'
+    /** 物語の時計の「いま」（appNow） */
+    now: () => number
+    sound: Sound
+  }
 }
 
 export interface Cho {
-  /** tab: 'mandala'（曼荼羅帳）か 'en'（縁帳）。省くと前に開いていた頁 */
-  open(tab?: 'mandala' | 'en'): void
+  /** tab: 'mandala'（曼荼羅帳）・'en'（縁帳）・'tayori'（便り）。省くと前に開いていた頁 */
+  open(tab?: 'mandala' | 'en' | 'tayori'): void
   close(): void
   readonly isOpen: boolean
-  /** まだ見ていないもの（曼荼羅帳のピース・縁帳の縁） */
-  news(): { mandala: boolean; en: boolean }
+  /** まだ見ていないもの（曼荼羅帳のピース・縁帳の縁・便り） */
+  news(): { mandala: boolean; en: boolean; tayori: boolean }
+  /** 今日の絵解きの札を開く（「今日はここまで」・旅印の札） */
+  etoki(): void
+  /** 1分ごと・会話のあと・ページに戻ったとき。便りを届け、「新」を見直す */
+  tick(): void
 }
 
 /** 稽古のましろの言葉（【創作】。会話の枠と同じ「台本・創作」の印で出る） */
@@ -432,7 +446,8 @@ export function createCho(o: ChoOptions): Cho {
   const cho: Cho = {
     open(tab) {
       if (view.isOpen || game) return
-      view.open(tab)
+      // 便りのタブは段階4b の画面（ui/tayori.ts）で足す。それまでは前に開いていた頁
+      view.open(tab === 'tayori' ? undefined : tab)
     },
     close() {
       // 稽古の途中なら、遊びも閉じる（道中に入ったときなど）
@@ -448,7 +463,10 @@ export function createCho(o: ChoOptions): Cho {
     get isOpen() {
       return view.isOpen || !!game
     },
-    news,
+    news: () => ({ ...news(), tayori: false }),
+    // 今日の絵解き・便りの見直しは、段階4b の画面（ui/etoki-sheet.ts・ui/tayori.ts）で足す
+    etoki() {},
+    tick() {},
   }
   return cho
 }

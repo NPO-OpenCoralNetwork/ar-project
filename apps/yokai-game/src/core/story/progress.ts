@@ -19,8 +19,14 @@
 //   フラグ（「新」の印を見た、など）だけの保存は数えない（写す・引き継ぎコードに入れる・保存を長く残す頼み）。
 // - ほかのタブが同じ保存を書いたら、このタブの状態をそれに入れ替える（follow。開いたままのタブが、古い状態で書き戻さないように）。
 //   入れ替えたことは onReplace で知らせる（このタブで変えたときは来ない。地図の地点や開いている帳を描き直すため）。
+// - 版3（段階4b）: 便り（letters）・夜話（nights）・今日の絵解き（etoki）を足した。保存の名前も .v3 にした（storage-keys.ts）。
+//   写すのは v3 ← v2 ← v1 の順。時間のピース（TIME_PIECES）だけは、ほんとうの逢魔が時に家で会えば彩色まで入り
+//   （colored.time。04 §3.6 例外）、稽古で金まで行ける。ほかのピースの決まりは変えない。
+// - 「最後に会った時」（lastMet）は、会話で妖怪が最初に話したとき（noteSeen）にも残す（途中で閉じても、その日に会ったことになる）。
+//   夜話（noteVisit）は、会話の回数だけ（会ったことにしない・縁も変えない）。
 
-import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
+import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY, V2_STORY_KEY, V2_TEST_KEY } from '../storage-keys'
+import type { DayKey } from './clock'
 import {
   BOND_CAP,
   BOND_LEVELS,
@@ -29,8 +35,12 @@ import {
   PIECE_CAP,
   PIECE_STATES,
   type PieceState,
+  TIME_PIECES,
   type Travel,
 } from './types'
+
+/** 保存の版 */
+export const SAVE_VERSION = 3
 
 export interface Gained {
   /** ISO 8601 の日時 */
@@ -54,8 +64,10 @@ export interface YokaiProgress {
   talks?: number
 }
 
+/** 彩色を得た時。time は時間のピースを、家で（ほんとうの逢魔が時に）彩色にした印 */
+export type ColoredGained = Gained & { time?: true }
 /** ピース。at・travel・onsite は、いまの状態になった時。colored は彩色を得た時（家で金になっても残す） */
-export type PieceProgress = Gained & { state: PieceState; colored?: Gained }
+export type PieceProgress = Gained & { state: PieceState; colored?: ColoredGained }
 
 /** 持ち物。got＝受け取った時、given＝渡した時 */
 export interface ItemProgress {
@@ -63,8 +75,30 @@ export interface ItemProgress {
   given?: Gained
 }
 
+/** 便り。got＝届いた時（ISO）、parts＝届いた時に選んだ部品の id（あとで変えない）、read＝はじめて読んだ時 */
+export interface LetterRecord {
+  got: string
+  parts: string[]
+  read?: string
+}
+/** その夜の夜話（一晩に一つ）。done＝最後まで聞いた */
+export interface NightRecord {
+  yokai: string
+  entry: string
+  at: string
+  done?: true
+}
+/** その日の絵解き。caption は絵解きの添え書きの鍵（'q:<クエスト id>' | 'met:<妖怪 id,…>' | 'none'）。phrase は一言の id */
+export interface EtokiRecord {
+  at: string
+  travel: Travel
+  cards: string[]
+  phrase?: string
+  caption: string
+}
+
 export interface Progress {
-  v: 2
+  v: 3
   yokai: Record<string, YokaiProgress>
   cards: Record<string, Gained>
   pieces: Record<string, PieceProgress>
@@ -76,6 +110,12 @@ export interface Progress {
   items: Record<string, ItemProgress>
   /** 最後に書いた時（ISO） */
   updatedAt?: string
+  /** 届いた便り（便りの id → 記録。ましろの便りは fumi:<物語の日>） */
+  letters: Record<string, LetterRecord>
+  /** 夜話（物語の日 → その夜の記録。来なかった夜は何も残さない） */
+  nights: Record<DayKey, NightRecord>
+  /** 今日の絵解き（物語の日 → その日の札。同じ日につくり直すと入れ替える） */
+  etoki: Record<DayKey, EtokiRecord>
 }
 
 /** localStorage と同じ形（テストや、保存できない環境では差し替える） */
@@ -88,29 +128,42 @@ export interface KeyValueStore {
 }
 
 export function emptyProgress(): Progress {
-  return { v: 2, yokai: {}, cards: {}, pieces: {}, flags: {}, flagAt: {}, stamps: {}, items: {} }
+  return { v: 3, yokai: {}, cards: {}, pieces: {}, flags: {}, flagAt: {}, stamps: {}, items: {}, letters: {}, nights: {}, etoki: {} }
 }
+
+/** 夜話・絵解きの記録を残す日数（新しいほうから） */
+export const DAY_RECORDS_MAX = 60
 
 export const bondRank = (b: BondLevel): number => BOND_LEVELS.indexOf(b)
 export const pieceRank = (s: PieceState): number => PIECE_STATES.indexOf(s)
 
-/** この版より新しい版の保存（版が 2 より大きい数）。読み込まずに、別の鍵へ写して残す */
+/** この版より新しい版の保存（版が 3 より大きい数）。読み込まずに、別の鍵へ写して残す */
 export class UnknownVersion extends Error {}
-/** 読めない保存（表の形でない・版が無い・版が数でない、1・2 でもない）。新しい版とは分ける。これも読み込まずに、別の鍵へ写して残す */
+/** 読めない保存（表の形でない・版が無い・版が数でない、1〜3 でもない）。新しい版とは分ける。これも読み込まずに、別の鍵へ写して残す */
 export class UnreadableSave extends Error {}
 
+const isIso = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v))
+const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
+const LETTER_ID_RE = /^[a-z0-9][a-z0-9:_.-]{0,63}$/
+const chars = (s: string): number => [...s].length
+/** 日ごとの記録を、新しい日から max 日分だけ残す */
+function keepLatest<T>(rec: Record<string, T>, max = DAY_RECORDS_MAX): Record<string, T> {
+  const keys = Object.keys(rec).sort().slice(-max)
+  return Object.fromEntries(keys.map((k) => [k, rec[k]]))
+}
+
 /**
- * 壊れた保存や古い形を、読める形に直す（読めない項目は捨てる）。版1 は版2 に直す。
+ * 壊れた保存や古い形を、読める形に直す（読めない項目は捨てる）。版1・版2 は版3 に直す。
  * 手で書き換えた保存や、引き継ぎで読み込んだ保存でも、旅ごとの上限（夢は「なじみ」・白描まで）を超えないように丸める。
  * onsite は travel と食い違っていたら捨てる（02 F-46）。
- * 版が 2 より大きい数なら UnknownVersion、表の形でない・版が無い（null・数でない）なら UnreadableSave を投げる（空として扱わない）
+ * 版が 3 より大きい数なら UnknownVersion、表の形でない・版が無い（null・数でない）なら UnreadableSave を投げる（空として扱わない）
  */
 export function sanitize(raw: unknown): Progress {
   const p = emptyProgress()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new UnreadableSave('進み具合の形ではない')
   const v = (raw as { v?: unknown }).v
-  if (typeof v === 'number' && v > 2) throw new UnknownVersion(String(v))
-  if (v !== 1 && v !== 2) throw new UnreadableSave(`読めない版（${String(v)}）`)
+  if (typeof v === 'number' && v > SAVE_VERSION) throw new UnknownVersion(String(v))
+  if (v !== 1 && v !== 2 && v !== 3) throw new UnreadableSave(`読めない版（${String(v)}）`)
   const r = raw as Partial<Omit<Progress, 'v'>>
   const isGained = (g: unknown): g is Gained => {
     if (!g || typeof g !== 'object') return false
@@ -147,11 +200,15 @@ export function sanitize(raw: unknown): Progress {
     const c = gainedOf(g)
     const st = g.state as PieceState
     if (!c || !PIECE_STATES.includes(st) || st === 'empty') continue
-    // 彩色を現地で得た印があれば、金まで（家で稽古した金も残す）。なければ、その旅で台本が入れられる上限まで
-    let colored = gainedOf(g.colored)
+    // 彩色を現地で得た印があれば、金まで（家で稽古した金も残す）。時間のピースは、家で逢魔が時に得た印（time）でも金まで。
+    // なければ、その旅で台本が入れられる上限まで（time の印は、時間のピースのものだけ読む）
+    const cg = gainedOf(g.colored)
+    const time = !!cg && TIME_PIECES.has(id) && (g.colored as { time?: unknown }).time === true
+    let colored: ColoredGained | undefined = cg && time ? { ...cg, time: true } : cg
     if (!colored && c.onsite && pieceRank(st) >= pieceRank('saishiki')) colored = c
-    const cap: PieceState = colored?.onsite ? 'kin' : PIECE_CAP[c.travel]
-    p.pieces[id] = { ...c, state: pieceRank(st) > pieceRank(cap) ? cap : st, ...(colored?.onsite ? { colored } : {}) }
+    const keep = !!colored && (colored.onsite || colored.time === true)
+    const cap: PieceState = keep ? 'kin' : PIECE_CAP[c.travel]
+    p.pieces[id] = { ...c, state: pieceRank(st) > pieceRank(cap) ? cap : st, ...(keep ? { colored } : {}) }
   }
   for (const [k, v] of Object.entries(obj(r.flags))) if (typeof v === 'boolean') p.flags[k] = v
   for (const [k, v] of Object.entries(obj(r.flagAt))) if (typeof v === 'string' && k in p.flags) p.flagAt[k] = v
@@ -166,6 +223,31 @@ export function sanitize(raw: unknown): Progress {
     const c = gainedOf(g)
     if (c?.onsite) p.stamps[id] = c
   }
+  // 便り（知らない id も残す。画面の側で、データに無い便りは出さない）
+  for (const [id, l] of records(r.letters)) {
+    if (!LETTER_ID_RE.test(id) || !isIso(l.got)) continue
+    const parts = l.parts
+    if (!Array.isArray(parts) || parts.length > 32 || !parts.every((x) => typeof x === 'string' && x.length <= 64)) continue
+    p.letters[id] = { got: l.got, parts: [...(parts as string[])], ...(isIso(l.read) ? { read: l.read } : {}) }
+  }
+  const nights: Record<string, NightRecord> = {}
+  for (const [day, n] of records(r.nights)) {
+    if (!DAY_KEY_RE.test(day) || typeof n.yokai !== 'string' || typeof n.entry !== 'string' || typeof n.at !== 'string') continue
+    if (n.done !== undefined && n.done !== true) continue
+    nights[day] = { yokai: n.yokai, entry: n.entry, at: n.at, ...(n.done === true ? { done: true as const } : {}) }
+  }
+  p.nights = keepLatest(nights)
+  const etoki: Record<string, EtokiRecord> = {}
+  for (const [day, e] of records(r.etoki)) {
+    if (!DAY_KEY_RE.test(day) || !isIso(e.at) || (e.travel !== 'yume' && e.travel !== 'utsutsu')) continue
+    const cards = e.cards
+    if (!Array.isArray(cards) || cards.length < 1 || cards.length > 3 || !cards.every((x) => typeof x === 'string') || new Set(cards).size !== cards.length) continue
+    if (e.phrase !== undefined && (typeof e.phrase !== 'string' || chars(e.phrase) > 32)) continue
+    const caption = e.caption === undefined ? 'none' : e.caption
+    if (typeof caption !== 'string' || chars(caption) > 128) continue
+    etoki[day] = { at: e.at, travel: e.travel, cards: [...(cards as string[])], ...(typeof e.phrase === 'string' ? { phrase: e.phrase } : {}), caption }
+  }
+  p.etoki = keepLatest(etoki)
   return p
 }
 
@@ -177,31 +259,47 @@ export function hasProgress(p: Readonly<Progress>): boolean {
   return Object.values(p.yokai).some((y) => !!y.met) || [p.cards, p.pieces, p.items, p.stamps].some((o) => Object.keys(o).length > 0)
 }
 
-/** いまの保存の名前 → 前の名前（storage-keys.ts。前の版のゲームが読み書きする） */
-const LEGACY_SAVE_KEYS: Record<string, string> = { [STORY_KEY]: LEGACY_STORY_KEY, [TEST_KEY]: LEGACY_TEST_KEY }
+/** いまの保存の名前 → 前の名前（新しい版から順。storage-keys.ts。前の版のゲームが読み書きする） */
+const LEGACY_SAVE_CHAINS: Record<string, readonly string[]> = {
+  [STORY_KEY]: [V2_STORY_KEY, LEGACY_STORY_KEY],
+  [TEST_KEY]: [V2_TEST_KEY, LEGACY_TEST_KEY],
+}
 /** 前の名前の保存を、もう扱った印（写した・この版でやり直した）。あれば、いまの名前に保存が無くても写さない */
 const legacyDoneKey = (key: string): string => `${key}.legacy-done`
 
 /**
- * 前の名前の保存を、いまの名前へ写す（4a review F1）。保存を読む前に、どのページでもこれを通す（ProgressStore・引き継ぎ・写し）。
+ * 前の名前の保存を、いまの名前へ写す（4a review F1。版3 は v3 ← v2 ← v1 の順）。保存を読む前に、どのページでもこれを通す（ProgressStore・引き継ぎ・写し）。
  * - 写すのは、いまの名前に保存が無く、まだ一度も写していない（この版でやり直してもいない）ときだけ。写したら印を残す
  *   （legacyDoneKey。あとでこの版でやり直しても、前の版で遊んでも、混ぜ戻さない）。
- * - 写すのは読める保存（版1・版2）だけ。直した形（sanitize）で写す。読めない保存（知らない版・壊れた JSON）は写さない。
+ * - 前の名前は新しい版から順に見る。保存があれば、その保存だけを見て止める（それより古い版は、その版がもう写している）。
+ *   保存が無く、その版の「扱った印」があれば止める（その版が写してから、そこでやり直した。古い版から写し直さない）。どちらも無ければ、次の古い版へ。
+ * - 写すのは読める保存（版1〜3）だけ。直した形（sanitize）で写す。読めない保存（知らない版・壊れた JSON）は写さず、印も残さない（4a と同じ）。
  * - 進み具合の無い保存（空・フラグだけ。hasProgress）は写さず、印だけ残す（空の保存を書くと、ほかの所が「進み具合あり」と取り違える）。
+ * - どの版にも保存も印も無ければ、何も書かない（印を残すと、あとで前の版で遊んだ分を、もう写せない。4a と同じ）。
  * - 前の名前の保存は、消さず、書き換えもしない（前の版の保存で、控えにもなる）。
  */
 export function migrateLegacySave(storage: KeyValueStore, key: string): void {
-  const legacy = LEGACY_SAVE_KEYS[key]
-  if (!legacy) return
+  const chain = LEGACY_SAVE_CHAINS[key]
+  if (!chain) return
   try {
     if (storage.getItem(key) !== null || storage.getItem(legacyDoneKey(key)) !== null) return
-    const raw = storage.getItem(legacy)
-    if (raw === null) return
-    const old = JSON.parse(raw) as { v?: unknown } | null
-    if (old?.v !== 1 && old?.v !== 2) return
-    const p = sanitize(old)
-    if (hasProgress(p)) storage.setItem(key, JSON.stringify(p))
-    storage.setItem(legacyDoneKey(key), '1')
+    let decided = false
+    for (const legacy of chain) {
+      const raw = storage.getItem(legacy)
+      if (raw !== null) {
+        const old = JSON.parse(raw) as { v?: unknown } | null
+        if (old?.v !== 1 && old?.v !== 2 && old?.v !== 3) return
+        const p = sanitize(old)
+        if (hasProgress(p)) storage.setItem(key, JSON.stringify(p))
+        decided = true
+        break
+      }
+      if (storage.getItem(legacyDoneKey(legacy)) !== null) {
+        decided = true
+        break
+      }
+    }
+    if (decided) storage.setItem(legacyDoneKey(key), '1')
   } catch {
     // 読めない・写せないときは、そのまま（前の名前の保存にも触れない）
   }
@@ -313,6 +411,21 @@ export class ProgressStore {
     return this.state.pieces[id]?.state ?? 'empty'
   }
 
+  /** 妖怪が会話で最初に話した: lastMet = いま（夢なら dreamMet ??=）。回数は増やさない */
+  noteSeen(yokai: string, travel: Travel): void {
+    const y = this.yokaiOf(yokai)
+    y.lastMet = this.gained(travel)
+    if (travel === 'yume') y.dreamMet ??= y.lastMet
+    this.commit()
+  }
+
+  /** 夜話を最後まで聞いた: talks + 1 だけ（lastMet・dreamMet・縁は変えない） */
+  noteVisit(yokai: string): void {
+    const y = this.yokaiOf(yokai)
+    y.talks = (y.talks ?? 0) + 1
+    this.commit()
+  }
+
   /** 会話を最後まで話した（回数と最後に会った時を残す。縁の段階は変えない） */
   noteTalk(yokai: string, travel: Travel): void {
     const y = this.yokaiOf(yokai)
@@ -375,15 +488,20 @@ export class ProgressStore {
     return true
   }
 
-  /** ピースの状態を上げる（台本の効果）。下げない。夢の旅では白描まで、現地では彩色まで */
-  setPiece(id: string, state: PieceState, travel: Travel): { state: PieceState; changed: boolean; capped: boolean } {
-    const cap = PIECE_CAP[travel]
+  /**
+   * ピースの状態を上げる（台本の効果）。下げない。夢の旅では白描まで、現地では彩色まで。
+   * opts.time かつ TIME_PIECES のピースなら、旅に関係なく彩色まで。夢の旅で彩色になったら colored = { ...g, time: true }
+   */
+  setPiece(id: string, state: PieceState, travel: Travel, opts?: { time?: boolean }): { state: PieceState; changed: boolean; capped: boolean } {
+    const time = !!opts?.time && TIME_PIECES.has(id)
+    const cap: PieceState = time ? 'saishiki' : PIECE_CAP[travel]
     const capped = pieceRank(state) > pieceRank(cap)
     const want = capped ? cap : state
     const cur = this.pieceOf(id)
     if (pieceRank(want) <= pieceRank(cur)) return { state: cur, changed: false, capped }
     const g = this.gained(travel)
-    this.state.pieces[id] = { ...g, state: want, ...(want === 'saishiki' ? { colored: g } : {}) }
+    const colored: ColoredGained | undefined = want !== 'saishiki' ? undefined : time && travel === 'yume' ? { ...g, time: true } : g
+    this.state.pieces[id] = { ...g, state: want, ...(colored ? { colored } : {}) }
     this.commit()
     return { state: want, changed: true, capped }
   }
@@ -442,6 +560,69 @@ export class ProgressStore {
     this.commit()
   }
 
+  letter(id: string): Readonly<LetterRecord> | undefined {
+    return this.state.letters[id]
+  }
+
+  /** まだ無ければ { got: いま, parts }。届けたら true */
+  deliverLetter(id: string, parts: string[]): boolean {
+    if (this.state.letters[id]) return false
+    this.state.letters[id] = { got: this.now().toISOString(), parts: [...parts] }
+    this.commit()
+    return true
+  }
+
+  /** read ??= いま。はじめて読んだら true */
+  readLetter(id: string): boolean {
+    const l = this.state.letters[id]
+    if (!l || l.read) return false
+    l.read = this.now().toISOString()
+    this.commit()
+    return true
+  }
+
+  night(day: DayKey): Readonly<NightRecord> | undefined {
+    return this.state.nights[day]
+  }
+
+  /** その夜の記録が無ければ { yokai, entry, at: いま } を書く（あれば何もしない＝選び直さない） */
+  startNight(day: DayKey, yokai: string, entry: string): void {
+    if (this.state.nights[day]) return
+    this.state.nights[day] = { yokai, entry, at: this.now().toISOString() }
+    this.state.nights = keepLatest(this.state.nights)
+    this.commit()
+  }
+
+  /** done = true、flag `yb:<yokai>:<entry>` = true（flagAt つき）を1回の書き込みで */
+  finishNight(day: DayKey): void {
+    const n = this.state.nights[day]
+    if (!n || n.done) return
+    n.done = true
+    const key = `yb:${n.yokai}:${n.entry}`
+    if (this.state.flags[key] !== true) {
+      this.state.flags[key] = true
+      this.state.flagAt[key] = this.now().toISOString()
+    }
+    this.commit()
+  }
+
+  etokiOf(day: DayKey): Readonly<EtokiRecord> | undefined {
+    return this.state.etoki[day]
+  }
+
+  /** その日の絵解きを残す（同じ日につくり直したら入れ替える） */
+  saveEtoki(day: DayKey, rec: { cards: string[]; phrase?: string; caption: string }, travel: Travel): void {
+    this.state.etoki[day] = {
+      at: this.now().toISOString(),
+      travel,
+      cards: [...rec.cards],
+      ...(rec.phrase !== undefined ? { phrase: rec.phrase } : {}),
+      caption: rec.caption,
+    }
+    this.state.etoki = keepLatest(this.state.etoki)
+    this.commit()
+  }
+
   /** ほかの端末の保存を合わせる（引き継ぎ）。上がるもの（縁・札・ピース・持ち物・旅印）は高いほう、フラグは新しく書いたほう */
   mergeFrom(other: Progress): void {
     this.state = mergeProgress(this.state, other)
@@ -462,7 +643,7 @@ export class ProgressStore {
       } catch {
         // 消せなくても、次の保存で上書きされる
       }
-      if (LEGACY_SAVE_KEYS[this.key]) {
+      if (LEGACY_SAVE_CHAINS[this.key]) {
         for (let i = 0; i < 2; i++) {
           try {
             this.storage.setItem(legacyDoneKey(this.key), '1')
@@ -510,12 +691,22 @@ const betterMet = (a: Gained | undefined, b: Gained | undefined): Gained | undef
   if (a.onsite !== b.onsite) return a.onsite ? a : b
   return earlier(a, b)
 }
+/** 彩色の印: 現地の彩色を先に、同じ格なら早いほう（印の形はそのまま残すので、time も残る） */
+const betterColored = (a: ColoredGained | undefined, b: ColoredGained | undefined): ColoredGained | undefined => {
+  if (!a || !b) return a ?? b
+  if (a.onsite !== b.onsite) return a.onsite ? a : b
+  return a.at <= b.at ? a : b
+}
+const earlierIso = (a: string | undefined, b: string | undefined): string | undefined => (!a ? b : !b ? a : a <= b ? a : b)
 
 /**
  * 2つの保存を合わせる（引き継ぎ。F-51）。どちらも読める形（sanitize 済み）であること。
  * - 縁・ピースは高いほう（同じなら早く得たほう）。札・旅印・持ち物は両方を合わせる（早く得たほう、渡した印は残す）
  * - フラグは、書いた時（flagAt）が新しいほう。時の分からないフラグは、時の分かるほうに負ける
  * - 会話の回数は多いほう、最後に会った時は新しいほう、夢で初めて会った時は早いほう
+ * - 彩色の印は、現地の彩色を先に、同じ格なら早いほう（時間のピースの time の印も残る）
+ * - 便りは両方を合わせる（届いた時は早いほう、部品は早く届いたほうのもの、読んだ時は早いほう。どちらかで読んでいれば読んだ）
+ * - 夜話は日ごとに合わせる（同じ日なら、最後まで聞いたほう、次に早く始めたほう）。絵解きは日ごとに、あとでつくったほう
  */
 export function mergeProgress(a: Progress, b: Progress): Progress {
   const out = emptyProgress()
@@ -542,7 +733,7 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
     const x = a.pieces[id]
     const y = b.pieces[id]
     const hi = !x || !y ? (x ?? y) : pieceRank(x.state) !== pieceRank(y.state) ? (pieceRank(x.state) > pieceRank(y.state) ? x : y) : x.at <= y.at ? x : y
-    const colored = earlier(x?.colored, y?.colored)
+    const colored = betterColored(x?.colored, y?.colored)
     out.pieces[id] = { ...hi, ...(colored ? { colored } : {}) }
   }
   for (const id of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) {
@@ -560,6 +751,29 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
     const t = fromB ? tb : ta
     if (t) out.flagAt[k] = t
   }
+  for (const id of new Set([...Object.keys(a.letters), ...Object.keys(b.letters)])) {
+    const x = a.letters[id]
+    const y = b.letters[id]
+    const first = !x || !y ? (x ?? y) : x.got <= y.got ? x : y
+    const read = earlierIso(x?.read, y?.read)
+    out.letters[id] = { got: first.got, parts: [...first.parts], ...(read ? { read } : {}) }
+  }
+  const nights: Record<string, NightRecord> = {}
+  for (const day of new Set([...Object.keys(a.nights), ...Object.keys(b.nights)])) {
+    const x = a.nights[day]
+    const y = b.nights[day]
+    const pick = !x || !y ? (x ?? y) : !!x.done !== !!y.done ? (x.done ? x : y) : x.at <= y.at ? x : y
+    nights[day] = { ...pick }
+  }
+  out.nights = keepLatest(nights)
+  const etoki: Record<string, EtokiRecord> = {}
+  for (const day of new Set([...Object.keys(a.etoki), ...Object.keys(b.etoki)])) {
+    const x = a.etoki[day]
+    const y = b.etoki[day]
+    const pick = !x || !y ? (x ?? y) : y.at > x.at ? y : x
+    etoki[day] = { ...pick, cards: [...pick.cards] }
+  }
+  out.etoki = keepLatest(etoki)
   out.updatedAt = [a.updatedAt, b.updatedAt].filter(Boolean).sort().pop()
   return out
 }

@@ -9,11 +9,15 @@
 //   版2（10/18）: saves を土地の名前（iwakuraji・test）で持つ（端末の保存の名前を変えても、コードの形は変えないため。4a review F1）。
 //   版1: saves を保存の名前（yume.story.v1・yume.story.test.v1）で持っていた。読むときは土地の名前に直す（読める）。
 // - 書き出すのは、進み具合のある土地だけ（hasProgress。フラグだけの保存は運ばない）。どの土地にも無ければ、コードを作らない。
-// - 読めないコードは、わけを分けて断る（端末には何も書かない）: 新しい版のゲームで作ったコード（入れ物か中の保存の版が 2 より大きい数）は
+// - 読めないコードは、わけを分けて断る（端末には何も書かない）: 新しい版のゲームで作ったコード（入れ物か中の保存の版が 3 より大きい数）は
 //   「新しい版」、中の保存が表の形でない・版が無い（数でない）なら「中身が読めません」、ほかの形の違いは「形は読めません」。
+// - 版3（段階4b）: 中の保存は版3（便り・夜話・絵解きつき）。ましろの覚え書き（呼び名。端末に1つ）も memo で運ぶ（04 §3.3「引き継ぎのときだけ」）。
+//   覚え書きは、書いたか消したか（消した印）があるときだけ入れる。読み込むときは項目ごとに新しいほう（消した印も戻らない）。
+//   覚え書きが読めなくても、コードは断らない（覚え書きだけ捨てる）。4a の版は版3 のコードを「新しい版」として断る（それで正しい）。
 
-import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
-import { hasProgress, type KeyValueStore, mergeProgress, migrateLegacySave, type Progress, sanitize, UnknownVersion } from './progress'
+import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, MEMO_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
+import { type MemoDoc, mergeMemo, sanitizeMemo } from './memo'
+import { hasProgress, type KeyValueStore, mergeProgress, migrateLegacySave, type Progress, SAVE_VERSION, sanitize, UnknownVersion } from './progress'
 
 /** 運んでよい土地 → 端末の保存の名前（これ以外は書き出さない・読み込まない） */
 export const TRANSFER_SAVES = { iwakuraji: STORY_KEY, test: TEST_KEY } as const
@@ -34,11 +38,16 @@ const BAD_SHAPE = 'この引き継ぎコードの形は読めません'
 
 const isRecord = (o: unknown): o is Record<string, unknown> => !!o && typeof o === 'object' && !Array.isArray(o)
 
+/** 入れ物の版 */
+const ENVELOPE_VERSION = 3
+
 interface Envelope {
   format: 'yumeutsutsu-save'
-  v: 2
+  v: 3
   exportedAt: string
   saves: Partial<Record<TransferLand, Progress>>
+  /** ましろの覚え書き（呼び名を書いたか消したときだけ） */
+  memo?: MemoDoc
 }
 
 export interface ImportResult {
@@ -46,6 +55,18 @@ export interface ImportResult {
   merged: TransferLand[]
   /** 書き出した日時（ISO） */
   exportedAt: string
+  /** 覚え書き（呼び名）も合わせたか */
+  memo: boolean
+}
+
+/** 端末の覚え書き（読めなければ空） */
+const readMemo = (storage: KeyValueStore): MemoDoc => {
+  try {
+    const raw = storage.getItem(MEMO_KEY)
+    return raw ? sanitizeMemo(JSON.parse(raw)) : { v: 1 }
+  } catch {
+    return { v: 1 }
+  }
 }
 
 const toBase64Url = (bytes: Uint8Array): string => {
@@ -82,12 +103,15 @@ export async function exportTransferCode(storage: KeyValueStore, now = new Date(
     }
   }
   if (!Object.keys(saves).length) return null
-  const env: Envelope = { format: 'yumeutsutsu-save', v: 2, exportedAt: now.toISOString(), saves }
+  const env: Envelope = { format: 'yumeutsutsu-save', v: ENVELOPE_VERSION, exportedAt: now.toISOString(), saves }
+  // 覚え書きは、呼び名を書いたか消したときだけ運ぶ（消した印も運ぶ。ほかの端末で消したことが戻らないように）
+  const memo = readMemo(storage)
+  if (memo.yobina) env.memo = memo
   const packed = await pipeThrough(new TextEncoder().encode(JSON.stringify(env)), new CompressionStream('deflate-raw'))
   return PREFIX + toBase64Url(packed)
 }
 
-/** コードを読む（端末には書かない）。版1 のコードは版2 の形に直して返す。読めなければ例外 */
+/** コードを読む（端末には書かない）。版1・版2 のコードは版3 の入れ物に直して返す。読めなければ例外 */
 export async function readTransferCode(code: string): Promise<Envelope> {
   const text = code.replace(/\s+/g, '')
   if (!text.startsWith(PREFIX)) throw new Error('引き継ぎコードではないようです')
@@ -100,18 +124,18 @@ export async function readTransferCode(code: string): Promise<Envelope> {
   }
   if (!isRecord(raw) || raw.format !== 'yumeutsutsu-save') throw new Error(BAD_SHAPE)
   // 入れ物の版が新しい（新しい版のゲームが作ったコード）。中の形は見ない
-  if (typeof raw.v === 'number' && raw.v > 2) throw new Error(NEWER)
+  if (typeof raw.v === 'number' && raw.v > ENVELOPE_VERSION) throw new Error(NEWER)
   const saves = raw.saves
-  if ((raw.v !== 1 && raw.v !== 2) || !isRecord(saves)) throw new Error(BAD_SHAPE)
-  // 版1 は保存の名前、版2 は土地の名前で持つ。知らない名前は読まない
-  const env: Envelope = { format: 'yumeutsutsu-save', v: 2, exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '', saves: {} }
+  if ((raw.v !== 1 && raw.v !== 2 && raw.v !== 3) || !isRecord(saves)) throw new Error(BAD_SHAPE)
+  // 版1 は保存の名前、版2・版3 は土地の名前で持つ。知らない名前は読まない
+  const env: Envelope = { format: 'yumeutsutsu-save', v: ENVELOPE_VERSION, exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '', saves: {} }
   for (const [name, save] of Object.entries(saves)) {
     const land = raw.v === 1 ? V1_LANDS.get(name) : TRANSFER_LANDS.find((l) => l === name)
     if (!land) continue
     // 中の保存が、このページで読める版か（読めなければ、読み込む前に断る。端末には何も書かない）。
-    // 表の形でない・版が無い（数でない）のは壊れたコード、版が 2 より大きい数なら新しい版のゲームで作ったコード
+    // 表の形でない・版が無い（数でない）のは壊れたコード、版が 3 より大きい数なら新しい版のゲームで作ったコード
     if (!isRecord(save) || typeof save.v !== 'number') throw new Error(UNREADABLE)
-    if (save.v > 2) throw new Error(NEWER)
+    if (save.v > SAVE_VERSION) throw new Error(NEWER)
     try {
       sanitize(save)
     } catch (e) {
@@ -119,10 +143,15 @@ export async function readTransferCode(code: string): Promise<Envelope> {
     }
     env.saves[land] = save as unknown as Progress
   }
+  // 覚え書き（版3 から）。読めなければ黙って捨てる（コードは断らない）
+  if (raw.memo !== undefined) {
+    const memo = sanitizeMemo(raw.memo)
+    if (memo.yobina) env.memo = memo
+  }
   return env
 }
 
-/** コードを読み込み、いまの端末の保存と合わせて書く */
+/** コードを読み込み、いまの端末の保存と合わせて書く（覚え書きも、項目ごとに新しいほうで合わせる） */
 export async function importTransferCode(code: string, storage: KeyValueStore): Promise<ImportResult> {
   const env = await readTransferCode(code)
   const merged: TransferLand[] = []
@@ -147,6 +176,8 @@ export async function importTransferCode(code: string, storage: KeyValueStore): 
     writes.push([key, JSON.stringify(mine ? mergeProgress(mine, theirs) : theirs)])
     merged.push(land)
   }
+  // 覚え書きも同じ書き込みの中で（途中で止まったら、ほかの鍵と一緒に戻す）
+  if (env.memo) writes.push([MEMO_KEY, JSON.stringify(mergeMemo(readMemo(storage), env.memo))])
   // 先に全部を合わせてから書く。書く途中で止まったら（端末の空きが足りないなど）、書く前の値に戻してから投げる
   // （片方の土地だけ書いたままにしない。札は「保存できませんでした」と出し、進み具合はそのまま）
   const before = writes.map(([key]) => [key, storage.getItem(key)] as const)
@@ -163,5 +194,5 @@ export async function importTransferCode(code: string, storage: KeyValueStore): 
     }
     throw e
   }
-  return { merged, exportedAt: env.exportedAt }
+  return { merged, exportedAt: env.exportedAt, memo: !!env.memo }
 }
