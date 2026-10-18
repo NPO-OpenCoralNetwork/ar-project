@@ -4,10 +4,11 @@
 // ルール（05 §3、04 §3.1・§5）:
 // - 歩いている間は出てこない。動くと途切れる（霞がゆっくり引く）。
 // - お休みの範囲（境内）では出会いを起こさない。
+// - 夜は、どの地点も気配だけ（04 §2.5「箱庭も夜は気配だけ」。決まりは core の canListenAtHome。白描の絵地図と同じ）。
 // - 会話の画面・曼荼羅帳を開いている間は、アバターを止める。
 // - 家で上がる縁は「なじみ」まで、曼荼羅は白描まで（ProgressStore が上限で止める）。
 //
-// 地点の役目（data.ts の SpotRole）:
+// 地点の役目（data.ts の SpotLocal.role。決め方は core の spotRole）:
 // - yokai: 決まった地点の妖怪。台本と絵のある妖怪だけ夢の姿が浮かぶ（ほかは気配だけ）。
 // - clue: 調べる地点（04 §3.4）。悩みを頼まれ、札をまだ拾っていない間だけ印を出す（clues.json）。
 //   耳を澄ますと、姿は浮かばず、霞が寄ってましろだけが話し、札が出る。
@@ -16,7 +17,7 @@
 //   表は耳を澄ますたびに引く。会話の途中で時間帯が変わっても、浮かんだ姿は消さない（main.ts は会話の間 T キーを止める）。
 
 import * as THREE from 'three'
-import { clueActive, resolveAppearance, timeSlotOfDiorama } from '../../core/story/appearance'
+import { canListenAtHome, clueActive, HOME_NIGHT_KEHAI, resolveAppearance, timeSlotOfDiorama } from '../../core/story/appearance'
 import { type Beat, DialogueRunner } from '../../core/story/dialogue'
 import { ListenGauge } from '../../core/story/listen'
 import type { ProgressStore } from '../../core/story/progress'
@@ -210,16 +211,16 @@ export class Encounters {
     return f
   }
 
-  /** 近くの地点で、耳を澄ますと始まる会話（無ければ気配だけ） */
+  /** 近くの地点で、耳を澄ますと始まる会話（無ければ気配だけ）。夜は、どの役目の地点も気配だけ */
   private listenableAt(spot: SpotLocal): Listenable | null {
     const { story, progress } = this.d
+    if (!canListenAtHome(this.timeOfDay)) return null
     if (spot.role === 'clue') {
       const clue = spot.clueId ? story.clues[spot.clueId] : undefined
       const script = clue ? story.scripts[clue.script] : undefined
       return clue && script && clueActive(clue, progress, 'yume') ? { spot, script } : null
     }
     if (spot.role === 'wander') {
-      if (spot.placeKind !== 'mizube') return null
       const a = resolveAppearance(story.appearance, spot.placeKind, timeSlotOfDiorama(this.timeOfDay), progress, 'yume')
       if (a.mode !== 'appear') return null
       const y = story.yokai[a.yokaiId]
@@ -287,8 +288,8 @@ export class Encounters {
       const sub = target && !target.yokaiId ? '長押し・古い話の気配' : met ? '長押し・また会いに' : '長押し・その場で止まる'
       this.listenBtn.show(!!target && !this.mandala.isOpen, sub)
       this.listenBtn.setProgress(this.gauge.progress)
-      // 台本のない妖怪の地点と、いまは出ない寄り道の地点（夜など）は、気配だけ
-      hud.showPrompt(near && !target ? 'かすかな気配。まだ声は遠い' : null)
+      // 夜はどの地点も、ほかは台本のない妖怪の地点と、いまは出ない寄り道の地点が、気配だけ（夜の言葉は白描の絵地図と同じ）
+      hud.showPrompt(near && !target ? (canListenAtHome(this.timeOfDay) ? 'かすかな気配。まだ声は遠い' : HOME_NIGHT_KEHAI) : null)
       field.spots.setFocus(target?.spot.id ?? null, this.gauge.progress, 0)
       // 姿のない会話のあとは、残った霞をゆっくり引く（耳を澄ますと、また寄る）
       this.mistLinger *= Math.exp(-dt * 1.5)

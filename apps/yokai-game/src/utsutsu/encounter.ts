@@ -9,6 +9,7 @@
 //   none＝姿なし（調べる地点。ましろだけが話す。霞が少し残る）。
 // - 寄り道の妖怪は、決まった台本ではなく、出現の表の台本（雑談）で話す（呼ぶ側が script を渡す）。
 // - お休みの範囲・道中に入ったら、会話とカメラをすぐ止める（D2・D3）。
+// - 出会っていない間は、層ごと inert（透明な層の「カメラで見る」に、Tab で入らないように）。
 
 import { type Beat, DialogueRunner } from '../core/story/dialogue'
 import type { ProgressStore } from '../core/story/progress'
@@ -77,6 +78,7 @@ export class GenEncounter {
     this.camBtn = this.el.querySelector('.ue-cam-btn') as HTMLButtonElement
     this.note = this.el.querySelector('.ue-note') as HTMLDivElement
     this.camBtn.addEventListener('click', () => void (this.stream ? this.stopCamera() : this.startCamera()))
+    this.el.inert = true
     d.root.appendChild(this.el)
     this.dialogue = new DialogueView(
       d.root,
@@ -115,6 +117,7 @@ export class GenEncounter {
     // 姿の無い会話では、カメラで見るものがない
     this.camBtn.hidden = this.d.camera === false || form === 'none'
     this.el.classList.add('on')
+    this.el.inert = false
     // 次のフレームで「現れる」動きを始める（霞が晴れ、線のあとに色が差す）
     requestAnimationFrame(() => requestAnimationFrame(() => this.el.classList.add('appeared')))
     this.d.sound.bell(1)
@@ -152,6 +155,8 @@ export class GenEncounter {
     this.dialogue.close()
     void this.stopCamera()
     this.d.log(`talk:end ${how} trail=${a.runner.trail.join('>')}`)
+    // 消えていく間から、Tab で入れない（会話の枠を閉じたあとに。遊びが inert にしていた層を戻すのは、その中で済んでいる）
+    this.el.inert = true
     this.el.classList.add('parting')
     window.setTimeout(() => {
       if (this.active) return

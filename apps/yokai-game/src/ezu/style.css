@@ -76,6 +76,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f1e3; ove
 .ez-card .sub { display: block; box-sizing: border-box; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; min-height: 44px; line-height: 44px; color: #2a2622; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; cursor: pointer; text-align: center; text-decoration: none; }
 .ez-card .big:focus-visible, .ez-card .sub:focus-visible { outline: 2px solid #2a2622; outline-offset: 2px; }
 .ez-card svg.mashiro { display: block; width: 120px; height: 90px; margin: 0 auto 6px; }
+/* 札を出したときと絵地図を始めたときに、キーボードの位置を置く見出し・題（押せるものではないので、枠は出さない） */
+.ez-card h1:focus, .ez-card h2:focus, .ez-title:focus { outline: none; }
 
 /* 会話・曼荼羅帳の間は、地図の上の板を隠す（出典表示は隠さない） */
 .yh.talking .ez-tl, .yh.talking .ez-tr, .yh.talking .ez-tools, .yh.talking .ez-hint, .yh.talking .ez-toast, .yh.talking .ez-spots,

@@ -70,6 +70,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 @media (max-width: 520px) {
   .yh-tl { max-width: calc(100vw - 150px); }
   .yh-title { font-size: 12px; }
+  /* スマホの幅では、入口へのリンクと並ぶので「夢の旅 試作 ・」を外して、地域の名前（と（仮））が切れないようにする（ページの題には残る。
+     入口の無い1つの HTML の箱庭では、リンクが無いので外さない） */
+  .yh-home + .yh-title .pre { display: none; }
   /* スマホは板を少し低くして、空の帯を広く見せる */
   .yh-panel { gap: 5px; }
   .yh-panel .yh-btn { min-height: 34px; }
@@ -122,7 +125,8 @@ export class Hud {
   private toastTimer = 0
   private compassYaw = NaN
 
-  constructor(host: HTMLElement, title: string, attributions: string[], hooks: HudHooks, showPerf = false) {
+  /** title: 題（prefix は「夢の旅 試作 ・ 」。狭い画面では隠し、地域の名前 name だけを出す） */
+  constructor(host: HTMLElement, title: { prefix: string; name: string }, attributions: string[], hooks: HudHooks, showPerf = false) {
     const style = document.createElement('style')
     style.textContent = CSS
     document.head.appendChild(style)
@@ -141,7 +145,7 @@ export class Hud {
       tl.appendChild(home)
     }
     const t = el('div', 'yh-title')
-    t.textContent = title
+    t.innerHTML = `<span class="pre">${escapeHtml(title.prefix)}</span>${escapeHtml(title.name)}`
     tl.appendChild(t)
     this.root.appendChild(tl)
     this.topLeft = tl

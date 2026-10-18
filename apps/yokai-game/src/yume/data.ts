@@ -3,6 +3,8 @@
 
 import { toLocal } from '../core/geo'
 import type { RegionPack, Spot } from '../core/region-pack'
+import { type SpotRole, spotRole } from '../core/story/appearance'
+import type { AppearanceTable } from '../core/story/types'
 import demJson from '../data/iwakuraji-dem.json'
 import osmJson from '../data/iwakuraji-osm.json'
 import { iwakurajiPack } from '../data/iwakuraji-pack'
@@ -66,17 +68,15 @@ export interface SkylineData {
   bands: { fromM: number; toM: number; ridge: RidgePoint[] }[]
 }
 
-/**
- * 地点の役目。yokai＝決まった地点の妖怪（F-04）、clue＝調べる地点（ましろだけが話して札が出る。04 §3.4）、
- * wander＝寄り道の地点（出現の表の行。妖怪は場所の種類と時間帯で引く。04 §3.1）
- */
-export type SpotRole = 'yokai' | 'clue' | 'wander'
-
 export interface SpotLocal {
   id: string
   label: string
   x: number
   z: number
+  /**
+   * 地点の役目（core/story/appearance.ts の spotRole。現の旅・白描の絵地図と同じ決まり）。yokai＝決まった地点の妖怪（F-04）、
+   * clue＝調べる地点（ましろだけが話して札が出る。04 §3.4）、wander＝寄り道の地点（出現の表の行。妖怪は場所の種類と時間帯で引く。04 §3.1）
+   */
   role: SpotRole
   /** 置ける場所の種類（地域パックの placeKind。mizube は出現の表の「水辺」） */
   placeKind: Spot['placeKind']
@@ -84,13 +84,6 @@ export interface SpotLocal {
   yokaiId?: string
   /** 調べる地点（clues.json の id） */
   clueId?: string
-}
-
-/** 地域パックの地点の役目（調べる地点 → 妖怪のいない水辺 → 決まった地点の順に見る） */
-function roleOf(s: Spot): SpotRole {
-  if (s.clueId) return 'clue'
-  if (!s.yokaiId && s.placeKind === 'mizube') return 'wander'
-  return 'yokai'
 }
 
 /** 箱庭の範囲（ローカル座標 m の矩形。原点は範囲の中心とは限らない） */
@@ -140,7 +133,8 @@ type Pt = number[]
 const xz = (p: Pt): XZ => [p[0], p[1]]
 const ring = (pts: Pt[]): XZ[] => openRing(pts.map(xz))
 
-export function loadFieldData(): FieldData {
+/** 箱庭の材料を読む。appearance は出現の表（地点の役目を決めるのに使う。物語のデータ story-pack.ts から渡す） */
+export function loadFieldData(appearance: AppearanceTable): FieldData {
   const pack = iwakurajiPack
   const osm = osmJson
   const origin = pack.origin
@@ -155,10 +149,12 @@ export function loadFieldData(): FieldData {
     ),
   }))
 
-  // 並びは地域パックのまま（1つ目＝光蔵坊を、はじめの位置の目印にする。main.ts の startPoint）
-  const spots = pack.spots.map((s): SpotLocal => {
+  // 並びは地域パックのまま（1つ目＝光蔵坊を、はじめの位置の目印にする。main.ts の startPoint）。どの役目でもない地点は置かない
+  const spots = pack.spots.flatMap((s): SpotLocal[] => {
+    const role = spotRole(s, appearance)
+    if (!role) return []
     const l = toLocal(s.position, origin)
-    return { id: s.id, label: s.label, x: l.x, z: l.z, role: roleOf(s), placeKind: s.placeKind, yokaiId: s.yokaiId, clueId: s.clueId }
+    return [{ id: s.id, label: s.label, x: l.x, z: l.z, role, placeKind: s.placeKind, yokaiId: s.yokaiId, clueId: s.clueId }]
   })
 
   const roads: RoadData[] = osm.roads.map((r) => {

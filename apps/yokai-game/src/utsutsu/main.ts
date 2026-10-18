@@ -1,6 +1,6 @@
 // 現の旅（段階3）の入口。現地を歩き、立ち止まると妖怪が色のついた姿で現れる（04 §2.2・§3.1、02 F-01〜F-07・F-10・F-11・F-45・F-46・F-60〜F-64）。
 //
-// 流れ: はじめ（土地を選ぶ）→ 三つの約束（初回だけ・飛ばせない。F-60）→ 位置の許可の説明 → 地図（D1）
+// 流れ: はじめ（土地を選ぶ）→ 三つの約束（初回だけ・飛ばせない。F-60。札は ui/promise-sheet.ts）→ 位置の許可の説明 → 地図（D1）
 //   地図: 状態の帯（世界の言葉＋普通の言葉）、「足を止めた」ボタン（気配の近くでだけ）、曼荼羅帳、出典表示（常に）。
 //   出会い（C2 の現地版）→ 会話 → 節を終えたら旅印（D4）。道中（D3）・お休みの範囲（D2）・逢魔が時・夜は出会いを止める。
 // 地点の役目（04 §3.1・§3.4）:
@@ -13,24 +13,26 @@
 // - 立山のふもと（岩峅寺。本番の地域パック）。進み具合は夢の旅と同じ保存（yume.story.v1）なので、夢で会った妖怪と再会できる。
 // - テスト用の土地（チームの地元。test-land.ts）。この端末の中だけに作る。進み具合は別の保存（まだ無いときだけ、作ったときに夢の旅の保存を写す。
 //   家の白描の地図も同じ保存に書くので、作り直しても消さない）。
-// - 位置シミュレーター（?sim または ?debug。F-06）。進み具合は別の保存（始めるたびに夢の旅の保存を写す）。
+// - 位置シミュレーター（?sim または ?debug。F-06）。進み具合は別の保存（始めるたびに、その土地の保存を写す。
+//   立山のふもとは夢の旅と同じ yume.story.v1、テスト用の土地は家の白描の絵地図と同じ yume.story.test.v1）。
 // URL: ?debug で判定の中身を表示。
 
 import './style.css'
 import { type LatLon, type LocalXZ, toLocal } from '../core/geo'
 import type { MapLayers } from '../core/map-layers'
 import type { Fix } from '../core/location/types'
-import { PROMISES } from '../core/promises'
-import { PROMISE_KEY, SIM_KEY, STORY_KEY, TEST_KEY } from '../core/storage-keys'
-import { clueActive, resolveAppearance } from '../core/story/appearance'
+import { SIM_KEY, STORY_KEY, TEST_KEY } from '../core/storage-keys'
+import { clueActive, resolveAppearance, type SpotRole, spotRole } from '../core/story/appearance'
 import { checkConditions } from '../core/story/dialogue'
 import { browserStorage, ProgressStore } from '../core/story/progress'
-import type { PlaceKind, SectionDef, TimeSlot } from '../core/story/types'
+import type { SectionDef, TimeSlot } from '../core/story/types'
 import { type EngineEvent, type EngineSpot, UtsutsuEngine } from '../core/utsutsu/engine'
 import { sunTimes } from '../core/utsutsu/sun'
 import { iwakurajiMap } from '../data/iwakuraji-map'
 import { iwakurajiPack } from '../data/iwakuraji-pack'
 import { loadStoryPack } from '../data/story-pack'
+import { focusSheet } from '../ui/focus'
+import { withPromises } from '../ui/promise-sheet'
 import { Sound } from '../yume/encounter/sound'
 import { stampDate, stampSvg } from '../yume/encounter/stamp'
 import { escapeHtml, MandalaView } from '../yume/encounter/ui'
@@ -61,9 +63,10 @@ const FAR_M = 1500
  * hidden と canAppear は、進み具合と時間帯で refreshSpots が書き換える（判定の仕組みは同じ地点を見ている）
  */
 interface LandSpot extends EngineSpot {
-  role: 'yokai' | 'clue' | 'wander'
+  role: SpotRole
   clueId?: string
-  placeKind?: PlaceKind
+  /** 場所の種類（寄り道の地点は、出現の表の行） */
+  placeKind?: string
 }
 
 interface Land {
@@ -86,14 +89,15 @@ const canAppear = (yokaiId?: string, script?: string): boolean => {
   return !!(y?.art && sc && story.scripts[sc])
 }
 
-/** 地域パック・テスト用の土地の地点に、役目をつける（どの役目でもない地点は置かない） */
+/** 地域パック・テスト用の土地の地点に、役目をつける（core の spotRole。夢の旅・白描の絵地図と同じ順。どの役目でもない地点は置かない） */
 function landSpots(spots: { id: string; x: number; z: number; yokaiId?: string; clueId?: string; placeKind?: string }[]): LandSpot[] {
   const out: LandSpot[] = []
   for (const s of spots) {
     const at = { id: s.id, x: s.x, z: s.z }
-    if (s.yokaiId) out.push({ ...at, role: 'yokai', yokaiId: s.yokaiId, canAppear: canAppear(s.yokaiId) })
-    else if (s.clueId) out.push({ ...at, role: 'clue', clueId: s.clueId, canAppear: false, hidden: true })
-    else if (s.placeKind === 'mizube') out.push({ ...at, role: 'wander', placeKind: s.placeKind, canAppear: false })
+    const role = spotRole(s, story.appearance)
+    if (role === 'yokai') out.push({ ...at, role, yokaiId: s.yokaiId, canAppear: canAppear(s.yokaiId) })
+    else if (role === 'clue') out.push({ ...at, role, clueId: s.clueId, canAppear: false, hidden: true })
+    else if (role === 'wander') out.push({ ...at, role, placeKind: s.placeKind, canAppear: false })
   }
   return out
 }
@@ -123,8 +127,8 @@ function testLand(t: TestLand): Land {
   }
 }
 
-/** 寄り道の地点で、まだ姿の見えない誰か（【創作】） */
-const WANDER_FAINT = '……水の音のほうに、誰かいる。まだ声は遠い。'
+/** 寄り道の地点（水辺の道）で、まだ姿の見えない誰か（【創作】）。水のほうへは誘わず、道の上にいるように添える */
+const WANDER_FAINT = '……誰かいる。でも、まだ声は遠い。川には近づかず、道の上でね。'
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag)
@@ -138,13 +142,6 @@ function safeGet(k: string): string | null {
     return localStorage.getItem(k)
   } catch {
     return null
-  }
-}
-function safeSet(k: string, v: string): void {
-  try {
-    localStorage.setItem(k, v)
-  } catch {
-    // 保存できなくても遊べる
   }
 }
 
@@ -176,15 +173,38 @@ const log = (s: string) => {
   if (logLines.length > 200) logLines.shift()
 }
 
-function showSheet(html: string, cls = ''): HTMLDivElement {
+/** 札を開く前にキーボードの位置があった所（地図の上で札が出たとき。札を閉じたら戻す） */
+let sheetReturn: HTMLElement | null = null
+/** そこへ戻れないとき（会話のあとの旅印など。開く前の所が消えた・閉じた層の中）の行き先。地図を始めたら土地の名前 */
+let sheetHome: HTMLElement | null = null
+/** 全面の札の地を空けて出す（三つの約束の札は ui/promise-sheet.ts が置く） */
+function openSheet(cls = ''): HTMLDivElement {
+  if (sheet.hidden) {
+    const a = document.activeElement as HTMLElement | null
+    sheetReturn = a && a !== document.body ? a : null
+  }
   sheet.className = `uh-sheet ${cls}`
-  sheet.innerHTML = `<div class="uh-card">${html}</div>`
+  sheet.replaceChildren()
   sheet.hidden = false
-  return sheet.querySelector('.uh-card') as HTMLDivElement
+  return sheet
+}
+function showSheet(html: string, cls = ''): HTMLDivElement {
+  openSheet(cls).innerHTML = `<div class="uh-card">${html}</div>`
+  const card = sheet.querySelector('.uh-card') as HTMLDivElement
+  // 押したボタンが消えて、キーボードの位置が <body> に落ちないように、札の頭（見出しか最初のボタン）へ
+  focusSheet(card)
+  return card
 }
 function hideSheet(): void {
+  const hadFocus = sheet.contains(document.activeElement)
   sheet.hidden = true
   sheet.innerHTML = ''
+  const back = sheetReturn
+  sheetReturn = null
+  if (!hadFocus) return
+  // 押したボタンが消えて、キーボードの位置が <body> に落ちないように
+  const to = back?.isConnected && !back.closest('[inert]') ? back : sheetHome
+  to?.focus({ preventScroll: true })
 }
 const sheetOpen = () => !sheet.hidden
 
@@ -205,51 +225,35 @@ function showStart(): void {
     ${SIM_ALLOWED ? `<h3>開発用</h3><div class="row"><button class="sub" type="button" data-go="sim-iwakuraji">シミュレーター（ふもと）</button>${t ? `<button class="sub" type="button" data-go="sim-test">シミュレーター（テスト用）</button>` : ''}</div>` : ''}
     <a class="sub" href="./yume.html">夢の旅（家で遊ぶ）へ</a>
     <a class="sub" href="./">入口へ</a>
-    <p class="soft">位置は気配を出すためだけに、この端末の中で使います。歩いた道は記録せず、どこにも送りません。</p>`)
+    <p class="soft">位置は気配を出すためだけに、この端末の中で使います。歩いた道は記録せず、どこにも送りません（テスト用の土地を作るときだけ、地図を読むために、いまいる所のまわり約800m四方の範囲を OpenStreetMap に伝えます）。</p>`)
   card.querySelectorAll<HTMLButtonElement>('[data-go]').forEach((b) =>
     b.addEventListener('click', () => {
       sound.unlock()
       const go = b.dataset.go!
-      if (go === 'iwakuraji') withPromises(() => askLocation(() => startSession(iwakurajiLand(), 'gps')))
-      else if (go === 'test-new') withPromises(() => askLocation(() => makeTestLand()))
-      else if (go === 'test-old' && t) withPromises(() => askLocation(() => startSession(testLand(t), 'gps')))
+      if (go === 'iwakuraji') promised(() => askLocation(() => startSession(iwakurajiLand(), 'gps')))
+      else if (go === 'test-new') promised(() => askLocation(() => makeTestLand(), true))
+      else if (go === 'test-old' && t) promised(() => askLocation(() => startSession(testLand(t), 'gps')))
       else if (go === 'sim-iwakuraji') startSession(iwakurajiLand(), 'sim')
       else if (go === 'sim-test' && t) startSession(testLand(t), 'sim')
     }),
   )
 }
 
-/** 三つの約束（04 §2.1、F-60。文は core/promises.ts）。初回は飛ばせない。入口で読んでいれば出さない */
-function withPromises(next: () => void): void {
-  if (safeGet(PROMISE_KEY) === '1') {
-    next()
-    return
-  }
-  const show = (i: number) => {
-    const p = PROMISES[i]
-    const card = showSheet(`
-      <p class="count">三つの約束　${i + 1} / ${PROMISES.length}</p>
-      ${mashiroSvg(false)}
-      <p class="speaker">${escapeHtml(p.mashiro)}</p>
-      <p class="soft">${escapeHtml(p.plain)}</p>
-      <button class="big" type="button">わかった</button>`)
-    card.querySelector('button')!.addEventListener('click', () => {
-      if (i + 1 < PROMISES.length) show(i + 1)
-      else {
-        safeSet(PROMISE_KEY, '1')
-        next()
-      }
-    })
-  }
-  show(0)
+/** 三つの約束（04 §2.1、F-60。札は ui/promise-sheet.ts）。初回は飛ばせない。入口・夢の旅・白描の絵地図で読んでいれば出さない */
+function promised(next: () => void): void {
+  withPromises({ host: openSheet(), journey: '現の旅', back: { label: 'もどる', go: () => showStart() }, done: next })
 }
 
-function askLocation(next: () => void): void {
+/** 位置の許可の説明。testNew: テスト用の土地を作る（そのときだけ、まわりの範囲を OpenStreetMap に伝えて地図を読む） */
+function askLocation(next: () => void, testNew = false): void {
+  const send = testNew
+    ? 'まわりの地図を読むため、いまいる所のまわり（約800m四方）の範囲だけを OpenStreetMap に伝えます。歩いた道は記録しません。'
+    : '歩いた道は記録せず、どこにも送りません。'
   const card = showSheet(`
     ${mashiroSvg(false)}
     <p class="speaker">気配をさがすのに、いまいる場所を使うよ。</p>
     <p>次に、位置情報の許可を求められます。</p>
-    <p class="soft">位置は気配を出すためだけに、この端末の中で使います。歩いた道は記録せず、どこにも送りません。歩いている間は、画面が自動で消えないようにします（電池を使います）。</p>
+    <p class="soft">位置は気配を出すためだけに、この端末の中で使います。${send}歩いている間は、画面が自動で消えないようにします（電池を使います）。</p>
     <button class="big" type="button" data-act="ok">位置を使って はじめる</button>
     <button class="sub" type="button" data-act="back">もどる</button>`)
   card.querySelector('[data-act="ok"]')!.addEventListener('click', () => next())
@@ -318,7 +322,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   const back = el('button', 'uh-btn', 'もどる') as HTMLButtonElement
   back.type = 'button'
   back.addEventListener('click', () => window.location.reload())
-  tl.append(back, el('div', 'uh-land', escapeHtml(land.name + (kind === 'sim' ? '（シミュレーター）' : ''))))
+  const landName = el('div', 'uh-land', escapeHtml(land.name + (kind === 'sim' ? '（シミュレーター）' : '')))
+  tl.append(back, landName)
   const tr = el('div', 'uh-tr')
   const soundBtn = el('button', 'uh-btn', '音') as HTMLButtonElement
   soundBtn.type = 'button'
@@ -352,6 +357,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   stopBtn.type = 'button'
   stopBtn.innerHTML = `<svg viewBox="0 0 36 36" aria-hidden="true"><circle class="bg" cx="18" cy="18" r="15"/><circle class="fg" cx="18" cy="18" r="15" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"/></svg><span><b>足を止めた</b><small>そのまま数秒</small></span>`
   const ring = stopBtn.querySelector('.fg') as SVGCircleElement
+  // 気配の近くで出すまでは、透明なだけなので Tab で入れない
+  stopBtn.inert = true
   const toastEl = el('div', 'uh-toast')
   toastEl.setAttribute('role', 'status')
   const credit = el('div', 'yh-credit')
@@ -361,6 +368,10 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   const dbg = DEBUG ? el('div', 'uh-debug') : null
   root.append(tl, tr, tools, chip, stopBtn, band, toastEl, credit)
   if (dbg) root.appendChild(dbg)
+  // 札（位置の許可の説明）を閉じると、押したボタンが消える。キーボードの位置は土地の名前へ（Tab で、右上の板から）
+  landName.tabIndex = -1
+  landName.focus({ preventScroll: true })
+  sheetHome = landName
 
   let toastTimer = 0
   // ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける。
@@ -386,10 +397,10 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
         const pos = engine.view.position
         const d = sp && pos ? Math.round(Math.hypot(sp.x - pos.x, sp.z - pos.z) / 10) * 10 : null
         const far = d !== null ? `（約${d}m）` : ''
-        // 寄り道（水辺の道）の地点では、水のほうへ誘わない（道の上で立ち止まる）
+        // 寄り道（水辺の道）の地点では、水のほうへ誘わない（道の上で立ち止まる）。調べる地点は集落の中なので、声をひそめて（04 §3.1 F-05）
         toast(
           sp?.role === 'clue'
-            ? `古い話の気配${far}。近くで立ち止まってみよう。`
+            ? `古い話の気配${far}。近くで立ち止まってみよう。家のそばでは、声をひそめて。`
             : sp?.role === 'wander'
               ? `この地点${far}。道の上で、立ち止まってみよう。`
               : `この地点${far}。近くまで行って、立ち止まってみよう。`,
@@ -643,7 +654,10 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
 
     // 「足を止めた」
     const showStop = !!v.near && (v.block === null || v.block === 'busy') && !encounter.isOpen && !busy
-    stopBtn.classList.toggle('on', showStop)
+    if (stopBtn.classList.contains('on') !== showStop) {
+      stopBtn.classList.toggle('on', showStop)
+      stopBtn.inert = !showStop
+    }
     ring.style.strokeDashoffset = (C * (1 - v.clearing)).toFixed(2)
 
     if (dbg) {
