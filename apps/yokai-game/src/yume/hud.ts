@@ -1,7 +1,7 @@
 // 画面の表示（HTML のオーバーレイ）。左上に入口へ戻るリンクと題、右上に回転・速さ・見た目・時間・画質、右下に出典（いつも表示）。
 // 左下の fps と描画命令数は、URL に ?debug を付けたときだけ出す。板の色は時間帯に合わせる（夜は暗い地に明るい文字）。
 // 初回だけ操作のヒント（PC とスマホで出し分け）。safe-area を考える。
-// 段階2: 右上の3段目に「音」と「曼荼羅帳」。出会いと会話の画面は yume/encounter/ui.ts（この root の中に置く）。
+// 段階2: 右上の3段目に「音」と「帳」（曼荼羅帳・縁帳。段階4。ui/cho.ts）。出会いと会話の画面は yume/encounter/ui.ts（この root の中に置く）。
 
 const CSS = /* css */ `
 :root {
@@ -186,8 +186,8 @@ export class Hud {
     const row3 = el('div', 'yh-row')
     this.soundBtn = button('', '音を切り替える', '')
     this.soundBtn.onclick = () => hooks.toggleSound()
-    this.mandalaBtn = button('', '曼荼羅帳をひらく（M）', 'mandala')
-    this.mandalaBtn.innerHTML = '曼荼羅帳<span class="ym-badge" aria-hidden="true">新</span>'
+    this.mandalaBtn = button('', '帳をひらく（曼荼羅帳・縁帳。M）', 'mandala cho-btn')
+    this.mandalaBtn.innerHTML = '帳<span class="ym-badge" aria-hidden="true">新</span>'
     this.mandalaBtn.onclick = () => hooks.openMandala()
     row3.append(this.soundBtn, this.mandalaBtn)
     panel.append(row1, row2, row3)
@@ -322,11 +322,11 @@ export class Hud {
     this.soundBtn.innerHTML = `<small>音</small>${on ? 'あり' : 'なし'}`
   }
 
-  /** 曼荼羅帳に、まだ見ていないピースがある */
+  /** 帳に、まだ見ていないピースか縁がある（「新」の字だけ。数は出さない） */
   setMandalaNew(on: boolean): void {
     this.mandalaNew = on
     this.mandalaBtn.classList.toggle('has-new', on)
-    this.mandalaBtn.setAttribute('aria-label', on ? '曼荼羅帳をひらく（新しいピースがある）' : '曼荼羅帳をひらく（M）')
+    this.mandalaBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある。M）' : '帳をひらく（曼荼羅帳・縁帳。M）')
   }
 
   get mandalaHasNew(): boolean {

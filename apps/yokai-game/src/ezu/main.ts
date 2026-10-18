@@ -6,6 +6,7 @@
 //   ほかのやり方: 名所をタップする（キーボードは Tab で名所を選ぶ）と「耳を澄ます」が出る。その長押しか、Space を押し続ける。
 // - 進み具合は、現地のテスト用の土地と同じ保存（TEST_KEY）。旅は夢（yume）なので、ピースは白描まで・縁はなじみまで（core が止める）。
 //   ここで会った妖怪とは、現地のテスト用の土地で「再会」になる。旅印は現地だけ（帳の巻末は枠だけ）。
+//   帳（曼荼羅帳・縁帳。ui/cho.ts）は三つのページで同じもの。彩色済みのピースは、ここでも稽古で語り返すと金の縁取りになる。
 // - 名所の役目は現の旅と同じ（04 §3.1・§3.4）:
 //   決まった妖怪（夢の姿）、調べる地点（頼まれてから札を拾うまで。姿は無く、ましろだけが話す）、
 //   寄り道の地点（水辺。出現の表を時間で引く。会ったことのある妖怪が雑談で現れる。悩みは始めない・縁も上げない）。
@@ -25,6 +26,7 @@ import { ListenGauge } from '../core/story/listen'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import type { DayPhase } from '../core/utsutsu/sun'
 import { loadStoryPack } from '../data/story-pack'
+import { createCho } from '../ui/cho'
 import { focusSheet } from '../ui/focus'
 import { withPromises } from '../ui/promise-sheet'
 import { GenEncounter } from '../utsutsu/encounter'
@@ -32,7 +34,7 @@ import { type MapKehai, type MapPad, MapView } from '../utsutsu/map-view'
 import { loadTestLand, type TestLand, testLandIsOld } from '../utsutsu/test-land'
 import { Sound } from '../yume/encounter/sound'
 import { stampDate } from '../yume/encounter/stamp'
-import { escapeHtml, ListenButton, MandalaView } from '../yume/encounter/ui'
+import { escapeHtml, ListenButton } from '../yume/encounter/ui'
 
 type Time = 'day' | 'dusk' | 'night'
 const TIMES: Time[] = ['day', 'dusk', 'night']
@@ -202,8 +204,9 @@ function startMap(t: TestLand): void {
   const soundBtn = el('button', 'ez-btn', '音') as HTMLButtonElement
   soundBtn.setAttribute('aria-pressed', 'true')
   soundBtn.setAttribute('aria-label', '音（鈴）')
-  const mandalaBtn = el('button', 'ez-btn title mandala', '曼荼羅帳<span class="ym-badge" aria-hidden="true">新</span>') as HTMLButtonElement
-  tr.append(timeBtn, soundBtn, mandalaBtn)
+  const choBtn = el('button', 'ez-btn title mandala cho-btn', '帳<span class="ym-badge" aria-hidden="true">新</span>') as HTMLButtonElement
+  choBtn.title = '帳（曼荼羅帳・縁帳）'
+  tr.append(timeBtn, soundBtn, choBtn)
   const tools = el('div', 'ez-tools')
   const zin = el('button', 'ez-btn', '＋') as HTMLButtonElement
   const zout = el('button', 'ez-btn', '－') as HTMLButtonElement
@@ -214,7 +217,7 @@ function startMap(t: TestLand): void {
   const north = el('div', 'ez-north', '北')
   north.setAttribute('aria-label', '地図は北が上')
   tools.append(north, zin, zout, fitBtn)
-  for (const b of [timeBtn, soundBtn, mandalaBtn, zin, zout, fitBtn]) b.type = 'button'
+  for (const b of [timeBtn, soundBtn, choBtn, zin, zout, fitBtn]) b.type = 'button'
   const spotLayer = el('div', 'ez-spots')
   const hint = el('div', 'ez-hint', '名所に指を置いて、耳を澄ます<small>マウスは名所の上で長押し。キーボードは Tab で名所を選び、Space を押し続ける</small>')
   hint.setAttribute('role', 'note')
@@ -274,7 +277,7 @@ function startMap(t: TestLand): void {
   zin.addEventListener('click', () => map.zoomBy(1.4))
   zout.addEventListener('click', () => map.zoomBy(1 / 1.4))
   fitBtn.addEventListener('click', () => map.fit(pad()))
-  // 会話・曼荼羅帳のあいだ、地図は隠れているので描き直さない
+  // 会話・帳のあいだ、地図は隠れているので描き直さない
   new MutationObserver(() => map.setPaused(root.classList.contains('talking') || root.classList.contains('modal-open'))).observe(root, {
     attributes: true,
     attributeFilter: ['class'],
@@ -339,44 +342,22 @@ function startMap(t: TestLand): void {
     if (selected && !vis.some((s) => s.id === selected)) select(null)
   }
 
-  // 曼荼羅帳（テスト用の土地の保存。旅印は現地で節を終えたときだけなので、家では枠だけ）
-  const refreshBadge = () => {
-    const hasNew = story.mandala.tiers.some((tier) => tier.pieces.some((pc) => progress.pieceOf(pc.id) !== 'empty' && !progress.flag(`seen:${pc.id}`)))
-    mandalaBtn.classList.toggle('has-new', hasNew)
-    mandalaBtn.setAttribute('aria-label', hasNew ? '曼荼羅帳をひらく（新しいピースがある）' : '曼荼羅帳をひらく')
-  }
-  const mandala = new MandalaView(
+  // 帳（テスト用の土地の保存。旅印は現地で節を終えたときだけなので、家では枠だけ）。まだ見ていないピース・縁があれば、ボタンに「新」の字
+  const cho = createCho({
     root,
-    story.mandala,
-    {
-      piece: (id) => progress.pieceOf(id),
-      isNew: (id) => progress.pieceOf(id) !== 'empty' && !progress.flag(`seen:${id}`),
-      // 開いた札だけ（ピースだけ先に入っても、札の本文は会話で開くまで見せない）
-      card: (id) => (progress.isCardOpened(id) ? story.cards[id] : undefined),
-      stamps: () =>
-        story.sections
-          .filter((s) => s.region === 'test')
-          .map((s) => ({ id: s.id, title: s.title, stampTitle: s.stampTitle, motif: s.stampMotif, at: progress.stampOf(s.id)?.at ?? null })),
+    story,
+    progress,
+    travel: 'yume',
+    stampRegion: 'test',
+    sound,
+    onNew: (on) => {
+      choBtn.classList.toggle('has-new', on)
+      choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある）' : '帳をひらく（曼荼羅帳・縁帳）')
     },
-    {
-      close: () => {
-        mandala.close()
-        refreshBadge()
-      },
-      reset: () => {
-        progress.reset()
-        mandala.close()
-        refreshSpots()
-        refreshBadge()
-      },
-      seen: (id) => {
-        progress.setFlag(`seen:${id}`, true)
-        refreshBadge()
-      },
-    },
-  )
-  mandalaBtn.addEventListener('click', () => {
-    if (!encounter.isOpen) mandala.open()
+    onReset: () => refreshSpots(),
+  })
+  choBtn.addEventListener('click', () => {
+    if (!encounter.isOpen) cho.open()
   })
 
   // 出会い（白描の夢の姿・和紙の背景。カメラは出さない）
@@ -391,7 +372,6 @@ function startMap(t: TestLand): void {
     onEnd: (spotId) => {
       root.classList.remove('talking')
       refreshSpots()
-      refreshBadge()
       // キーボードで遊んでいたら、名所のボタンへ戻す（札を拾って消えた調べる地点なら、見えている名所の先頭へ）
       if (root.classList.contains('yd-keys')) {
         const b = spotBtns.get(selected ?? spotId)
@@ -472,7 +452,7 @@ function startMap(t: TestLand): void {
   // キーボード: 名所を選んでいれば、Space を押し続けると耳を澄ます（名所のボタンの上でも。ほかのボタンの上では、そのボタンに任せる）。
   // 会話の枠が使った Space（最後の一言を送って会話を閉じたときも）では始めない
   let spaceHeld = false
-  const busy = () => encounter.isOpen || mandala.isOpen || !sheet.hidden
+  const busy = () => encounter.isOpen || cho.isOpen || !sheet.hidden
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'Space' || e.repeat || e.defaultPrevented) return
     const tg = e.target as HTMLElement | null
@@ -534,7 +514,6 @@ function startMap(t: TestLand): void {
     }
   }
   refreshSpots()
-  refreshBadge()
   requestAnimationFrame(frame)
   ;(window as unknown as { __ezu: unknown }).__ezu = {
     map,

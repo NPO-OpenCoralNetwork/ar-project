@@ -1,7 +1,7 @@
 // 現の旅（段階3）の入口。現地を歩き、立ち止まると妖怪が色のついた姿で現れる（04 §2.2・§3.1、02 F-01〜F-07・F-10・F-11・F-45・F-46・F-60〜F-64）。
 //
 // 流れ: はじめ（土地を選ぶ）→ 三つの約束（初回だけ・飛ばせない。F-60。札は ui/promise-sheet.ts）→ 位置の許可の説明 → 地図（D1）
-//   地図: 状態の帯（世界の言葉＋普通の言葉）、「足を止めた」ボタン（気配の近くでだけ）、曼荼羅帳、出典表示（常に）。
+//   地図: 状態の帯（世界の言葉＋普通の言葉）、「足を止めた」ボタン（気配の近くでだけ）、帳（曼荼羅帳・縁帳。ui/cho.ts）、出典表示（常に）。
 //   出会い（C2 の現地版）→ 会話 → 節を終えたら旅印（D4）。道中（D3）・お休みの範囲（D2）・逢魔が時・夜は出会いを止める。
 // 地点の役目（04 §3.1・§3.4）:
 // - 決まった妖怪の地点（yokaiId）: その妖怪の台本で、色のついた姿が現れる。
@@ -31,11 +31,12 @@ import { sunTimes } from '../core/utsutsu/sun'
 import { iwakurajiMap } from '../data/iwakuraji-map'
 import { iwakurajiPack } from '../data/iwakuraji-pack'
 import { loadStoryPack } from '../data/story-pack'
+import { type Cho, createCho } from '../ui/cho'
 import { focusSheet } from '../ui/focus'
 import { withPromises } from '../ui/promise-sheet'
 import { Sound } from '../yume/encounter/sound'
 import { stampDate, stampSvg } from '../yume/encounter/stamp'
-import { escapeHtml, MandalaView } from '../yume/encounter/ui'
+import { escapeHtml } from '../yume/encounter/ui'
 import { GenEncounter } from './encounter'
 import { mashiroSvg } from './mashiro'
 import { GeoSource, type GeoProblem, type LocationSource, SimSource } from './location'
@@ -303,7 +304,8 @@ interface Session {
   sim: SimSource | null
   progress: ProgressStore
   encounter: GenEncounter
-  mandala: MandalaView
+  /** 帳（曼荼羅帳・縁帳） */
+  cho: Cho
   clockOffset: number
 }
 let S: Session | null = null
@@ -335,9 +337,10 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     soundBtn.setAttribute('aria-pressed', String(on))
     if (on) sound.bell(0.5)
   })
-  const mandalaBtn = el('button', 'uh-btn title', '曼荼羅帳') as HTMLButtonElement
-  mandalaBtn.type = 'button'
-  tr.append(soundBtn, mandalaBtn)
+  const choBtn = el('button', 'uh-btn title cho-btn', '帳<span class="ym-badge" aria-hidden="true">新</span>') as HTMLButtonElement
+  choBtn.type = 'button'
+  choBtn.title = '帳（曼荼羅帳・縁帳）'
+  tr.append(soundBtn, choBtn)
   const tools = el('div', 'uh-tools')
   const zin = el('button', 'uh-btn', '＋') as HTMLButtonElement
   const zout = el('button', 'uh-btn', '－') as HTMLButtonElement
@@ -411,7 +414,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       here.hidden = f
     },
   })
-  // 会話・曼荼羅帳のあいだ、地図は隠れているので描き直さない
+  // 会話・帳のあいだ、地図は隠れているので描き直さない
   new MutationObserver(() => map.setPaused(root.classList.contains('talking') || root.classList.contains('modal-open'))).observe(root, {
     attributes: true,
     attributeFilter: ['class'],
@@ -449,30 +452,21 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   }
   refreshSpots()
 
-  // 曼荼羅帳
-  const mandala = new MandalaView(
+  // 帳（この土地の保存。巻末の旅印は、この土地の節）。まだ見ていないピース・縁があれば、ボタンに「新」の字
+  const cho = createCho({
     root,
-    story.mandala,
-    {
-      piece: (id) => progress.pieceOf(id),
-      isNew: (id) => progress.pieceOf(id) !== 'empty' && !progress.flag(`seen:${id}`),
-      card: (id) => (progress.isCardOpened(id) ? story.cards[id] : undefined),
-      stamps: () =>
-        story.sections
-          .filter((s) => s.region === land.id)
-          .map((s) => ({ id: s.id, title: s.title, stampTitle: s.stampTitle, motif: s.stampMotif, at: progress.stampOf(s.id)?.at ?? null })),
+    story,
+    progress,
+    travel: 'utsutsu',
+    stampRegion: land.id,
+    sound,
+    onNew: (on) => {
+      choBtn.classList.toggle('has-new', on)
+      choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある）' : '帳をひらく（曼荼羅帳・縁帳）')
     },
-    {
-      close: () => mandala.close(),
-      reset: () => {
-        progress.reset()
-        mandala.close()
-        refreshSpots()
-      },
-      seen: (id) => progress.setFlag(`seen:${id}`, true),
-    },
-  )
-  mandalaBtn.addEventListener('click', () => mandala.open())
+    onReset: () => refreshSpots(),
+  })
+  choBtn.addEventListener('click', () => cho.open())
 
   // 出会い
   const encounter = new GenEncounter({
@@ -502,7 +496,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   } else {
     source = new GeoSource(land.origin, onFix, (p) => onGeoProblem(p))
   }
-  S = { land, engine, map, source, sim, progress, encounter, mandala, clockOffset: 0 }
+  S = { land, engine, map, source, sim, progress, encounter, cho, clockOffset: 0 }
   source.start()
   ;(window as unknown as { __utsutsu: unknown }).__utsutsu = { S, log: logLines, story }
 
@@ -570,7 +564,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       toast(sp?.role === 'wander' ? WANDER_FAINT : '……誰かいる。でも、まだ姿は見えないね。')
     } else if (ev.type === 'transit-enter') {
       encounter.stop()
-      mandala.close()
+      cho.close()
     } else if (ev.type === 'transit-exit') toast('着いたね。')
     else if (ev.type === 'rest-enter') encounter.stop()
     else if (ev.type === 'phase') {
@@ -604,7 +598,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   }
   window.setInterval(() => {
     const now = Date.now()
-    const busy = encounter.isOpen || mandala.isOpen || sheetOpen()
+    const busy = encounter.isOpen || cho.isOpen || sheetOpen()
     for (const ev of engine.tick(now, now + (S?.clockOffset ?? 0), busy)) handle(ev)
     const v = engine.view
     const ph = v.phase.phase

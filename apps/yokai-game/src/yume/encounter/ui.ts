@@ -3,8 +3,10 @@
 // - 耳を澄ますボタン（長押し。満ちていく輪）
 // - 会話の枠（画面の下。名前・本文・選択肢2〜3）。台本の台詞は「台本・創作」の印つきのふつうの枠
 // - 伝承の札（和紙のカード。プレイヤーには題・本文・出典だけ。確度・調べ・監修の状態は ?debug のときだけ。台本の枠とは形も書体も分ける。04 §3.2 F-43）
-// - 曼荼羅帳（縦長の掛軸。里・麓・山の三段の枠は【創作】の構図）と、最初からやり直す（確認つき）
-// - 会話の途中の小さな遊び（「払わずに待つ」= ミノモシ番外。04 §3.4。「絵解き鎮め」= 札を話の順に並べる。04 §3.5）
+// - 帳（曼荼羅帳の頁と、ほかの頁のタブ。縁帳の中身は ui/cho.ts）。曼荼羅帳は縦長の掛軸（里・麓・山の三段の枠は【創作】の構図）。
+//   ピースの表示から稽古（語り返し）を始められる。最初からやり直す（確認つき）
+// - 会話の途中の小さな遊び（「払わずに待つ」= ミノモシ番外。04 §3.4。「絵解き鎮め」= 札を話の順に並べる。04 §3.5）。
+//   絵解きの並べる遊び（EtokiGame）は、帳の稽古でも渦の演出を外して使う（ui/cho.ts）
 //
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
 // 閉じている重ね（透明にして指を通しているだけの層）は inert にして、Tab で見えないボタンに入らないようにする（setOpen）。
@@ -161,6 +163,10 @@ const CSS = /* css */ `
   .yge-slot { min-height: 46px; }
   .yge-board { gap: 6px; }
 }
+/* 稽古（plain）: 渦と藍の帳の代わりに、机の上の和紙（後ろの帳は隠す）。夜・夕の板の色に関わらず、和紙の地に墨の字 */
+.yg.yge.plain { background: radial-gradient(ellipse 120% 90% at 50% 30%, #fbf7ec, #efe6d1 70%, #e6dbc2);
+  --washi: rgba(250, 247, 240, 0.92); --washi-solid: #faf7f0; --ink: #2a2622; --ink-soft: rgba(42, 38, 34, 0.62); --line: rgba(42, 38, 34, 0.22); }
+.yge.plain .yge-title { box-shadow: 0 4px 14px rgba(60, 40, 20, 0.12); }
 /* 動きを減らす設定: 渦は回さず、揺らさない（濃さだけで伝える） */
 @media (prefers-reduced-motion: reduce) {
   .yge-swirl svg, .yge-card.shake, .yge-slot.just { animation: none; }
@@ -200,13 +206,25 @@ const CSS = /* css */ `
 /* 曼荼羅帳 */
 .ym { position: absolute; inset: 0; z-index: 35; display: flex; flex-direction: column; align-items: center; padding: calc(10px + var(--sat)) 12px calc(52px + var(--sab)); background: rgba(24, 22, 30, 0.84); opacity: 0; pointer-events: none; transition: opacity 0.4s; color: #f4efe4; }
 .ym.on { opacity: 1; pointer-events: auto; }
-/* 曼荼羅帳を開いている間は、題と右上の板を隠す（出典表示は隠さない） */
+/* 帳を開いている間は、題と右上の板を隠す（出典表示は隠さない） */
 .yh.modal-open .yh-title, .yh.modal-open .yh-panel, .yh.modal-open .yh-toast { visibility: hidden; }
-.ym-head { width: min(560px, 100%); display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.ym-head { width: min(560px, 100%); display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .ym-head h2 { margin: 0; font-family: var(--title-font); font-size: 17px; font-weight: 600; letter-spacing: 0.2em; }
-.ym-head .sub { font-size: 11px; opacity: 0.75; }
-.ym-btn { font: inherit; font-size: 13px; color: #2a2622; background: rgba(250, 247, 240, 0.92); border: 1px solid rgba(42, 38, 34, 0.25); border-radius: 9px; min-height: 36px; padding: 0 12px; cursor: pointer; }
+.ym-btn { font: inherit; font-size: 13px; color: #2a2622; background: rgba(250, 247, 240, 0.92); border: 1px solid rgba(42, 38, 34, 0.25); border-radius: 9px; min-height: 44px; padding: 0 12px; cursor: pointer; }
+.ym-btn:focus-visible { outline: 2px solid #f4efe4; outline-offset: 2px; }
 .ym-btn.close { margin-left: auto; }
+/* 帳の頁（曼荼羅帳・縁帳）。タブは本物のボタン（aria-selected）。選んだ頁は、地の色だけでなく下線と字の太さでも分かる */
+.ym-tabs { display: flex; gap: 4px; }
+.ym-tab { position: relative; font: inherit; font-family: var(--title-font); font-size: 14.5px; letter-spacing: 0.1em; color: #f4efe4; background: transparent; border: 1px solid rgba(244, 239, 228, 0.35);
+  border-radius: 9px 9px 0 0; border-bottom-width: 3px; border-bottom-color: transparent; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ym-tab[aria-selected="true"] { color: #2a2622; background: rgba(250, 247, 240, 0.94); border-color: rgba(250, 247, 240, 0.94); border-bottom-color: #b5523b; font-weight: 600; }
+.ym-tab:focus-visible { outline: 2px solid #f4efe4; outline-offset: 2px; }
+.ym-tab .ym-tab-new { display: none; position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: #b5523b; color: #fff; font-size: 10px; line-height: 16px; letter-spacing: 0; text-align: center; padding: 0 4px; font-family: var(--ui-font); font-weight: 400; }
+.ym-tab.has-new .ym-tab-new { display: block; }
+.ym-panel { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; }
+.ym-panel[hidden] { display: none; }
+/* 読み上げだけの言葉 */
+.ym-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ym-body { flex: 1; min-height: 0; width: min(560px, 100%); display: flex; gap: 14px; align-items: stretch; justify-content: center; margin-top: 6px; }
 .ym-scroll { height: 100%; max-width: 100%; aspect-ratio: 300 / 760; flex: none; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35)); }
 .ym-scroll svg { width: 100%; height: 100%; display: block; }
@@ -232,6 +250,7 @@ const CSS = /* css */ `
 .ym-piece:focus-visible rect.frame { stroke: #b0603a; stroke-width: 2; }
 .ym-piece.new rect.ring { animation: ym-pulse 1.8s ease-in-out infinite; }
 @keyframes ym-pulse { 50% { stroke-opacity: 0.15; } }
+@media (prefers-reduced-motion: reduce) { .ym-piece.new rect.ring { animation: none; } }
 @media (max-width: 620px) {
   .ym-body { flex-direction: column; align-items: center; gap: 8px; }
   .ym-scroll { height: auto; flex: 1; min-height: 0; width: auto; }
@@ -249,11 +268,19 @@ const CSS = /* css */ `
 .ym-pop.on { opacity: 1; pointer-events: auto; }
 .ym-pop .yc-card { transform: none; }
 .ym-pop .art { display: block; margin: 4px auto 8px; width: 120px; height: 160px; }
+.ym-pop .art.kin { outline: 3px double #b8913a; outline-offset: 2px; border-radius: 3px; }
 .ym-pop .row { display: flex; gap: 8px; }
 .ym-pop .row .yc-btn { flex: 1; }
+/* 稽古（語り返し）。ピースの表示の中で、いちばん上の大きなボタン */
+.ym-pop .yc-btn.keiko { font-family: var(--title-font); font-size: 15px; letter-spacing: 0.06em; background: #fffdf7; border: 1.5px solid rgba(43, 36, 32, 0.55); }
+.ym-pop .yc-btn.keiko small { display: block; font-family: var(--ui-font); font-size: 11px; letter-spacing: 0; color: var(--csoft); margin-top: -2px; }
+/* 稽古のあとの一言（金の縁取りが入った） */
+.ym-notice { margin: 0 0 8px; padding: 6px 10px; font-size: 13.5px; line-height: 1.6; border-left: 3px double #b8913a; background: rgba(255, 253, 247, 0.7); }
 .ym-badge { display: none; position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; border-radius: 8px; background: #b5523b; color: #fff; font-size: 10px; line-height: 16px; text-align: center; padding: 0 4px; }
-.yh-btn.has-new .ym-badge { display: block; }
+.yh-btn.has-new .ym-badge, .cho-btn.has-new .ym-badge { display: block; }
 .yh-btn.mandala { position: relative; font-family: var(--title-font); letter-spacing: 0.08em; }
+/* 帳のボタン（どのページでも「帳」の一字。指で押せる大きさ） */
+.cho-btn, .yh-panel .yh-btn.cho-btn { position: relative; min-width: 52px; min-height: 44px; font-family: var(--title-font); letter-spacing: 0.08em; font-size: 16px; }
 `
 
 let styled = false
@@ -419,7 +446,12 @@ const SHOW_PRODUCTION_META = (() => {
 /** 短いかぎかっこ（「ガメ」『民族』など）は、行の途中で折らない */
 const keepQuotes = (html: string): string => html.replace(/[「『][^「」『』]{1,10}[」』]/g, (q) => `<span class="yc-nb">${q}</span>`)
 
-export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: string } = {}): string {
+/**
+ * 札の中身（種類・題・本文・出典）。札の番号（card.number）は出さない（順番が分かってしまう。F-43 は題・本文・出典だけ）。
+ * heading: 題の見出しの段（既定 h3。縁帳の頁の中では h5）
+ */
+export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: string; heading?: 'h3' | 'h4' | 'h5' } = {}): string {
+  const h = opts.heading ?? 'h3'
   const src = card.source
   const work = `${escapeHtml(src.work)}${src.year ? `（${src.year}）` : ''}`
   const checked = (src.checkedIn ?? [])
@@ -437,7 +469,7 @@ export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: strin
     <p class="yc-source">出典 ${work}</p>`
   return `
     <div class="yc-kind"><span>伝承の札</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
-    <h3 class="yc-title"><small>${escapeHtml(card.number ?? '')}</small>${escapeHtml(card.title)}</h3>
+    <${h} class="yc-title">${escapeHtml(card.title)}</${h}>
     <p class="yc-body">${keepQuotes(escapeHtml(card.body))}</p>${meta}
     ${opts.first ? '<p class="yc-foot">札は伝承の記録です。会話の台詞は、本作の創作です。</p>' : ''}
     ${opts.button ? `<button class="yc-btn" type="button">${escapeHtml(opts.button)}</button>` : ''}`
@@ -643,7 +675,7 @@ function noticeHtml(n: Notice, yokaiName: (id: string) => string): string {
       : `<b>${escapeHtml(n.name)}を渡した</b><span>喜んでもらえたみたい。</span>`
   }
   const where = n.travel === 'yume' ? '夢の旅では線（白描）まで。色は、現地でこの地点に立つと入る。' : ''
-  return `<b>曼荼羅帳に、${escapeHtml(n.label)}のピースが一つ入った</b><span>${where}右上の「曼荼羅帳」で見られる。</span>`
+  return `<b>曼荼羅帳に、${escapeHtml(n.label)}のピースが一つ入った</b><span>${where}右上の「帳」で見られる。</span>`
 }
 
 // ---------------------------------------------------------------- 払わずに待つ（ミノモシ番外）
@@ -801,8 +833,9 @@ const SLOT_LABEL = ['一', '二', '三', '四']
  * ましろが中身を言わずに先へ進める（拾い漏れの救い）。
  * 墨の渦・藍の帳（場所の畏れ。画面が藍に沈む）は【創作】の演出。spec.plain なら外して、並べるだけ（稽古）にする。
  * ましろの台詞は台本（GameSpec.lines）から受け取る。
+ * 会話の中（DialogueView）と、帳の稽古（ui/cho.ts。plain・opts で題の上の字とやめるボタンの字を変える）で使う。
  */
-class EtokiGame {
+export class EtokiGame {
   /** 白紙の札の番が来てから置くまで（ms） */
   private static readonly BLANK_MS = 900
   /** はじめの言葉・白紙の言葉を読む間（ms） */
@@ -843,6 +876,8 @@ class EtokiGame {
     private readonly done: (r: GameResult) => void,
     quit: () => void,
     private readonly sound?: { bell(v?: number): void },
+    /** kicker: 題の上の小さな字（既定は「絵解き鎮め」「絵解きの稽古」）。quitLabel: やめるボタンの字（既定「会話をやめる」） */
+    opts: { kicker?: string; quitLabel?: string } = {},
   ) {
     // ましろの台詞は台本（game.lines）から。なければ既定
     this.lines = {
@@ -872,7 +907,8 @@ class EtokiGame {
     this.sayText = say.querySelector('p') as HTMLElement
     this.hint = say.querySelector('small') as HTMLElement
     const board = el('div', 'yge-board')
-    const title = el('h2', 'yge-title', `<small>${spec.plain ? '絵解きの稽古' : '絵解き鎮め'}</small><span>${escapeHtml(spec.title)}</span>`)
+    const kicker = opts.kicker ?? (spec.plain ? '絵解きの稽古' : '絵解き鎮め')
+    const title = el('h2', 'yge-title', `<small>${escapeHtml(kicker)}</small><span>${escapeHtml(spec.title)}</span>`)
     const slotList = el('ol', 'yge-slots')
     slotList.setAttribute('aria-label', '話の順の枠')
     hand.forEach((_, i) => {
@@ -901,7 +937,8 @@ class EtokiGame {
       this.cards.set(i, e)
     }
     board.append(title, slotList, this.count, this.handEl)
-    const quitBtn = el('button', 'yg-quit', '会話をやめる') as HTMLButtonElement
+    const quitBtn = el('button', 'yg-quit') as HTMLButtonElement
+    quitBtn.textContent = opts.quitLabel ?? '会話をやめる'
     quitBtn.type = 'button'
     quitBtn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -1143,14 +1180,19 @@ function brushPath(r0: number, r1: number, a0: number, sweep: number, w: number)
   return `M${outer.join('L')}L${inner.reverse().join('L')}Z`
 }
 
-// ---------------------------------------------------------------- 曼荼羅帳
+// ---------------------------------------------------------------- 帳（曼荼羅帳と、ほかの頁のタブ）
 
 export interface MandalaHooks {
   close(): void
   reset(): void
   /** ピースを見た（「新」の印を消す） */
   seen(pieceId: string): void
+  /** 稽古（語り返し）を始める。ピースの表示を閉じてから呼ぶ */
+  keiko?(pieceId: string): void
 }
+
+/** 稽古ができるか。ready＝できる（彩色済みで、稽古の札が2枚以上開いている）、few＝札がまだ足りない、none＝稽古のないピース */
+export type KeikoState = 'ready' | 'few' | 'none'
 
 export interface MandalaState {
   piece(id: string): PieceState
@@ -1158,16 +1200,37 @@ export interface MandalaState {
   card(id: string): LoreCard | undefined
   /** 巻末の旅印（02 F-45）。at は押した日時（まだなら null） */
   stamps?(): { id: string; title: string; stampTitle: string; motif: string; at: string | null }[]
+  /** 稽古（04 §3.6）。無ければ、稽古のボタンも案内も出さない */
+  keiko?(id: string): KeikoState
+}
+
+/** 帳のほかの頁（タブ。いまは縁帳）。panel は中身の要素で、帳が見せたり隠したりする */
+export interface ChoTab {
+  id: string
+  label: string
+  panel: HTMLElement
+  /** 頁を開いたとき（描き直す） */
+  show?(): void
+  /** タブに「新」の印を出すか（数は出さない） */
+  isNew?(): boolean
+  /** 「新」の印の読み上げ（例: 「新しい縁がある」） */
+  newLabel?: string
 }
 
 const INK = '#3a332d'
 
+/**
+ * 帳。タブ（本物のボタン。aria-selected、左右の矢印キーで移る）で頁を切り替える。はじめの頁は曼荼羅帳（掛軸・巻末の旅印・やり直す）。
+ * ほかの頁（縁帳）は、作る側（ui/cho.ts）が中身を渡す。タブの「新」は、字の印だけ（数は出さない）。
+ */
 export class MandalaView {
   private readonly root: HTMLElement
   private readonly wrap: HTMLDivElement
   private readonly scroll: HTMLDivElement
   private readonly pop: HTMLDivElement
   private readonly popCard: HTMLDivElement
+  private readonly tabs: (ChoTab & { btn: HTMLButtonElement })[] = []
+  private current = 'mandala'
   private openFlag = false
   private lastFocus: HTMLElement | null = null
   /** ピースの表示・確認を開く前にキーボードの位置があった所（閉じたら戻す） */
@@ -1178,13 +1241,52 @@ export class MandalaView {
     private readonly def: MandalaDef,
     private readonly state: MandalaState,
     private readonly hooks: MandalaHooks,
+    /** ほかの頁（タブ）。無ければタブを出さず、曼荼羅帳だけ */
+    extraTabs: ChoTab[] = [],
   ) {
     injectStyle()
     this.root = root
     this.wrap = el('div', 'ym')
     this.wrap.setAttribute('role', 'dialog')
-    this.wrap.setAttribute('aria-label', '曼荼羅帳')
-    const head = el('div', 'ym-head', `<h2>${escapeHtml(def.title)}</h2><span class="sub">自分の立山曼荼羅（夢の旅では白描）</span>`)
+    this.wrap.setAttribute('aria-label', extraTabs.length ? '帳' : def.title)
+    const head = el('div', 'ym-head')
+    const mandalaPanel = el('div', 'ym-panel')
+    if (extraTabs.length) {
+      head.innerHTML = '<h2>帳</h2>'
+      const list = el('div', 'ym-tabs')
+      list.setAttribute('role', 'tablist')
+      list.setAttribute('aria-label', '帳の頁')
+      const all: ChoTab[] = [
+        { id: 'mandala', label: def.title, panel: mandalaPanel, show: () => this.render(), isNew: () => this.anyNewPiece(), newLabel: '新しいピースがある' },
+        ...extraTabs,
+      ]
+      for (const t of all) {
+        const b = el('button', 'ym-tab', `${escapeHtml(t.label)}<span class="ym-tab-new" aria-hidden="true">新</span><span class="ym-vh"></span>`) as HTMLButtonElement
+        b.type = 'button'
+        b.id = `ym-tab-${t.id}`
+        b.setAttribute('role', 'tab')
+        b.setAttribute('aria-controls', `ym-panel-${t.id}`)
+        t.panel.classList.add('ym-panel')
+        t.panel.id = `ym-panel-${t.id}`
+        t.panel.setAttribute('role', 'tabpanel')
+        t.panel.setAttribute('aria-labelledby', b.id)
+        b.addEventListener('click', () => this.selectTab(t.id))
+        // 左右の矢印・Home・End で隣のタブへ（タブの並びの中だけ。Tab キーは頁の中へ進む）
+        b.addEventListener('keydown', (e) => {
+          const i = this.tabs.findIndex((x) => x.id === t.id)
+          const n = this.tabs.length
+          const to = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1
+          if (to < 0) return
+          e.preventDefault()
+          this.selectTab(this.tabs[to].id, true)
+        })
+        list.appendChild(b)
+        this.tabs.push({ ...t, btn: b })
+      }
+      head.appendChild(list)
+    } else {
+      head.innerHTML = `<h2>${escapeHtml(def.title)}</h2>`
+    }
     const close = el('button', 'ym-btn close', 'とじる') as HTMLButtonElement
     close.type = 'button'
     close.addEventListener('click', () => this.hooks.close())
@@ -1215,7 +1317,8 @@ export class MandalaView {
     reset.addEventListener('click', () => this.confirmReset())
     side.appendChild(reset)
     body.append(this.scroll, side)
-    this.wrap.append(head, noteSp, body)
+    mandalaPanel.append(noteSp, body)
+    this.wrap.append(head, ...(this.tabs.length ? this.tabs.map((t) => t.panel) : [mandalaPanel]))
     this.wrap.inert = true
     root.appendChild(this.wrap)
 
@@ -1230,7 +1333,8 @@ export class MandalaView {
     root.appendChild(this.pop)
 
     window.addEventListener('keydown', (e) => {
-      if (!this.openFlag || e.code !== 'Escape') return
+      // 稽古（並べる遊び）の間は、遊びの側（ui/cho.ts）が Escape を受ける（受けたら defaultPrevented）
+      if (!this.openFlag || e.code !== 'Escape' || e.defaultPrevented || this.root.classList.contains('yg-playing')) return
       if (this.pop.classList.contains('on')) this.closePop()
       else this.hooks.close()
     })
@@ -1240,21 +1344,60 @@ export class MandalaView {
     return this.openFlag
   }
 
-  open(): void {
+  /** いま開いている頁（タブの id） */
+  get tab(): string {
+    return this.current
+  }
+
+  /** tab: 開く頁（省くと、前に開いていた頁） */
+  open(tab?: string): void {
     this.lastFocus = document.activeElement as HTMLElement | null
-    this.render()
     this.openFlag = true
+    if (this.tabs.length) this.selectTab(tab ?? this.current)
+    else this.render()
     setOpen(this.wrap, true)
     this.root.classList.add('modal-open')
-    window.setTimeout(() => (this.wrap.querySelector('.ym-btn.close') as HTMLButtonElement | null)?.focus({ preventScroll: true }), 50)
+    // キーボードの位置は、いまの頁のタブへ（タブが無ければ「とじる」）
+    const first = this.tabs.find((t) => t.id === this.current)?.btn ?? (this.wrap.querySelector('.ym-btn.close') as HTMLButtonElement | null)
+    window.setTimeout(() => first?.focus({ preventScroll: true }), 50)
   }
 
   close(): void {
+    if (!this.openFlag) return
     this.openFlag = false
     setOpen(this.wrap, false)
     this.root.classList.remove('modal-open')
     this.closePop()
     this.lastFocus?.focus?.({ preventScroll: true })
+  }
+
+  /** 頁（タブ）を切り替える。focus なら、そのタブへキーボードの位置を移す */
+  selectTab(id: string, focus = false): void {
+    const want = this.tabs.find((t) => t.id === id) ?? this.tabs[0]
+    if (!want) return
+    this.current = want.id
+    for (const t of this.tabs) {
+      const on = t === want
+      t.btn.setAttribute('aria-selected', String(on))
+      t.btn.tabIndex = on ? 0 : -1
+      t.panel.hidden = !on
+    }
+    want.show?.()
+    this.refreshMarks()
+    if (focus) want.btn.focus({ preventScroll: true })
+  }
+
+  /** タブの「新」の印を合わせる（字の印と、読み上げの言葉。数は出さない） */
+  refreshMarks(): void {
+    for (const t of this.tabs) {
+      const on = !!t.isNew?.()
+      t.btn.classList.toggle('has-new', on)
+      ;(t.btn.querySelector('.ym-vh') as HTMLElement).textContent = on ? `（${t.newLabel ?? '新しいものがある'}）` : ''
+    }
+  }
+
+  private anyNewPiece(): boolean {
+    return this.def.tiers.some((t) => t.pieces.some((p) => this.state.piece(p.id) !== 'empty' && this.state.isNew(p.id)))
   }
 
   render(): void {
@@ -1305,12 +1448,14 @@ export class MandalaView {
         }
       })
     }
+    this.refreshMarks()
   }
 
   private pieceSvg(p: MandalaPieceDef): string {
     const st = this.state.piece(p.id)
     const filled = st !== 'empty'
-    const label = filled && p.label ? `${p.label}（${PIECE_LABEL[st]}）` : `空白のピース`
+    const fresh = filled && this.state.isNew(p.id)
+    const label = filled && p.label ? `${p.label}（${PIECE_LABEL[st]}${fresh ? '・新しい' : ''}）` : `空白のピース`
     let inner = ''
     if (!filled) {
       inner = `<rect class="frame" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="5" fill="#fbf7ec" fill-opacity="0.55" stroke="#8a7f70" stroke-opacity="0.75" stroke-width="0.8" stroke-dasharray="3 2.4"/>`
@@ -1335,9 +1480,14 @@ export class MandalaView {
         // 状態の印（色だけにしない: 形と文字）
         `<rect x="${p.x + p.w - 19}" y="${p.y + 2}" width="17" height="15" rx="2" fill="#fffdf7" stroke="${INK}" stroke-width="0.6"/>` +
         `<text x="${p.x + p.w - 10.5}" y="${p.y + 13.6}" font-size="11" text-anchor="middle" fill="${INK}" font-family="'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',serif">${st === 'hakubyo' ? '線' : st === 'saishiki' ? '彩' : '金'}</text>`
-      if (this.state.isNew(p.id)) inner += `<rect class="ring" x="${p.x - 3}" y="${p.y - 3}" width="${p.w + 6}" height="${p.h + 6}" rx="7" fill="none" stroke="#b5523b" stroke-width="1.6"/>`
+      // まだ見ていない（状態が上がったときも）: 輪と、左上の「新」の字（色だけにしない）
+      if (fresh)
+        inner +=
+          `<rect class="ring" x="${p.x - 3}" y="${p.y - 3}" width="${p.w + 6}" height="${p.h + 6}" rx="7" fill="none" stroke="#b5523b" stroke-width="1.6"/>` +
+          `<rect x="${p.x - 4}" y="${p.y - 6}" width="15" height="13" rx="6.5" fill="#b5523b"/>` +
+          `<text x="${p.x + 3.5}" y="${p.y + 3.8}" font-size="9" text-anchor="middle" fill="#fff">新</text>`
     }
-    const cls = `ym-piece${filled && this.state.isNew(p.id) ? ' new' : ''}`
+    const cls = `ym-piece${fresh ? ' new' : ''}`
     return `<g class="${cls}" data-id="${p.id}" role="button" tabindex="0" aria-label="${escapeHtml(label)}"><title>${escapeHtml(label)}</title>${inner}</g>`
   }
 
@@ -1363,48 +1513,83 @@ export class MandalaView {
     return undefined
   }
 
-  private openPiece(id: string): void {
+  /** 掛軸の上のピースの要素（描き直すと替わるので、そのつど探す） */
+  private pieceEl(id: string): SVGElement | null {
+    return Array.from(this.scroll.querySelectorAll<SVGElement>('.ym-piece')).find((g) => g.dataset.id === id) ?? null
+  }
+
+  /**
+   * ピースの表示。notice は上に出す一言（稽古のあとの「金の縁取りが入った」など）。
+   * 稽古のあるピースでは: 白描なら、彩色のあとに語り返すと金になることを言う。彩色・金で札がそろっていれば、稽古のボタンを出す
+   */
+  openPiece(id: string, notice?: string): void {
     const p = this.findPiece(id)
     if (!p) return
     const st = this.state.piece(id)
     if (st === 'empty') {
-      this.showPop(`
+      this.showPop(
+        `
         <div class="yc-kind"><span>空白のピース</span></div>
         <h3 class="yc-title">まだ白紙</h3>
         <p class="yc-body" style="font-size:14px">誰かの話を聞くと、ここに線が入る。</p>
-        <button class="yc-btn" type="button" data-act="close">もどる</button>`)
+        <button class="yc-btn" type="button" data-act="close">もどる</button>`,
+        this.pieceEl(id),
+      )
       return
     }
     this.hooks.seen(id)
     const art = p.art ? ARTS[p.art] : undefined
-    const svg = art ? `<svg class="art" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1, 1, st === 'saishiki' || st === 'kin')}</svg>` : ''
+    const svg = art
+      ? `<svg class="art${st === 'kin' ? ' kin' : ''}" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1, 1, st === 'saishiki' || st === 'kin')}</svg>`
+      : ''
     const cards = (p.cardIds ?? []).map((c) => this.state.card(c)).filter((c): c is LoreCard => !!c)
-    const hint =
+    const keiko = this.state.keiko?.(id) ?? 'none'
+    const hints = [
       st === 'hakubyo'
         ? '夢で話を聞いて、線（白描）が入った。現地でこの地点に立つと、色が入る（現の旅）。'
         : st === 'saishiki'
           ? '現地で色が入った。'
-          : '語り返して、金の縁取りが入った。'
-    this.showPop(`
+          : // 稽古のすぐあと（上の一言で言った）は、くり返さない
+            notice
+            ? ''
+            : '語り返して、金の縁取りが入った。',
+    ].filter(Boolean)
+    if (keiko !== 'none' && st === 'hakubyo') hints.push('現地で色が入ったピースを、ここで語り返すと金の縁取りになる。')
+    if (keiko === 'few' && st !== 'hakubyo') hints.push('話の札がもう少しそろうと、ここで語り返せる（稽古）。')
+    const keikoBtn =
+      keiko === 'ready' && st !== 'hakubyo'
+        ? `<button class="yc-btn keiko" type="button" data-act="keiko">${st === 'kin' ? 'もう一度、語り返す' : '稽古する（語り返す）'}<small>札を話の順に並べて、${escapeHtml(p.label ?? '')}に語り返す</small></button>`
+        : ''
+    this.showPop(
+      `
       <div class="yc-kind"><span>曼荼羅のピース</span><span class="new">${escapeHtml(PIECE_LABEL[st])}</span></div>
+      ${notice ? `<p class="ym-notice" role="status">${escapeHtml(notice)}</p>` : ''}
       <h3 class="yc-title">${escapeHtml(p.label ?? '')}</h3>
       ${svg}
-      <p class="yc-foot" style="margin-top:0">${escapeHtml(hint)}</p>
+      ${hints.map((h) => `<p class="yc-foot" style="margin-top:0">${escapeHtml(h)}</p>`).join('')}
+      ${keikoBtn}
       <div class="row">
         ${cards.length ? `<button class="yc-btn" type="button" data-act="card">札を読む${cards.length > 1 ? `（${cards.length}枚）` : ''}</button>` : ''}
         <button class="yc-btn" type="button" data-act="close">もどる</button>
-      </div>`)
+      </div>`,
+      this.pieceEl(id),
+    )
     const showCard = (i: number) => {
       const last = i >= cards.length - 1
       this.showPop(cardHtml(cards[i], { button: last ? 'もどる' : `次の札（${i + 1}/${cards.length}）` }))
       this.popCard.querySelector('.yc-btn')?.addEventListener('click', () => (last ? this.openPiece(id) : showCard(i + 1)))
     }
     this.popCard.querySelector('[data-act="card"]')?.addEventListener('click', () => showCard(0))
+    this.popCard.querySelector('[data-act="keiko"]')?.addEventListener('click', () => {
+      this.closePop()
+      this.hooks.keiko?.(id)
+    })
     this.render()
   }
 
-  private showPop(html: string): void {
-    if (!this.pop.classList.contains('on')) this.popReturn = document.activeElement as HTMLElement | SVGElement | null
+  /** returnTo: 閉じたときにキーボードの位置を戻す所（省くと、開いたときの位置） */
+  private showPop(html: string, returnTo?: HTMLElement | SVGElement | null): void {
+    if (!this.pop.classList.contains('on')) this.popReturn = returnTo ?? (document.activeElement as HTMLElement | SVGElement | null)
     this.popCard.innerHTML = html
     this.popCard.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closePop())
     setOpen(this.pop, true)
@@ -1419,7 +1604,7 @@ export class MandalaView {
     this.popReturn = null
     if (!had || !this.openFlag) return
     const id = from?.dataset?.id
-    const back = from?.isConnected ? from : id ? Array.from(this.scroll.querySelectorAll<SVGElement>('.ym-piece')).find((g) => g.dataset.id === id) : null
+    const back = from?.isConnected && this.wrap.contains(from) ? from : id ? this.pieceEl(id) : null
     ;(back ?? (this.wrap.querySelector('.ym-btn.close') as HTMLButtonElement | null))?.focus({ preventScroll: true })
   }
 
@@ -1427,7 +1612,7 @@ export class MandalaView {
     this.showPop(`
       <div class="yc-kind"><span>確認</span></div>
       <h3 class="yc-title">最初からやり直しますか</h3>
-      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁が、すべて消えます。元には戻せません。</p>
+      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物が、すべて消えます。元には戻せません。</p>
       <div class="row">
         <button class="yc-btn" type="button" data-act="close">やめる</button>
         <button class="yc-btn" type="button" data-act="reset">やり直す</button>
