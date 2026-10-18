@@ -49,13 +49,13 @@ OSM の建物は空中写真の半分ほどしかないので、道沿いの空�
 | 置き場所 | 中身 |
 |---|---|
 | `src/core/story/` | 描画に依存しない仕組み（現の旅でも使う）。`dialogue.ts` 台本を進める・点検する、`progress.ts` 進み具合の保存（版2。縁は夢では「なじみ」まで、台本で入るピースは夢では白描・現地では彩色まで、金は稽古で。「現地で得たか」の印つき。持ち物・会話の回数・フラグを書いた時も持つ）、`transfer.ts` 引き継ぎコード（書き出し・読み込み・2台の保存を合わせる）、`listen.ts` 耳を澄ます／立ち止まるの判定、`types.ts` データの形 |
-| `src/data/scripts/*.json` | 台本（台詞はすべて【創作】。監修前の下書き）。光蔵坊 `kozobo`、ガメ `game`、カーラボーズ `karabozu`、ミノモシ `minomoshi`、調べる地点 `kozobo-shirabe-1`・`-2`（ましろだけが話す）、寄り道のガメ `game-yorimichi`（雑談だけ） |
-| `src/data/appearance.json`・`clues.json` | 出現の表（場所の種類 × 時間帯。試作は水辺だけ。F-03）と、調べる地点の台本・気配を出す条件。引き方は `src/core/story/appearance.ts` |
-| `src/data/lore-cards.json` | 伝承の札（03 の確認済の内容だけ。出典・確度・03 の番号・監修の状態） |
+| `src/data/scripts/*.json` | 台本（台詞はすべて【創作】。監修前の下書き）。光蔵坊 `kozobo`、ガメ `game`、カーラボーズ `karabozu`、ミノモシ `minomoshi`、調べる地点 `kozobo-shirabe-1`・`-2` と白えびの拾い場所 `shiroebi-spot`（どれもましろだけが話す）、寄り道のガメ `game-yorimichi`（雑談だけ） |
+| `src/data/appearance.json`・`clues.json` | 出現の表（場所の種類 × 時間帯。試作は水辺だけ。F-03）と、調べる地点・拾い場所の台本・気配を出す条件・地図に出す呼び名（label）と気配の言葉（kehai）。引き方は `src/core/story/appearance.ts` |
+| `src/data/lore-cards.json` | 伝承の札（03 の確認済の内容だけ。出典・確度・03 の番号・監修の状態）。昆布・白えびは伝承ではなく「名産の札」（kind: 名産） |
 | `src/data/mandala.json` | 曼荼羅帳の構図（里・麓・山。【創作】）。ピースごとの札と、稽古で並べる札の順（keiko） |
 | `src/data/items.json`・`quests.json` | 持ち物（供物・届け物）と悩みごと（帳に出す題、始まり・解けたの見分け方。同時に3つまで） |
 | `src/ui/cho.ts` | 帳（三つのページで共通）。曼荼羅帳と縁帳のタブ、稽古（語り返し）で金の縁取り |
-| `src/data/yokai.json`・`story-pack.ts` | 妖怪の名前と夢の姿の大きさ、読み込みと点検 |
+| `src/data/yokai.json`・`story-pack.ts` | 妖怪の名前と夢の姿の大きさ、縁帳の紹介（profile・好物 likes・元の伝承 original）、読み込みと点検 |
 | `src/yume/encounter/` | 箱庭と画面へのつなぎ（夢の姿・霞・会話の枠・札・曼荼羅帳・音） |
 
 進み具合は `localStorage` の `yume.story.v1`（見た目などの設定は `yume.v1`）。帳の「最初からやり直す」で消える。保存の名前は `src/core/storage-keys.ts` にまとめている。
