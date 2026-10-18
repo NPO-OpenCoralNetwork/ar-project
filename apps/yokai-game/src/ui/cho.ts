@@ -224,8 +224,9 @@ export function threadSvg(level: BondLevel, sheen: number): string {
   let glow = ''
   if (frac && axis) {
     const id = `en-sheen-${++threadUid}`
+    // にじみの範囲は、図の座標で広めに取る（割合で取ると、細い糸では上下が四角く切れて見える）
     glow =
-      `<defs><filter id="${id}" x="-10%" y="-80%" width="120%" height="260%"><feGaussianBlur stdDeviation="${(1.6 + step * 0.4).toFixed(1)}"/></filter></defs>` +
+      `<defs><filter id="${id}" filterUnits="userSpaceOnUse" x="-14" y="-16" width="148" height="68"><feGaussianBlur stdDeviation="${(1.6 + step * 0.4).toFixed(1)}"/></filter></defs>` +
       `<path d="${axis}" fill="none" stroke="${SHEEN_GLOW}" stroke-opacity="${[0, 0.45, 0.6, 0.75][step]}" stroke-width="${4 + step * 1.5}" stroke-linecap="round" filter="url(#${id})"/>`
   }
   // data-thread・data-sheen は確認用（Playwright から読む）
@@ -305,6 +306,8 @@ export function createCho(o: ChoOptions): Cho {
   let gamePiece = ''
   const quitGame = () => {
     if (!game) return
+    // 並べ終えて、ましろの終わりの言葉を読んでいる間なら、やめずに終える（「語り返せた」と言ったのに金が入らない、にしない）
+    if (game.finishNow()) return
     game.dispose()
     game = null
     view.openPiece(gamePiece)

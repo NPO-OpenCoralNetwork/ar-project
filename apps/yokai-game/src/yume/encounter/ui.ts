@@ -447,10 +447,10 @@ const SHOW_PRODUCTION_META = (() => {
 const keepQuotes = (html: string): string => html.replace(/[「『][^「」『』]{1,10}[」』]/g, (q) => `<span class="yc-nb">${q}</span>`)
 
 /**
- * 札の中身（種類・題・本文・出典）。札の番号（card.number）は出さない（順番が分かってしまう。F-43 は題・本文・出典だけ）。
- * heading: 題の見出しの段（既定 h3。縁帳の頁の中では h5）
+ * 札の中身（種類・題・本文・出典）。ゲームでは札の番号（card.number）は出さない（順番が分かってしまう。F-43 は題・本文・出典だけ）。
+ * heading: 題の見出しの段（既定 h3。縁帳の頁の中では h5）。number: 番号も出す（札スタジオの見本だけ。PO の判断待ち。09 §5.7-7）
  */
-export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: string; heading?: 'h3' | 'h4' | 'h5' } = {}): string {
+export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: string; heading?: 'h3' | 'h4' | 'h5'; number?: boolean } = {}): string {
   const h = opts.heading ?? 'h3'
   const src = card.source
   const work = `${escapeHtml(src.work)}${src.year ? `（${src.year}）` : ''}`
@@ -469,7 +469,7 @@ export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: strin
     <p class="yc-source">出典 ${work}</p>`
   return `
     <div class="yc-kind"><span>伝承の札</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
-    <${h} class="yc-title">${escapeHtml(card.title)}</${h}>
+    <${h} class="yc-title">${opts.number && card.number ? `<small>${escapeHtml(card.number)}</small>` : ''}${escapeHtml(card.title)}</${h}>
     <p class="yc-body">${keepQuotes(escapeHtml(card.body))}</p>${meta}
     ${opts.first ? '<p class="yc-foot">札は伝承の記録です。会話の台詞は、本作の創作です。</p>' : ''}
     ${opts.button ? `<button class="yc-btn" type="button">${escapeHtml(opts.button)}</button>` : ''}`
@@ -1095,6 +1095,18 @@ export class EtokiGame {
     this.timers.add(id)
   }
 
+  /**
+   * 並べ終えたあと（ましろの終わりの言葉の間）なら、待たずに終える（done を呼ぶ）。終えたら true。
+   * 帳の稽古で、終わりの言葉の間に「やめる」・Escape を押しても、語り返した分は残す（ui/cho.ts）
+   */
+  finishNow(): boolean {
+    if (!this.finished || this.disposed) return false
+    const m = this.mistakes
+    this.dispose()
+    this.done({ mistakes: m })
+    return true
+  }
+
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
@@ -1593,12 +1605,15 @@ export class MandalaView {
     this.popCard.innerHTML = html
     this.popCard.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closePop())
     setOpen(this.pop, true)
+    // 表示の間、後ろの帳（タブ・ピース）には Tab で入らない（閉じたら戻す）
+    this.wrap.inert = true
     window.setTimeout(() => (this.popCard.querySelector('button') as HTMLButtonElement | null)?.focus({ preventScroll: true }), 30)
   }
 
   private closePop(): void {
     const had = this.pop.contains(document.activeElement)
     setOpen(this.pop, false)
+    this.wrap.inert = !this.openFlag
     // キーボードの位置を、開く前の所（描き直したピースなら、同じピース。無ければ「とじる」）へ戻す（<body> に落とさない）
     const from = this.popReturn
     this.popReturn = null
