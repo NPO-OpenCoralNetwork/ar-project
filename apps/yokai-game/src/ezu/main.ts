@@ -10,24 +10,35 @@
 // - 名所の役目は現の旅と同じ（04 §3.1・§3.4）:
 //   決まった妖怪（夢の姿）、調べる地点（頼まれてから札を拾うまで。姿は無く、ましろだけが話す）、
 //   寄り道の地点（水辺。出現の表を時間で引く。会ったことのある妖怪が雑談で現れる。悩みは始めない・縁も上げない）。
-// - 時間（昼・夕・夜）は「時間」で切り替え、端末に覚える。夜は気配だけ（04 §2.5「箱庭も夜は気配だけ」。決まりは core の canListenAtHome。箱庭と同じ）。
-//   夕は、決まった妖怪と調べる地点には会える。寄り道の地点は表のとおり（くらがりは段階4なので、まだ気配だけ）。
+// - 時間は、箱庭と同じ立山の時刻（段階4b。ui/home-time.ts）: はじめての回（まだ耳を澄ましていない）だけ手で昼、2回目からは「いま」。
+//   「時間」で いま → 昼 → 夕 → 夜 → いま と回し、手で選んだ時間帯はこのページの間だけ（prefs.time は書くが、もう読まない）。
+//   いまのときは1分ごとに見直す（会話・帳・札の間は待つ）。立山の時刻が逢魔が時に入ったら、お知らせと風の音。
+//   いまの夜に入ったら一度だけ、ましろの申し出（ui/offer.ts。［昼の夢にする］、夜話が来ていれば［帳の「便り」をひらく］）。
+//   夜は気配だけ（04 §2.5「箱庭も夜は気配だけ」。決まりは core の canListenAtHome。箱庭と同じ）。
+//   夕は、決まった妖怪と調べる地点には会える。寄り道の地点は表のとおり。くらがりは、見た目の夕ではなく、立山の逢魔が時に帳の「便り」へ来る。
+// - 帳には「便り」のタブ（テスト用の土地の保存の便り・夜話・今日の絵解き）。右上の「今日はここまで」で今日の絵解き。
 // - お休みの範囲（境内・墓地）は霧。名前は出さず、中では会わない。
 // - 位置は使わない。土地はどこにも送らない（F-52）。出典表示（OSM）は常に出す（F-44）。
 // - テスターには、はじめに「伝承の土地ではない」「監修前の試作」と伝える（04 §6.2）。はじめの札は、開くたびに出す。
 // - 三つの約束（F-60）は、入口・現の旅で読んでいなければ、ここで見せる（札は ui/promise-sheet.ts。どのページでも同じもの）。
 
 import './style.css'
+import { appClock, appNow, clockTag } from '../core/debug-clock'
 import type { LocalXZ } from '../core/geo'
 import type { XZ } from '../core/map-layers'
 import { TEST_KEY } from '../core/storage-keys'
 import { canListenAtHome, clueActive, clueWords, HOME_NIGHT_KEHAI, resolveAppearance, type SpotRole, spotRole, timeSlotOfDiorama } from '../core/story/appearance'
+import { type DayKey, storyClock } from '../core/story/clock'
 import { ListenGauge } from '../core/story/listen'
+import { MemoStore } from '../core/story/memo'
 import { browserStorage, ProgressStore } from '../core/story/progress'
+import { type Tonight, tonight, yobanashiNews } from '../core/story/yobanashi'
 import type { DayPhase } from '../core/utsutsu/sun'
 import { loadStoryPack } from '../data/story-pack'
 import { createCho } from '../ui/cho'
 import { focusSheet } from '../ui/focus'
+import { createHomeTime } from '../ui/home-time'
+import { showOffer } from '../ui/offer'
 import { persistOnTap } from '../ui/persist'
 import { withPromises } from '../ui/promise-sheet'
 import { GenEncounter } from '../utsutsu/encounter'
@@ -39,7 +50,6 @@ import { escapeHtml, ListenButton } from '../yume/encounter/ui'
 
 type Time = 'day' | 'dusk' | 'night'
 const TIMES: Time[] = ['day', 'dusk', 'night']
-const TIME_LABEL: Record<Time, string> = { day: '昼', dusk: '夕', night: '夜' }
 const PHASE_OF: Record<Time, DayPhase> = { day: 'day', dusk: 'oumagatoki', night: 'night' }
 /** 紙の色（ブラウザの帯の色を合わせる） */
 const PAPER: Record<Time, string> = { day: '#f7f1e3', dusk: '#f2dfc8', night: '#2b3148' }
@@ -56,7 +66,7 @@ interface EzuSpot {
   placeKind?: string
 }
 
-/** この端末に覚えること（時間と、はじめての一言を見せ終えたか）。土地や位置は入れない */
+/** この端末に覚えること（時間と、はじめての一言を見せ終えたか）。土地や位置は入れない。time は段階4a のために書くが、もう読まない */
 const PREF_KEY = 'yume.ezu.v1'
 interface Prefs {
   time: Time
@@ -179,13 +189,19 @@ function showStart(): void {
 
 function startMap(t: TestLand): void {
   hideSheet()
-  const progress = new ProgressStore(browserStorage(), TEST_KEY)
+  // 進み具合の時刻は、物語の時計（テストの時計で動く）
+  const progress = new ProgressStore(browserStorage(), TEST_KEY, () => new Date(appNow()))
   // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
   progress.follow()
+  // ましろの覚え書き（呼び名。端末の持ち主のもの。便りで使う）
+  const memo = new MemoStore(browserStorage(), () => new Date(appNow()))
+  memo.follow()
   // 遊びはじめてから押したときに、保存を長く残すよう一度だけ頼む（入口の旅のボタンでは、ページを移るので頼まない）
   persistOnTap()
   const prefs = loadPrefs()
-  let time: Time = prefs.time
+  // 時間: はじめての回（まだ耳を澄ましていない）は手で昼、ほかは「いま」（立山の時刻）
+  const homeTime = createHomeTime({ first: !prefs.listened, now: appNow })
+  let time: Time = homeTime.look
   const rest: LocalXZ[][] = t.restZones.map((z) => z.map(([x, zz]) => ({ x, z: zz })))
   // 名所の役目（core の spotRole。現の旅・箱庭と同じ順。どの役目でもない地点は置かない）
   const spots: EzuSpot[] = []
@@ -205,13 +221,16 @@ function startMap(t: TestLand): void {
   const title = el('div', 'ez-title', '白描の絵地図<small>テスト用の土地（試作）</small>')
   tl.append(back, title)
   const tr = el('div', 'ez-tr')
-  const timeBtn = el('button', 'ez-btn') as HTMLButtonElement
+  const timeBtn = el('button', 'ez-btn time') as HTMLButtonElement
   const soundBtn = el('button', 'ez-btn', '音') as HTMLButtonElement
   soundBtn.setAttribute('aria-pressed', 'true')
   soundBtn.setAttribute('aria-label', '音（鈴）')
+  // 今日の絵解き（押したときだけ。04 §3.6）
+  const etokiBtn = el('button', 'ez-btn etoki', '今日はここまで') as HTMLButtonElement
+  etokiBtn.setAttribute('aria-label', '今日はここまで（今日の絵解きをつくる）')
   const choBtn = el('button', 'ez-btn title mandala cho-btn', '帳<span class="ym-badge" aria-hidden="true">新</span>') as HTMLButtonElement
-  choBtn.title = '帳（曼荼羅帳・縁帳）'
-  tr.append(timeBtn, soundBtn, choBtn)
+  choBtn.title = '帳（曼荼羅帳・縁帳・便り）'
+  tr.append(timeBtn, soundBtn, etokiBtn, choBtn)
   const tools = el('div', 'ez-tools')
   const zin = el('button', 'ez-btn', '＋') as HTMLButtonElement
   const zout = el('button', 'ez-btn', '－') as HTMLButtonElement
@@ -222,7 +241,7 @@ function startMap(t: TestLand): void {
   const north = el('div', 'ez-north', '北')
   north.setAttribute('aria-label', '地図は北が上')
   tools.append(north, zin, zout, fitBtn)
-  for (const b of [timeBtn, soundBtn, choBtn, zin, zout, fitBtn]) b.type = 'button'
+  for (const b of [timeBtn, soundBtn, etokiBtn, choBtn, zin, zout, fitBtn]) b.type = 'button'
   const spotLayer = el('div', 'ez-spots')
   const hint = el('div', 'ez-hint', '名所に指を置いて、耳を澄ます<small>マウスは名所の上で長押し。キーボードは Tab で名所を選び、Space を押し続ける</small>')
   hint.setAttribute('role', 'note')
@@ -230,8 +249,11 @@ function startMap(t: TestLand): void {
   const toastEl = el('div', 'ez-toast')
   toastEl.setAttribute('role', 'status')
   const credit = el('div', 'yh-credit', '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>')
+  // テストの時計の札（?debug&clock= で時計を動かしているときだけ。左下）
+  const clockEl = el('div', 'ez-clock')
+  clockEl.hidden = true
   // 名所のボタンは板のあと（Tab で、板 → 名所の順に回る）
-  root.append(tl, tr, tools, spotLayer, hint, toastEl, credit)
+  root.append(tl, tr, tools, spotLayer, hint, toastEl, credit, clockEl)
   // 札（約束・はじめ）を閉じると、押したボタンが消える。キーボードの位置は題へ（Tab で、右上の板 → 名所の順）
   title.tabIndex = -1
   title.focus({ preventScroll: true })
@@ -349,7 +371,8 @@ function startMap(t: TestLand): void {
     if (selected && !vis.some((s) => s.id === selected)) select(null)
   }
 
-  // 帳（テスト用の土地の保存。旅印は現地で節を終えたときだけなので、家では枠だけ）。まだ見ていないピース・縁があれば、ボタンに「新」の字
+  // 帳（テスト用の土地の保存。旅印は現地で節を終えたときだけなので、家では枠だけ）。まだ見ていないピース・縁・便りがあれば、ボタンに「新」の字。
+  // 便りは家（home）: 夜話と帳の影もある（この土地の保存の便り。入口の便りは立山のふもとだけ）
   const cho = createCho({
     root,
     story,
@@ -359,12 +382,16 @@ function startMap(t: TestLand): void {
     sound,
     onNew: (on) => {
       choBtn.classList.toggle('has-new', on)
-      choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある）' : '帳をひらく（曼荼羅帳・縁帳）')
+      choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいものがある。曼荼羅帳・縁帳・便り）' : '帳をひらく（曼荼羅帳・縁帳・便り）')
     },
     onReset: () => refreshSpots(),
+    tayori: { memo, mode: 'home', now: appNow, sound },
   })
   choBtn.addEventListener('click', () => {
     if (!encounter.isOpen) cho.open()
+  })
+  etokiBtn.addEventListener('click', () => {
+    if (!encounter.isOpen) cho.etoki()
   })
 
   // 出会い（白描の夢の姿・和紙の背景。カメラは出さない）
@@ -379,6 +406,8 @@ function startMap(t: TestLand): void {
     onEnd: (spotId) => {
       root.classList.remove('talking')
       refreshSpots()
+      // 会話のあと（途中で閉じても）: 便り（悩みの便りはすぐ届く）と帳の「新」を見直す
+      cho.tick()
       // キーボードで遊んでいたら、名所のボタンへ戻す（札を拾って消えた調べる地点なら、見えている名所の先頭へ）
       if (root.classList.contains('yd-keys')) {
         const b = spotBtns.get(selected ?? spotId)
@@ -431,23 +460,25 @@ function startMap(t: TestLand): void {
     if (openTalk(sp)) root.classList.add('talking')
   }
 
-  // 時間（昼 → 夕 → 夜）。端末に覚える
+  // 時間（いま → 昼 → 夕 → 夜 → いま。ui/home-time.ts）。見た目の時間帯を写す（prefs.time は段階4a のために書く）
   const setTime = (next: Time) => {
     time = next
     prefs.time = next
     safeSet(PREF_KEY, JSON.stringify(prefs))
     root.dataset.time = next
     map.setPhase(PHASE_OF[next])
-    timeBtn.innerHTML = `<small>時間</small>${TIME_LABEL[next]}`
-    timeBtn.setAttribute('aria-label', `時間を切り替える（いまは${TIME_LABEL[next]}）`)
+    const l = homeTime.label()
+    timeBtn.innerHTML = `<small>時間</small>${escapeHtml(l.value)}`
+    timeBtn.setAttribute('aria-label', l.aria)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', PAPER[next])
   }
   setTime(time)
   timeBtn.addEventListener('click', () => {
-    const next = TIMES[(TIMES.indexOf(time) + 1) % TIMES.length]
+    const next = homeTime.cycle()
     setTime(next)
-    log(`time ${next}`)
-    if (!canListenAtHome(next)) toast(HOME_NIGHT_KEHAI)
+    log(`time ${homeTime.mode} ${next}`)
+    // いまの夜に入ったら申し出（このページで一度だけ）。出さなかったときは、夜は気配だけと添える
+    if (!afterTimeChange() && !canListenAtHome(next)) toast(HOME_NIGHT_KEHAI)
   })
   soundBtn.addEventListener('click', () => {
     sound.unlock()
@@ -485,6 +516,108 @@ function startMap(t: TestLand): void {
   })
   window.addEventListener('blur', () => (spaceHeld = false))
 
+  // ---- 立山の時刻（段階4b）。1分ごと・ページに戻ったとき・テストの時計を動かしたとき・会話や帳や札を閉じたときに見直す
+  /** ましろの申し出（いまの夜に入ったとき、このページで一度だけ） */
+  let offer: { close(): void } | null = null
+  let offerShown = false
+  /** 逢魔が時のお知らせを出した物語の日（日ごとに一度） */
+  let duskDay: DayKey | null = null
+  /** 夜話: 前に見た今夜の様子と、来たことを知らせた夜 */
+  let lastTonight: Tonight['state'] = tonight(storyClock(appNow()), progress, story).state
+  let yobanashiDay: DayKey | null = null
+  let yobanashiPending = false
+  /** ほかのお知らせが消えるのを待って、もう一度見る */
+  let retry = 0
+  const retrySoon = () => {
+    if (!retry)
+      retry = window.setTimeout(() => {
+        retry = 0
+        timeTick()
+      }, 2000)
+  }
+  const toastShowing = () => toastEl.classList.contains('on')
+  const closeOffer = () => {
+    offer?.close()
+    offer = null
+  }
+  /** 手で昼にする（夜の申し出の［昼の夢にする］） */
+  const dayDream = () => {
+    if (busy()) return
+    while (homeTime.mode !== 'day') homeTime.cycle()
+    setTime(homeTime.look)
+    log('time day (offer)')
+  }
+  /** いまの夜に入った（読み込んだときも）: ましろの申し出。夜話が来ていれば便りへ、ほかは昼の夢へ（夜の絵地図は気配だけ）。出したら true */
+  const nightOffer = (): boolean => {
+    if (offerShown || homeTime.mode !== 'auto' || homeTime.look !== 'night' || busy()) return false
+    offerShown = true
+    const clock = storyClock(appNow())
+    if (yobanashiNews(tonight(clock, progress, story))) {
+      // 同じ夜に「来ている」のお知らせを重ねない
+      yobanashiDay = clock.day
+      offer = showOffer(root, { text: '夜話に、だれか来ている。', action: '帳の「便り」をひらく', onAction: () => cho.open('tayori') })
+      log('offer yobanashi')
+    } else {
+      offer = showOffer(root, { text: '夜は、みんな気配だけ。', action: '昼の夢にする', onAction: () => dayDream() })
+      log('offer day')
+    }
+    return true
+  }
+  /** 時間帯が変わった: 夜でなくなったら申し出を閉じ、いまの夜に入ったら申し出る（出したら true） */
+  const afterTimeChange = (): boolean => {
+    if (time !== 'night') closeOffer()
+    return nightOffer()
+  }
+  function timeTick(): void {
+    const b = busy()
+    // いま: 立山の時刻の時間帯が変わっていたら切り替える（会話・帳・札の間は待ち、閉じたらすぐ見直す）
+    if (!b) {
+      const ch = homeTime.tick()
+      if (ch) {
+        setTime(ch)
+        log(`time auto ${ch}`)
+      }
+      afterTimeChange()
+    }
+    const clock = storyClock(appNow())
+    // 立山の逢魔が時: 物語の日ごとに一度、文字のお知らせ（地の文）と風の音（見た目の時間帯に関係なく。色だけにしない）
+    if (clock.phase === 'oumagatoki' && duskDay !== clock.day && !b) {
+      if (toastShowing()) retrySoon()
+      else {
+        duskDay = clock.day
+        toast('逢魔が時。帳のすみに、影がさした。', '', 5200)
+        sound.wind()
+        log(`dusk ${clock.day} wind`)
+      }
+    }
+    // 便りを届け、帳の「新」を見直す
+    cho.tick()
+    // 夜話: 会話のあとで、今夜だれかが来るようになったら、その夜に一度だけお知らせ（数は出さない）
+    const st = tonight(clock, progress, story).state
+    if (st === 'offer' && lastTonight !== 'offer' && lastTonight !== 'resume' && yobanashiDay !== clock.day) yobanashiPending = true
+    if (st !== 'offer') yobanashiPending = false
+    lastTonight = st
+    if (yobanashiPending && !b) {
+      if (toastShowing()) retrySoon()
+      else {
+        yobanashiPending = false
+        yobanashiDay = clock.day
+        toast('帳の「便り」に、だれか来ている。', '', 5200)
+        log('yobanashi toast')
+      }
+    }
+    const tag = clockTag()
+    clockEl.hidden = !tag
+    if (tag && clockEl.textContent !== tag) clockEl.textContent = tag
+  }
+  window.setInterval(timeTick, 60_000)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) timeTick()
+  })
+  appClock().onChange(() => timeTick())
+  /** 会話・帳・札を閉じたら、待っていた切り替えとお知らせを、すぐ見直す。開いたら、申し出は閉じる */
+  let wasBusy = busy()
+
   // 毎フレーム: 指・ボタン・キーを押している間だけ満ちる（near と held を同時に渡すので、ひとりでには満ちない）
   const gauge = new ListenGauge()
   let gaugeSpot: string | null = null
@@ -499,6 +632,11 @@ function startMap(t: TestLand): void {
     const dt = Math.min(0.25, Math.max(0, (now - lastT) / 1000))
     lastT = now
     const b = busy()
+    if (b !== wasBusy) {
+      wasBusy = b
+      if (b) closeOffer()
+      else timeTick()
+    }
     const want = holdSpot ?? (listenBtn.held(spaceHeld) ? selected : null)
     if (!want) spent = false
     const target = want && !spent && !b ? spotOf(want) : undefined
@@ -532,13 +670,20 @@ function startMap(t: TestLand): void {
   }
   refreshSpots()
   requestAnimationFrame(frame)
+  // 読み込んだとき: いまの夜なら申し出、逢魔が時ならお知らせと風
+  timeTick()
   ;(window as unknown as { __ezu: unknown }).__ezu = {
     map,
     progress,
+    memo,
     story,
     spots,
+    sound,
+    homeTime,
+    timeTick,
+    clock: appClock(),
     log: logLines,
-    state: () => ({ time, selected, holdSpot, gaugeSpot, gauge: gauge.progress, talking: encounter.isOpen }),
+    state: () => ({ time, mode: homeTime.mode, selected, holdSpot, gaugeSpot, gauge: gauge.progress, talking: encounter.isOpen }),
   }
 }
 

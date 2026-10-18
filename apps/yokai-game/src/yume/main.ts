@@ -3,15 +3,29 @@
 // 画面に出す地域の名前は、地域パックの name（了承が出るまでは仮の呼び方）だけを使う。
 // 三つの約束（F-60）は、入口・現の旅・白描の絵地図で読んでいなければ、箱庭を始める前にここで見せる（札は ui/promise-sheet.ts）。
 // 1つの HTML にまとめた箱庭（vite.artifact.config.ts。mode 'artifact'。入口の無い、Claude のアーティファクトで見る試作）では出さない。
+//
+// 段階4b（立山の時刻。04 §7 10/18）:
+// - 「時間」は、いま（立山の時刻）・昼・夕・夜（ui/home-time.ts）。はじめて入った回だけ手で昼、2回目からは「いま」で始める。
+//   手で選んだ時間帯は、このページの間だけ（保存の time は段階4a のために書くが、もう読まない）。
+// - いまのときは1分ごとに見直し、時間帯が変わっていれば覆いで切り替える。会話・帳・札の間は待つ。
+// - 立山の時刻が逢魔が時に入ったら（見た目に関係なく）、お知らせ「逢魔が時。帳のすみに、影がさした。」と風の音。
+// - いまの夜に入ったら、このページで一度だけ、ましろの申し出（ui/offer.ts）: ［昼の夢にする］か、夜話が来ていれば［帳の「便り」をひらく］。
+// - 進み具合・覚え書きの時刻は、テストの時計（core/debug-clock.ts。?debug&clock=）で動く。
 
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { appClock, appNow, clockTag } from '../core/debug-clock'
 import { STORY_KEY } from '../core/storage-keys'
+import { type DayKey, storyClock } from '../core/story/clock'
+import { MemoStore } from '../core/story/memo'
 import { browserStorage, ProgressStore } from '../core/story/progress'
+import { type Tonight, tonight, yobanashiNews } from '../core/story/yobanashi'
 import { loadStoryPack } from '../data/story-pack'
+import { createHomeTime } from '../ui/home-time'
+import { showOffer } from '../ui/offer'
 import { persistOnTap } from '../ui/persist'
 import { withPromises } from '../ui/promise-sheet'
 import { bendDrop, fogShapeUniforms, inkRimUniforms } from './bend'
@@ -27,7 +41,7 @@ import { inkLineUniforms } from './field/ink-lines'
 import { lampUniforms } from './field/lamps'
 import { moteUniforms } from './field/motes'
 import { densify } from './geom2d'
-import { lightDir, type ScenePalette, scenePalette, type TimeId, TIMES, type ViewLook } from './hikari'
+import { lightDir, type ScenePalette, scenePalette, type TimeId, type ViewLook } from './hikari'
 import { Hud } from './hud'
 import type { LookId } from './palette'
 import { FAST_SCALE, Player } from './player'
@@ -106,7 +120,9 @@ function start(): void {
   const saved = loadSaved()
   // 「彩色（仮）」は「光と霞」として読む。前の版の保存（白描が既定だった）は、一度だけ光と霞にする
   let look: ViewLook = saved.lookV === LOOK_VERSION && saved.look === 'hakubyo' ? 'hakubyo' : 'hikari'
-  let timeOfDay: TimeId = TIMES.some((t) => t.id === saved.time) ? (saved.time as TimeId) : 'day'
+  // 時間: はじめて入った回（操作のヒントをまだ閉じていない）は手で昼。ほかは「いま」（立山の時刻）。保存の time は読まない
+  const homeTime = createHomeTime({ first: !saved.hintSeen, now: appNow })
+  let timeOfDay: TimeId = homeTime.look
   let quality = QUALITIES.find((q) => q.id === saved.quality) ?? QUALITIES[1]
 
   // 物語のデータ（地点の役目は出現の表も見て決めるので、箱庭の材料より先に読む）
@@ -121,6 +137,7 @@ function start(): void {
     toggleSpeed: () => setSpeed(speed === 'fast' ? 'normal' : 'fast'),
     toggleSound: () => setSound(!sound.enabled),
     openMandala: () => encounters?.openMandala(),
+    openEtoki: () => encounters?.openEtoki(),
   }, SHOW_PERF)
   const sound = new Sound(saved.sound !== false)
   let encounters: Encounters | null = null
@@ -230,13 +247,16 @@ function start(): void {
   player.place(startAt.x, startAt.z, startAt.heading)
   rig.yaw = rig.yawTarget = 90
 
-  // 出会いと会話（段階2）。進み具合は端末に保存し、再読み込みしても続きから
-  const progress = new ProgressStore(browserStorage(), STORY_KEY)
+  // 出会いと会話（段階2）。進み具合は端末に保存し、再読み込みしても続きから。時刻は物語の時計（テストの時計で動く）
+  const progress = new ProgressStore(browserStorage(), STORY_KEY, () => new Date(appNow()))
   // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
   progress.follow()
+  // ましろの覚え書き（呼び名。端末の持ち主のもの。便りで使う）。ほかのタブで書き換えたら、それに合わせる
+  const memo = new MemoStore(browserStorage(), () => new Date(appNow()))
+  memo.follow()
   // 遊びはじめてから押したときに、保存を長く残すよう一度だけ頼む（入口の旅のボタンでは、ページを移るので頼まない）
   persistOnTap()
-  encounters = new Encounters({
+  const enc = new Encounters({
     field,
     hud,
     player,
@@ -244,12 +264,14 @@ function start(): void {
     scene,
     story,
     progress,
+    memo,
     sound,
     respawn: () => {
       player.place(startAt.x, startAt.z, startAt.heading)
       rig.yawTarget = 90
     },
   })
+  encounters = enc
 
   // 歩く先の印
   const marker = new THREE.Mesh(
@@ -337,7 +359,7 @@ function start(): void {
     }
     updateFogColor()
     hud.setLook(LOOK_LABEL[look])
-    hud.setTime(TIMES.find((t) => t.id === timeOfDay)!.label)
+    showTimeLabel()
     hud.setCreditColors(p.credit.bg, p.credit.text)
     encounters?.setPalette(p, look)
     encounters?.setBloomThreshold(quality.bloom && p.bloom.strength > 0 ? p.bloom.threshold : null)
@@ -377,13 +399,21 @@ function start(): void {
     hud.veilSwap(`#${new THREE.Color(scenePalette(pendingLook, pendingTime).fog).getHexString()}`, applyPending)
   }
 
+  /** 時間のボタンの字と読み上げ（いま（夜）・昼など） */
+  function showTimeLabel(): void {
+    const l = homeTime.label()
+    hud.setTime(l.value, l.aria)
+  }
+
   function cycleTime(): void {
-    // 出会いの途中（耳を澄まし終えてから、別れ終わるまで）は、T キーでも右上の「時間」でも変えない
+    // 出会いの途中（耳を澄まし終えてから、別れ終わるまで）と帳の間は、T キーでも右上の「時間」でも変えない
     // （寄り道の妖怪の出る・出ないは時間帯で決まるので、話の途中で変えない）
-    if (encounters?.engaged) return
-    // 覆いの最中に続けて押されたら、確定前の時間帯の次へ進める
-    const i = TIMES.findIndex((t) => t.id === pendingTime)
-    setTime(TIMES[(i + 1) % TIMES.length].id)
+    if (encounters?.engaged || encounters?.choOpen) return
+    // いま → 昼 → 夕 → 夜 → いま。覆いの最中に続けて押されたら、次へ進め、最後の時間帯を1回だけ適用する
+    setTime(homeTime.cycle())
+    showTimeLabel()
+    encounters?.log.push(`time ${homeTime.mode} ${homeTime.look}`)
+    afterTimeChange()
   }
 
   function setSpeed(next: 'normal' | 'fast'): void {
@@ -569,6 +599,120 @@ function start(): void {
     })
   }
 
+  // ---- 立山の時刻（段階4b）。1分ごと・ページに戻ったとき・テストの時計を動かしたとき・会話や帳や札を閉じたときに見直す
+  /** 会話・帳（稽古・便りの会話や札も）・はじめのヒントの間は、時間帯の切り替えとお知らせを待つ */
+  const timeBusy = (): boolean => enc.engaged || enc.choOpen || hud.hintOpen
+  /** ましろの申し出（いまの夜に入ったとき、このページで一度だけ） */
+  let offer: { close(): void } | null = null
+  let offerShown = false
+  /** 逢魔が時のお知らせを出した物語の日（日ごとに一度） */
+  let duskDay: DayKey | null = null
+  /** 夜話: 前に見た今夜の様子と、来たことを知らせた夜 */
+  let lastTonight: Tonight['state'] = tonight(storyClock(appNow()), progress, story).state
+  let yobanashiDay: DayKey | null = null
+  let yobanashiPending = false
+  /** ほかのお知らせが消えるのを待って、もう一度見る */
+  let retry = 0
+  const retrySoon = () => {
+    if (!retry)
+      retry = window.setTimeout(() => {
+        retry = 0
+        timeTick()
+      }, 2000)
+  }
+
+  function closeOffer(): void {
+    offer?.close()
+    offer = null
+  }
+
+  /** 手で昼にする（夜の申し出の［昼の夢にする］） */
+  function dayDream(): void {
+    if (timeBusy()) return
+    while (homeTime.mode !== 'day') homeTime.cycle()
+    setTime(homeTime.look)
+    showTimeLabel()
+    enc.log.push('time day (offer)')
+  }
+
+  /** いまの夜に入った（読み込んだときも）: ましろの申し出。夜話が来ていれば便りへ、ほかは昼の夢へ（夜の箱庭は気配だけ） */
+  function nightOffer(): void {
+    if (offerShown || homeTime.mode !== 'auto' || homeTime.look !== 'night' || timeBusy()) return
+    offerShown = true
+    const clock = storyClock(appNow())
+    if (yobanashiNews(tonight(clock, progress, story))) {
+      // 同じ夜に「来ている」のお知らせを重ねない
+      yobanashiDay = clock.day
+      offer = showOffer(hud.root, { text: '夜話に、だれか来ている。', action: '帳の「便り」をひらく', onAction: () => enc.openTayori() })
+      enc.log.push('offer yobanashi')
+    } else {
+      offer = showOffer(hud.root, { text: '夜は、みんな気配だけ。', action: '昼の夢にする', onAction: () => dayDream() })
+      enc.log.push('offer day')
+    }
+  }
+
+  /** 時間帯（の向かう先）が変わった: 夜でなくなったら申し出を閉じ、いまの夜に入ったら申し出る */
+  function afterTimeChange(): void {
+    if (homeTime.look !== 'night') closeOffer()
+    nightOffer()
+  }
+
+  function timeTick(): void {
+    const busy = timeBusy()
+    // いま: 立山の時刻の時間帯が変わっていたら、覆いで切り替える（会話・帳・札の間は待ち、閉じたらすぐ見直す）
+    if (!busy) {
+      const ch = homeTime.tick()
+      if (ch) {
+        setTime(ch)
+        showTimeLabel()
+        enc.log.push(`time auto ${ch}`)
+      }
+      afterTimeChange()
+    }
+    const clock = storyClock(appNow())
+    // 立山の逢魔が時: 物語の日ごとに一度、文字のお知らせと風の音（見た目の時間帯に関係なく。色だけにしない）
+    if (clock.phase === 'oumagatoki' && duskDay !== clock.day && !busy) {
+      if (hud.toastShowing) retrySoon()
+      else {
+        duskDay = clock.day
+        hud.toast('逢魔が時。帳のすみに、影がさした。', 5200)
+        sound.wind()
+        enc.log.push(`dusk ${clock.day} wind`)
+      }
+    }
+    // 便りを届け、帳の「新」を見直す
+    enc.tickCho()
+    // 夜話: 会話のあとで、今夜だれかが来るようになったら、その夜に一度だけお知らせ（数は出さない）
+    const st = tonight(clock, progress, story).state
+    if (st === 'offer' && lastTonight !== 'offer' && lastTonight !== 'resume' && yobanashiDay !== clock.day) yobanashiPending = true
+    if (st !== 'offer') yobanashiPending = false
+    lastTonight = st
+    if (yobanashiPending && !busy) {
+      if (hud.toastShowing) retrySoon()
+      else {
+        yobanashiPending = false
+        yobanashiDay = clock.day
+        hud.toast('帳の「便り」に、だれか来ている。', 5200)
+        enc.log.push('yobanashi toast')
+      }
+    }
+    hud.setClockTag(clockTag())
+  }
+  window.setInterval(timeTick, 60_000)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) timeTick()
+  })
+  appClock().onChange(() => timeTick())
+  /** 会話・帳・札を閉じたら、待っていた切り替えとお知らせを、すぐ見直す。開いたら、申し出は閉じる */
+  let wasTimeBusy = timeBusy()
+  const watchBusy = () => {
+    const b = timeBusy()
+    if (b === wasTimeBusy) return
+    wasTimeBusy = b
+    if (b) closeOffer()
+    else timeTick()
+  }
+
   // ループ
   let raf = 0
   let last = performance.now()
@@ -591,6 +735,7 @@ function start(): void {
     time += dt
 
     rig.forward(fwd)
+    watchBusy()
     // 会話・帳を開いている間は、アバターを止める
     const busy = encounters?.busy ?? false
     if (busy) player.walkTarget = null
@@ -714,6 +859,8 @@ function start(): void {
   }
   document.addEventListener('visibilitychange', () => (document.hidden ? stop() : run()))
   run()
+  // 読み込んだとき: いまの夜なら申し出、逢魔が時ならお知らせと風
+  timeTick()
 
   // 開発・確認用（Playwright から位置や状態を読む）
   ;(window as unknown as { __yume: unknown }).__yume = {
@@ -727,7 +874,11 @@ function start(): void {
     setTime,
     encounters,
     progress,
+    memo,
     sound,
+    homeTime,
+    timeTick,
+    clock: appClock(),
     setQuality: (id: Quality['id']) => setQuality(QUALITIES.find((q) => q.id === id) ?? quality),
     get look() {
       return look

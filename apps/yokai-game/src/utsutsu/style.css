@@ -1,4 +1,6 @@
-/* 現の旅（段階3）の画面。色と書体は夢の旅（yume/hud.ts）と同じ和紙と墨。06「光と霞」の時間帯に合わせて、帯と札の色を変える */
+/* 現の旅（段階3）の画面。色と書体は夢の旅（yume/hud.ts）と同じ和紙と墨。06「光と霞」の時間帯に合わせて、帯と札の色を変える。
+   右上の板は「音」「今日はここまで」（止まっているときだけ。段階4b）「帳」。狭い画面では2段（今日はここまで が下の段）にして、
+   ボタンが出たり消えたりしても、地図の道具・上の知らせが動かないよう、下の段の場所はいつも空けておく */
 :root {
   --washi: rgba(250, 247, 240, 0.9);
   --washi-solid: #faf7f0;
@@ -26,10 +28,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 .uh-btn:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 1px; }
 .uh-btn.title { font-family: var(--title-font); letter-spacing: 0.08em; }
 .uh-btn[aria-pressed="false"] { color: var(--ink-soft); }
-.uh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; gap: 6px; align-items: center; max-width: calc(100vw - 190px); }
+.uh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; gap: 6px; align-items: center; max-width: calc(100vw - 240px); }
 .uh-tl .uh-btn { flex: none; }
 .uh-land { font-family: var(--title-font); font-size: 13px; letter-spacing: 0.08em; padding: 6px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.uh-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; gap: 6px; }
+.uh-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.uh-btn.etoki { font-family: var(--title-font); letter-spacing: 0.06em; min-height: 44px; }
+.uh-btn.etoki.off { display: none; }
 .uh-tools { position: absolute; right: calc(10px + var(--sar)); top: calc(62px + var(--sat)); display: flex; flex-direction: column; gap: 6px; }
 .uh-tools .uh-btn { width: 40px; padding: 0; font-size: 17px; }
 .uh-tools .uh-btn.here { font-size: 11px; line-height: 1.2; }
@@ -106,6 +110,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 @media (max-width: 520px) {
   .uh-band b { font-size: 14.5px; }
   .uh-band span { font-size: 12px; }
+  .uh-tl { max-width: calc(100vw - 190px); }
+  .uh-tr { max-width: 140px; }
+  .uh-tr .etoki { order: 1; }
+  .uh-btn.etoki.off { display: inline-block; visibility: hidden; }
+  /* 位置シミュレーター（開発用）は、右上の下の段（今日はここまで）にかからない幅に */
+  .uh-sim { width: min(300px, calc(100vw - 150px - var(--sal) - var(--sar))); }
+  .uh-tools { top: calc(108px + var(--sat)); }
+  .uh-chip { top: calc(108px + var(--sat)); }
+  .uh-toast { top: calc(140px + var(--sat)); }
 }
 
 /* 会話・曼荼羅帳の間は、地図の上の板を隠す（出典表示は隠さない） */

@@ -1,4 +1,5 @@
-/* 白描の絵地図（家の側。テスト用の土地）の画面。色と書体は現の旅（utsutsu/style.css）と同じ和紙と墨。時間（昼・夕・夜）で板の色を変える */
+/* 白描の絵地図（家の側。テスト用の土地）の画面。色と書体は現の旅（utsutsu/style.css）と同じ和紙と墨。時間（昼・夕・夜）で板の色を変える。
+   右上の板は「時間」「音」「今日はここまで」「帳」（段階4b）。狭い画面では2段（今日はここまで が下の段）にして、地図の道具をその下に置く */
 :root {
   --washi: rgba(250, 247, 240, 0.92);
   --washi-solid: #faf7f0;
@@ -26,10 +27,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f1e3; ove
 .ez-btn.title { font-family: var(--title-font); letter-spacing: 0.08em; }
 .ez-btn small { font-size: 11px; color: var(--ink-soft); }
 .ez-btn[aria-pressed="false"] { color: var(--ink-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
-.ez-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; max-width: calc(100vw - 230px - var(--sal) - var(--sar)); }
+.ez-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; max-width: calc(100vw - 370px - var(--sal) - var(--sar)); }
 .ez-title { font-family: var(--title-font); font-size: 13.5px; letter-spacing: 0.08em; line-height: 1.35; padding: 5px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; }
 .ez-title small { display: block; font-family: var(--ui-font); font-size: 10.5px; letter-spacing: 0.04em; color: var(--ink-soft); }
-.ez-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; gap: 6px; }
+.ez-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.ez-btn.etoki { font-family: var(--title-font); letter-spacing: 0.06em; }
 .ez-tools { position: absolute; right: calc(10px + var(--sar)); top: calc(64px + var(--sat)); display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .ez-tools .ez-btn { width: 44px; padding: 0; font-size: 18px; }
 .ez-tools .ez-btn.fit { font-size: 12px; }
@@ -49,6 +51,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f1e3; ove
 .ez-toast small .tag { display: inline-block; margin-left: 8px; font-style: normal; font-size: 10px; letter-spacing: 0.04em; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; line-height: 1.5; }
 .yh .yh-credit { position: absolute; right: calc(8px + var(--sar)); bottom: calc(6px + var(--sab)); font-size: 10.5px; line-height: 1.4; color: var(--ink-soft); background: var(--washi); border-radius: 6px; padding: 3px 8px; text-align: right; max-width: calc(100vw - 16px); z-index: 80; }
 .yh-credit a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; pointer-events: auto; }
+/* テストの時計の札（?debug&clock= のときだけ。左下） */
+.ez-clock { position: absolute; left: calc(8px + var(--sal)); bottom: calc(6px + var(--sab)); font-size: 11px; line-height: 1.4; color: var(--ink); background: var(--washi); border: 1px dashed var(--ink-soft); border-radius: 6px; padding: 2px 8px; white-space: nowrap; z-index: 80; }
+.ez-clock[hidden] { display: none; }
 /* 名所のボタン（キーボードと読み上げのため。指の操作は地図が受けるので、指は通す） */
 .ez-spots { position: absolute; inset: 0; overflow: hidden; }
 .ez-spot { position: absolute; left: 0; top: 0; width: 56px; height: 48px; margin: 0; padding: 0; border: 0; border-radius: 10px; background: transparent; pointer-events: none; color: transparent; font-size: 1px; }
@@ -80,6 +85,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f1e3; ove
 /* 会話・曼荼羅帳の間は、地図の上の板を隠す（出典表示は隠さない） */
 .yh.talking .ez-tl, .yh.talking .ez-tr, .yh.talking .ez-tools, .yh.talking .ez-hint, .yh.talking .ez-toast, .yh.talking .ez-spots,
 .yh.modal-open .ez-tl, .yh.modal-open .ez-tr, .yh.modal-open .ez-tools, .yh.modal-open .ez-hint, .yh.modal-open .ez-toast, .yh.modal-open .ez-spots { visibility: hidden; }
+@media (max-width: 600px) {
+  /* 右上の板は2段（時間・音・帳 / 今日はここまで）。「時間」の見出しは値の上に小さく重ねる（幅を増やさない）。地図の道具は2段の下 */
+  .ez-tl { max-width: calc(100vw - 230px - var(--sal) - var(--sar)); }
+  .ez-tr { max-width: 230px; }
+  .ez-tr .etoki { order: 1; }
+  .ez-btn.time { flex-direction: column; gap: 0; line-height: 1.12; }
+  .ez-btn.time small { display: block; font-size: 9.5px; line-height: 1.1; }
+  .ez-tools { top: calc(114px + var(--sat)); }
+}
 @media (max-width: 520px) {
   .ez-btn { font-size: 13px; padding: 0 10px; }
   .ez-hint { font-size: 14px; }

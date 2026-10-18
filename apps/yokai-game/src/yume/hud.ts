@@ -2,6 +2,8 @@
 // 左下の fps と描画命令数は、URL に ?debug を付けたときだけ出す。板の色は時間帯に合わせる（夜は暗い地に明るい文字）。
 // 初回だけ操作のヒント（PC とスマホで出し分け）。safe-area を考える。
 // 段階2: 右上の3段目に「音」と「帳」（曼荼羅帳・縁帳。段階4。ui/cho.ts）。出会いと会話の画面は yume/encounter/ui.ts（この root の中に置く）。
+// 段階4b: 3段目は「音」「今日はここまで」（今日の絵解き）「帳」（曼荼羅帳・縁帳・便り）。「時間」は、いま（立山の時刻）・昼・夕・夜
+// （ui/home-time.ts。字と読み上げはそちらで作る）。?debug で時計を動かしているときは、左下に「時計: …（テスト）」の札。
 
 const CSS = /* css */ `
 :root {
@@ -24,6 +26,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh * { box-sizing: border-box; }
 .yh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(12px + var(--sal)); display: flex; align-items: center; gap: 6px; max-width: calc(100vw - 230px); }
 .yh-title { min-width: 0; font-family: var(--title-font); font-size: 13px; letter-spacing: 0.08em; padding: 5px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 左下（?debug のときだけ）: テストの時計の札と、fps の表示を縦に重ねる */
+.yh-bl { position: absolute; left: calc(10px + var(--sal)); bottom: calc(10px + var(--sab)); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.yh-clock { font-size: 11px; line-height: 1.4; color: var(--ink); background: var(--washi); border: 1px dashed var(--ink-soft); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.yh-clock[hidden] { display: none; }
 /* 入口（index.html）へ戻る。見た目は板のボタンと同じ大きさで、押せる範囲は外側へ 44px まで広げる（枠の内側から測るので 5px） */
 .yh-home { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 2px; pointer-events: auto; text-decoration: none; font-family: var(--title-font); letter-spacing: 0.08em; }
 .yh-home::before { content: ""; position: absolute; inset: -5px; }
@@ -42,7 +48,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-compass i { position: absolute; left: 50%; top: 50%; width: 0; height: 0; font-style: normal; }
 .yh-compass b { position: absolute; transform: translate(-50%, -50%); font-family: var(--title-font); font-size: 11px; font-weight: 600; }
 .yh-compass b.sub { font-size: 9px; color: var(--ink-soft); font-weight: 400; }
-.yh-perf { position: absolute; left: calc(10px + var(--sal)); bottom: calc(10px + var(--sab)); pointer-events: auto; font: 11px/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-soft); background: var(--washi); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; white-space: pre; -webkit-tap-highlight-color: transparent; text-align: left; }
+.yh-perf { pointer-events: auto; font: 11px/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-soft); background: var(--washi); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; white-space: pre; -webkit-tap-highlight-color: transparent; text-align: left; }
 .yh-credit { position: absolute; right: calc(10px + var(--sar)); bottom: calc(10px + var(--sab)); font-size: 10.5px; line-height: 1.5; color: var(--ink-soft); background: rgba(250, 247, 240, 0.72); border-radius: 6px; padding: 3px 7px; text-align: right; max-width: calc(100vw - 150px); }
 .yh-credit span { white-space: nowrap; }
 .yh-credit a { color: inherit; text-decoration: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; }
@@ -96,6 +102,8 @@ export interface HudHooks {
   toggleSpeed(): void
   toggleSound(): void
   openMandala(): void
+  /** 今日はここまで（今日の絵解き） */
+  openEtoki(): void
 }
 
 export class Hud {
@@ -118,6 +126,8 @@ export class Hud {
   private readonly speedBtn: HTMLButtonElement
   private readonly soundBtn: HTMLButtonElement
   private readonly mandalaBtn: HTMLButtonElement
+  /** 左下のテストの時計の札 */
+  private readonly clockEl: HTMLDivElement
   private promptText = ''
   private hint: HTMLDivElement | null = null
   private perfOpen = false
@@ -185,10 +195,13 @@ export class Hud {
     const row3 = el('div', 'yh-row')
     this.soundBtn = button('', '音を切り替える', '')
     this.soundBtn.onclick = () => hooks.toggleSound()
-    this.mandalaBtn = button('', '帳をひらく（曼荼羅帳・縁帳。M）', 'mandala cho-btn')
+    // 今日の絵解き（ひとりでには出さない。押したときだけ。04 §3.6）
+    const etokiBtn = button('今日はここまで', '今日はここまで（今日の絵解きをつくる）', 'etoki')
+    etokiBtn.onclick = () => hooks.openEtoki()
+    this.mandalaBtn = button('', MANDALA_LABEL, 'mandala cho-btn')
     this.mandalaBtn.innerHTML = '帳<span class="ym-badge" aria-hidden="true">新</span>'
     this.mandalaBtn.onclick = () => hooks.openMandala()
-    row3.append(this.soundBtn, this.mandalaBtn)
+    row3.append(this.soundBtn, etokiBtn, this.mandalaBtn)
     panel.append(row1, row2, row3)
     this.root.appendChild(panel)
 
@@ -197,8 +210,13 @@ export class Hud {
     this.perf.onclick = () => {
       this.perfOpen = !this.perfOpen
     }
-    // fps の表示は確認用（?debug のときだけ）
-    if (showPerf) this.root.appendChild(this.perf)
+    // 左下: テストの時計の札（時計を動かしているときだけ）と、fps の表示（確認用。?debug のときだけ）
+    const bottomLeft = el('div', 'yh-bl')
+    this.clockEl = el('div', 'yh-clock')
+    this.clockEl.hidden = true
+    bottomLeft.appendChild(this.clockEl)
+    if (showPerf) bottomLeft.appendChild(this.perf)
+    this.root.appendChild(bottomLeft)
 
     // 時間帯・見た目を切り替えるとき、一瞬だけ霧の色で画面を覆う（地面の絵を描き直す間）
     this.veil = el('div', 'yh-veil')
@@ -240,8 +258,19 @@ export class Hud {
     this.lookBtn.innerHTML = `<small>見た目</small>${escapeHtml(label)}`
   }
 
-  setTime(label: string): void {
-    this.timeBtn.innerHTML = `<small>時間</small>${escapeHtml(label)}`
+  /** 時間のボタン（value: 「いま（夜）」「昼」など、aria: 読み上げ。ui/home-time.ts の label()） */
+  setTime(value: string, aria?: string): void {
+    this.timeBtn.innerHTML = `<small>時間</small>${escapeHtml(value)}`
+    if (aria) {
+      this.timeBtn.setAttribute('aria-label', aria)
+      this.timeBtn.title = `${aria}（T）`
+    }
+  }
+
+  /** テストの時計の札（core/debug-clock.ts の clockTag。null で隠す） */
+  setClockTag(text: string | null): void {
+    this.clockEl.hidden = !text
+    if (text && this.clockEl.textContent !== text) this.clockEl.textContent = text
   }
 
   /** 板の色を時間帯に合わせる（夜は暗い地に明るい文字。夕は薄いばら色の地） */
@@ -321,10 +350,20 @@ export class Hud {
     this.soundBtn.innerHTML = `<small>音</small>${on ? 'あり' : 'なし'}`
   }
 
-  /** 帳に、まだ見ていないピースか縁がある（「新」の字だけ。数は出さない） */
+  /** 帳に、まだ見ていないピース・縁・便りがある（「新」の字だけ。数は出さない） */
   setMandalaNew(on: boolean): void {
     this.mandalaBtn.classList.toggle('has-new', on)
-    this.mandalaBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある。M）' : '帳をひらく（曼荼羅帳・縁帳。M）')
+    this.mandalaBtn.setAttribute('aria-label', on ? '帳をひらく（新しいものがある。曼荼羅帳・縁帳・便り。M）' : MANDALA_LABEL)
+  }
+
+  /** お知らせを出している（次のお知らせは、消えるまで待つ） */
+  get toastShowing(): boolean {
+    return this.toastEl.classList.contains('on')
+  }
+
+  /** はじめの操作のヒントを出している */
+  get hintOpen(): boolean {
+    return !!this.hint
   }
 
   toast(text: string, ms = 3200): void {
@@ -343,7 +382,7 @@ export class Hud {
           ['寄る・引く', '2本指でつまむ'],
           ['向きを変える', '右上の ⟲ ⟳'],
           ['速さ', '右上の「速さ」で、ふつう／はやい'],
-          ['時間', '右上の「時間」で、昼・夕・夜'],
+          ['時間', '右上の「時間」で、昼・夕・夜・いま（立山の時刻）'],
           ['耳を澄ます', '気配のそばで、ボタンを長押し（その場で止まっても）'],
         ]
       : [
@@ -352,7 +391,7 @@ export class Hud {
           ['寄る・引く', 'ホイール'],
           ['向きを変える', 'Q・E、右上の ⟲ ⟳'],
           ['速さ', 'F キー、右上の「速さ」で、ふつう／はやい'],
-          ['時間', 'T キー、右上の「時間」で、昼・夕・夜'],
+          ['時間', 'T キー、右上の「時間」で、昼・夕・夜・いま（立山の時刻）'],
           ['耳を澄ます', '気配のそばで、ボタンか Space を長押し（その場で止まっても）'],
         ]
     wrap.innerHTML = `
@@ -395,6 +434,9 @@ export class Hud {
     this.topLeft.style.zIndex = '1'
   }
 }
+
+/** 帳のボタンの読み上げ */
+const MANDALA_LABEL = '帳をひらく（曼荼羅帳・縁帳・便り。M）'
 
 const THEMES: Record<'day' | 'dusk' | 'night', Record<string, string>> = {
   day: {

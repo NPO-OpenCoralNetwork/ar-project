@@ -16,14 +16,23 @@
 // - 位置シミュレーター（?sim または ?debug。F-06）。進み具合は別の保存（始めるたびに、その土地の保存を写す。
 //   立山のふもとは夢の旅と同じ STORY_KEY、テスト用の土地は家の白描の絵地図と同じ TEST_KEY。保存の名前は core/storage-keys.ts）。
 // URL: ?debug で判定の中身を表示。
+//
+// 段階4b:
+// - 帳に「便り」のタブ（現地の側＝site: 便りと今日の絵解きだけ。夜話とくらがりは始めない。「宿や家で」「家に着いてから」と添えるだけ）。
+//   便りは、この土地の保存のもの。1分ごと・ページに戻ったとき・会話のあとに、便りを届けて「新」を見直す（cho.tick）。
+// - 「今日はここまで」（今日の絵解き）は、右上の板に、止まっているときだけ出す（道中・歩いている間は出さない。F-61）。
+//   旅印を押したあとの札にも［今日の絵解きをつくる］。
+// - 進み具合・覚え書きの時刻は、テストの時計（core/debug-clock.ts）で動く。出会いの決まり（逢魔が時・夜）は、これまでどおり、その土地の太陽で見る。
 
 import './style.css'
+import { appNow, clockTag } from '../core/debug-clock'
 import { type LatLon, type LocalXZ, toLocal } from '../core/geo'
 import type { MapLayers } from '../core/map-layers'
 import type { Fix } from '../core/location/types'
 import { SIM_KEY, STORY_KEY, TEST_KEY } from '../core/storage-keys'
 import { clueActive, clueWords, resolveAppearance, type SpotRole, spotRole } from '../core/story/appearance'
 import { checkConditions } from '../core/story/dialogue'
+import { MemoStore } from '../core/story/memo'
 import { browserStorage, migrateLegacySave, ProgressStore } from '../core/story/progress'
 import type { SectionDef, TimeSlot } from '../core/story/types'
 import { type EngineEvent, type EngineSpot, UtsutsuEngine } from '../core/utsutsu/engine'
@@ -317,9 +326,13 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   const key = kind === 'sim' ? SIM_KEY : land.id === 'test' ? TEST_KEY : STORY_KEY
   // シミュレーターは、その土地の保存を写して始める（テスト用の土地は、家の白描の絵地図と同じ保存から。夢で会っていれば再会になる）
   if (kind === 'sim') copyMainProgress(SIM_KEY, land.id === 'test' ? TEST_KEY : STORY_KEY)
-  const progress = new ProgressStore(browserStorage(), key)
+  // 進み具合の時刻は、物語の時計（テストの時計で動く）
+  const progress = new ProgressStore(browserStorage(), key, () => new Date(appNow()))
   // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
   progress.follow()
+  // ましろの覚え書き（呼び名。端末の持ち主のもの。便りで使う）
+  const memo = new MemoStore(browserStorage(), () => new Date(appNow()))
+  memo.follow()
   // 歩きはじめてから押したときに、保存を長く残すよう一度だけ頼む（「位置を使って はじめる」の押しは数えず、位置の許可を尋ねる画面と重ねない）
   persistOnTap()
   const engine = new UtsutsuEngine(land.spots, land.rest.map((polygon, i) => ({ id: `rest-${i}`, polygon })), land.origin)
@@ -345,10 +358,15 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     soundBtn.setAttribute('aria-pressed', String(on))
     if (on) sound.bell(0.5)
   })
+  // 今日の絵解き（押したときだけ。止まっているときだけ出す。道中・歩いている間は遊ばない。F-61）
+  const etokiBtn = el('button', 'uh-btn etoki off', '今日はここまで') as HTMLButtonElement
+  etokiBtn.type = 'button'
+  etokiBtn.setAttribute('aria-label', '今日はここまで（今日の絵解きをつくる）')
+  etokiBtn.inert = true
   const choBtn = el('button', 'uh-btn title cho-btn', '帳<span class="ym-badge" aria-hidden="true">新</span>') as HTMLButtonElement
   choBtn.type = 'button'
-  choBtn.title = '帳（曼荼羅帳・縁帳）'
-  tr.append(soundBtn, choBtn)
+  choBtn.title = '帳（曼荼羅帳・縁帳・便り）'
+  tr.append(soundBtn, etokiBtn, choBtn)
   const tools = el('div', 'uh-tools')
   const zin = el('button', 'uh-btn', '＋') as HTMLButtonElement
   const zout = el('button', 'uh-btn', '－') as HTMLButtonElement
@@ -460,7 +478,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   }
   refreshSpots()
 
-  // 帳（この土地の保存。巻末の旅印は、この土地の節）。まだ見ていないピース・縁があれば、ボタンに「新」の字
+  // 帳（この土地の保存。巻末の旅印は、この土地の節）。まだ見ていないピース・縁・便りがあれば、ボタンに「新」の字。
+  // 便りは現地の側（site）: 便りと今日の絵解きだけ（夜話・くらがりは始めない）
   const cho = createCho({
     root,
     story,
@@ -472,11 +491,21 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     sound,
     onNew: (on) => {
       choBtn.classList.toggle('has-new', on)
-      choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある）' : '帳をひらく（曼荼羅帳・縁帳）')
+      choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいものがある。曼荼羅帳・縁帳・便り）' : '帳をひらく（曼荼羅帳・縁帳・便り）')
     },
     onReset: () => refreshSpots(),
+    tayori: { memo, mode: 'site', now: appNow, sound },
   })
   choBtn.addEventListener('click', () => cho.open())
+  etokiBtn.addEventListener('click', () => {
+    if (encounter.isOpen || engine.view.motion !== 'stopped') return
+    cho.etoki()
+  })
+  // 1分ごと・ページに戻ったとき: 便りを届け、帳の「新」を見直す
+  window.setInterval(() => cho.tick(), 60_000)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) cho.tick()
+  })
 
   // 出会い
   const encounter = new GenEncounter({
@@ -489,6 +518,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       engine.disarm(spotId)
       refreshSpots()
       root.classList.remove('talking')
+      // 会話のあと（途中で閉じても）: 便り（悩みの便りはすぐ届く）と帳の「新」を見直す
+      cho.tick()
       if (how === 'finished') window.setTimeout(() => checkSections(), 700)
     },
   })
@@ -513,7 +544,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   }
   S = { land, engine, map, source, sim, progress, encounter, cho, clockOffset: 0 }
   source.start()
-  ;(window as unknown as { __utsutsu: unknown }).__utsutsu = { S, log: logLines, story }
+  ;(window as unknown as { __utsutsu: unknown }).__utsutsu = { S, log: logLines, story, memo }
 
   let geoProblem: GeoProblem = null
   function onGeoProblem(p: GeoProblem): void {
@@ -562,6 +593,14 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       sound.bell(0.8)
       btn.textContent = 'とじる'
       ;(card.querySelector('.soft') as HTMLElement).textContent = '曼荼羅帳の巻末に、旅印を押しました。売ったり譲ったりはできません。'
+      // 押したあと: 今日の絵解きも、ここから（札を閉じてから開く）
+      const etoki = el('button', 'sub', '今日の絵解きをつくる') as HTMLButtonElement
+      etoki.type = 'button'
+      etoki.addEventListener('click', () => {
+        hideSheet()
+        cho.etoki()
+      })
+      btn.after(etoki)
     })
   }
 
@@ -663,6 +702,13 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     } else if (geoProblem === 'no-wake-lock') chipText = '画面が自動で消えると、位置が止まります'
     if (chip.textContent !== chipText) chip.textContent = chipText
 
+    // 「今日はここまで」（止まっているときだけ）
+    const showEtoki = v.motion === 'stopped'
+    if (etokiBtn.classList.contains('off') === showEtoki) {
+      etokiBtn.classList.toggle('off', !showEtoki)
+      etokiBtn.inert = !showEtoki
+    }
+
     // 「足を止めた」
     const showStop = !!v.near && (v.block === null || v.block === 'busy') && !encounter.isOpen && !busy
     if (stopBtn.classList.contains('on') !== showStop) {
@@ -673,6 +719,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
 
     if (dbg) {
       const f = engine.lastFix
+      const tag = clockTag()
       dbg.textContent = [
         `motion ${v.motion} block ${v.block ?? '-'}`,
         `phase ${ph} 逢魔まで ${v.phase.minutesToOumagatoki ?? '-'}分`,
@@ -680,6 +727,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
         `speed10s ${v.speed?.toFixed(2) ?? '-'}`,
         `near ${v.near ? `${v.near.spotId} ${v.near.distM.toFixed(0)}m` : '-'} clear ${v.clearing.toFixed(2)}`,
         `kehai ${v.kehai.map((k) => `${k.spotId}:${k.distM.toFixed(0)}`).join(' ') || '-'}`,
+        // テストの時計（進み具合・便りの時刻だけ。出会いの決まりは、上の phase と位置シミュレーターの時刻）
+        ...(tag ? [tag] : []),
       ].join('\n')
     }
   }, 250)

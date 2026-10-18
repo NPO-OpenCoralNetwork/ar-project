@@ -15,11 +15,19 @@
 // - wander: 寄り道の地点（水辺。04 §3.1）。出現の表を、箱庭の時間帯（昼・夕・夜）で引く。出るときだけ夢の姿が浮かび、
 //   寄り道の台本（雑談）で話す。出ないとき（夜・まだ会っていない・まだ作っていない妖怪）は気配だけ。
 //   表は耳を澄ますたびに引く。会話の途中で時間帯が変わっても、浮かんだ姿は消さない（main.ts は会話の間 T キーを止める）。
+//
+// 段階4b:
+// - 会話は、始めた時の立山の時刻（storyClock(appNow())。metToday・時間のピースに使う）と、ましろの覚え書き（{呼び名}）を持って走る。
+// - 帳に3つ目のタブ「便り」（ui/cho.ts の tayori。家なので夜話・帳の影あり）。会話が終わるたびに帳の tick（便りを届け、「新」を見直す）。
+// - 了承待ちの台本（needsConsent。02 F-71）は無いものとする（その地点は気配だけ）。
 
 import * as THREE from 'three'
+import { appNow } from '../../core/debug-clock'
 import { canListenAtHome, clueActive, clueWords, HOME_NIGHT_KEHAI, resolveAppearance, timeSlotOfDiorama } from '../../core/story/appearance'
+import { storyClock } from '../../core/story/clock'
 import { type Beat, DialogueRunner } from '../../core/story/dialogue'
 import { ListenGauge } from '../../core/story/listen'
+import type { MemoStore } from '../../core/story/memo'
 import type { ProgressStore } from '../../core/story/progress'
 import type { DialogueScript } from '../../core/story/types'
 import type { StoryPack } from '../../data/story-pack'
@@ -36,6 +44,9 @@ import type { Sound } from './sound'
 import { DialogueView, ListenButton, MistVeil } from './ui'
 
 type Phase = 'roam' | 'appearing' | 'talking' | 'parting'
+
+/** 了承待ちの台本（02 F-71。needsConsent）は、無いものとする（その地点は気配だけ） */
+const usable = (s: DialogueScript | undefined): DialogueScript | undefined => (s && !s.needsConsent ? s : undefined)
 
 /** 耳を澄ますと始まる会話（地点の役目ごとに、使う台本と、浮かぶ妖怪）。yokaiId が無いのは調べる地点（姿なし） */
 interface Listenable {
@@ -62,6 +73,8 @@ export interface EncounterDeps {
   scene: THREE.Scene
   story: StoryPack
   progress: ProgressStore
+  /** ましろの覚え書き（呼び名。端末の持ち主のもの） */
+  memo: MemoStore
   sound: Sound
   /** はじめの位置へ戻す（最初からやり直すとき） */
   respawn(): void
@@ -72,7 +85,7 @@ export class Encounters {
   private readonly listenBtn: ListenButton
   private readonly mist: MistVeil
   private readonly dialogue: DialogueView
-  /** 帳（曼荼羅帳・縁帳） */
+  /** 帳（曼荼羅帳・縁帳・便り） */
   private readonly cho: Cho
   /** 夢の姿（妖怪ごとに1つ。決まった地点の妖怪ははじめに作り、寄り道の妖怪は、はじめて浮かぶときに作る） */
   private readonly figures = new Map<string, DreamFigure>()
@@ -115,7 +128,8 @@ export class Encounters {
       },
       { yokaiName: (id) => d.story.yokai[id]?.name ?? id, sound: d.sound },
     )
-    // 帳（立山のふもとの保存。旅印は現地で節を終えたときだけなので、家では枠だけ）。「新」の印は右上の「帳」のボタンに出す
+    // 帳（立山のふもとの保存。旅印は現地で節を終えたときだけなので、家では枠だけ）。「新」の印は右上の「帳」のボタンに出す。
+    // 便りは家（home）: 夜話と帳の影（逢魔が時のくらがり）もある。時刻は立山の時刻（appNow）
     this.cho = createCho({
       root,
       story: d.story,
@@ -125,6 +139,7 @@ export class Encounters {
       sound: d.sound,
       onNew: (on) => d.hud.setMandalaNew(on),
       onReset: () => this.afterReset(),
+      tayori: { memo: d.memo, mode: 'home', now: appNow, sound: d.sound },
     })
     // 決まった地点の夢の姿（台本と絵のある妖怪だけ）
     for (const spot of d.field.data.spots) {
@@ -159,6 +174,11 @@ export class Encounters {
     return this.phase !== 'roam'
   }
 
+  /** 帳を開いている（稽古・便りの会話や札の間も）。この間は、時間帯の切り替えとお知らせを待つ（main.ts） */
+  get choOpen(): boolean {
+    return this.cho.isOpen
+  }
+
   /** カメラが追う点（会話の間は、アバターと夢の姿の間） */
   get cameraFocus(): THREE.Vector3 | null {
     return this.phase === 'roam' ? null : this.focus
@@ -178,11 +198,11 @@ export class Encounters {
     for (const f of this.figures.values()) f.setBloomThreshold(t)
   }
 
-  /** 妖怪の台本（台本と絵のある妖怪だけ。ほかは気配だけ） */
+  /** 妖怪の台本（台本と絵のある妖怪だけ。ほかは気配だけ）。了承待ちの台本は無いものとする */
   private scriptOf(yokaiId: string): DialogueScript | undefined {
     const y = this.d.story.yokai[yokaiId]
     if (!y?.script || !y.art || !ARTS[y.art]) return undefined
-    return this.d.story.scripts[y.script]
+    return usable(this.d.story.scripts[y.script])
   }
 
   /** 妖怪の夢の姿。まだ無ければ作る（寄り道の妖怪は、はじめて浮かぶときに作る）。絵の無い妖怪は undefined */
@@ -206,14 +226,14 @@ export class Encounters {
     if (!canListenAtHome(this.timeOfDay)) return null
     if (spot.role === 'clue') {
       const clue = spot.clueId ? story.clues[spot.clueId] : undefined
-      const script = clue ? story.scripts[clue.script] : undefined
+      const script = clue ? usable(story.scripts[clue.script]) : undefined
       return clue && script && clueActive(clue, progress, 'yume') ? { spot, script } : null
     }
     if (spot.role === 'wander') {
       const a = resolveAppearance(story.appearance, spot.placeKind, timeSlotOfDiorama(this.timeOfDay), progress, 'yume')
       if (a.mode !== 'appear') return null
       const y = story.yokai[a.yokaiId]
-      const script = story.scripts[a.script]
+      const script = usable(story.scripts[a.script])
       // 寄り道の台本で話す（悩みは始めない・縁も上げない）。絵の無い妖怪は気配だけ
       return script && y?.art && ARTS[y.art] ? { spot, script, yokaiId: a.yokaiId } : null
     }
@@ -226,6 +246,25 @@ export class Encounters {
     if (this.phase === 'appearing' || this.phase === 'talking') return
     this.d.player.walkTarget = null
     this.cho.open()
+  }
+
+  /** 帳を「便り」のタブで開く（夜の申し出の［帳の「便り」をひらく］） */
+  openTayori(): void {
+    if (this.phase === 'appearing' || this.phase === 'talking') return
+    this.d.player.walkTarget = null
+    this.cho.open('tayori')
+  }
+
+  /** 今日の絵解きの札（右上の「今日はここまで」）。出会いの途中は開かない */
+  openEtoki(): void {
+    if (this.engaged) return
+    this.d.player.walkTarget = null
+    this.cho.etoki()
+  }
+
+  /** 1分ごと・ページに戻ったとき（main.ts）。便りを届け、帳の「新」を見直す */
+  tickCho(): void {
+    this.cho.tick()
   }
 
   /** 進み具合が変わったら、印を合わせる（会った妖怪は淡く小さく。調べる地点は、頼まれてから札を拾うまでだけ出す） */
@@ -320,7 +359,16 @@ export class Encounters {
   private beginAppear(target: Listenable): void {
     const { spot, script, yokaiId } = target
     const { player, rig, progress, story } = this.d
-    const runner = new DialogueRunner(script, { progress, cards: story.cards, travel: 'yume', items: story.items, quests: story.quests })
+    // 会話を始めた時の立山の時刻（途中で時間帯が変わっても、この会話の決まりは変えない）と、ましろの覚え書き
+    const runner = new DialogueRunner(script, {
+      progress,
+      cards: story.cards,
+      travel: 'yume',
+      items: story.items,
+      quests: story.quests,
+      clock: storyClock(appNow()),
+      memo: this.d.memo,
+    })
     if (!yokaiId) {
       // 調べる地点: 姿は浮かばない。霞が寄り、印が溶けたら、ましろが話しはじめる（カメラは寄らない・向きも変えない）
       this.active = { spot, runner, veil: 0, piece: false }
@@ -483,6 +531,8 @@ export class Encounters {
     }
     // この会話でピースが入ったときだけ（調べる地点の札だけの会話や、前のピースをまだ見ていないだけのときは出さない）
     if (why === 'end' && a.piece && this.cho.news().mandala) this.d.hud.toast('曼荼羅帳に、ピースが一つ入った（右上の「帳」）', 4200)
+    // 会話のあと（途中で閉じても）: 便り（悩みの便りはすぐ届く）と帳の「新」を見直す
+    this.cho.tick()
   }
 
   /** 帳の「最初からやり直す」のあと（保存はもう消してあり、帳も閉じてある） */

@@ -2,6 +2,7 @@
 // - まわりの音: 風のような、やわらかいざわめき（低く絞った雑音。ゆっくり揺れる）。
 // - 鈴: 気配の近くに来たとき（小さく）と、夢の姿が浮かんだとき。
 // - 耳を澄ますと、まわりの音が静まる（duck）。
+// - 逢魔が時の風（段階4b。家の箱庭・白描の絵地図で、立山の時刻が逢魔が時に入ったとき）。文字のお知らせと一緒に鳴らす（色だけにしない。04 §3.9）。
 // ブラウザの決まりで、最初の操作（「歩きはじめる」など）のあとにだけ鳴らせる。右上の「音」で切れる。
 
 export class Sound {
@@ -12,6 +13,8 @@ export class Sound {
   private enabledFlag: boolean
   private duckLevel = 0
   private lastBell = -10
+  /** 風を鳴らした回数（確認用） */
+  private winds = 0
 
   /** withAmbient: まわりの音（風）を鳴らすか。現の旅では本物の風があるので鳴らさない（鈴だけ） */
   constructor(
@@ -142,13 +145,47 @@ export class Sound {
     }
   }
 
+  /**
+   * 逢魔が時の風（ひと吹き。約2.6秒）。白い雑音を帯域通過（約600Hz、Q 0.7）に通し、1.0秒で寄せて、1.6秒で引く。
+   * 仮の音（07 の下見で録る音が入るまで）。音を切っているとき・まだ鳴らせないとき（最初の操作の前）は鳴らさない
+   */
+  wind(): void {
+    if (!this.ctx || !this.master || !this.enabledFlag || this.ctx.state !== 'running') return
+    const ctx = this.ctx
+    const now = ctx.currentTime
+    const rise = 1.0
+    const fall = 1.6
+    const len = Math.ceil(ctx.sampleRate * (rise + fall + 0.1))
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    const band = ctx.createBiquadFilter()
+    band.type = 'bandpass'
+    band.Q.value = 0.7
+    // 寄せるときに少し高く、引くときに少し低く（風の音の高さが揺れるように。真ん中は約600Hz）
+    band.frequency.setValueAtTime(520, now)
+    band.frequency.linearRampToValueAtTime(680, now + rise)
+    band.frequency.linearRampToValueAtTime(560, now + rise + fall)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0, now)
+    g.gain.linearRampToValueAtTime(0.1, now + rise)
+    g.gain.linearRampToValueAtTime(0, now + rise + fall)
+    src.connect(band).connect(g).connect(this.master)
+    src.start(now)
+    src.stop(now + rise + fall + 0.05)
+    this.winds++
+  }
+
   /** 確認用 */
-  get debug(): { running: boolean; duck: number; enabled: boolean; ambientGain: number } {
+  get debug(): { running: boolean; duck: number; enabled: boolean; ambientGain: number; winds: number } {
     return {
       running: this.ctx?.state === 'running',
       duck: this.duckLevel,
       enabled: this.enabledFlag,
       ambientGain: this.ambient?.gain.value ?? 0,
+      winds: this.winds,
     }
   }
 }
