@@ -14,9 +14,12 @@
   background: var(--tf-paper); border: 1px solid var(--tf-line); border-radius: 16px; box-shadow: 0 10px 34px rgba(60, 50, 40, 0.1);
 }
 .tf-card * { box-sizing: border-box; }
-/* 句ごとに折り返す（phrases）。箇条の点が、折り返した句の最後の行に付かないよう、箇条の句は行の上にそろえる */
-.tf-card .ph { display: inline-block; }
+/* 句ごとに折り返す（phrases）。箇条の点が、折り返した句の最後の行に付かないよう、箇条の句は行の上にそろえる。
+   1行に収まらない長い句（狭い画面の知らせなど）は、その中で文節ごとに折り返す（「ようで／す。」と分かれないように） */
+.tf-card .ph { display: inline-block; text-wrap: pretty; word-break: auto-phrase; }
 .tf-card li .ph { vertical-align: top; }
+/* 数の行（会った妖怪 N・開いた札 N）は、数ごとにひと続きに（分かれるのは「・」のあとだけ） */
+.tf-lands .ph > span { white-space: nowrap; }
 .tf-card h1 { margin: 0; font-family: var(--tf-title); font-weight: 600; font-size: 21px; letter-spacing: 0.12em; line-height: 1.5; outline: none; }
 .tf-card h1 .kari { margin-left: 2px; font-size: 13px; font-weight: 400; letter-spacing: 0.04em; color: var(--tf-soft); }
 .tf-lead { margin: 8px 0 0; font-size: 14.5px; line-height: 1.8; }

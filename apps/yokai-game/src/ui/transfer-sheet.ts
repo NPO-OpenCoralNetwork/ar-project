@@ -4,7 +4,7 @@
 // - コードを作る: この端末の進み具合（立山のふもと・テスト用の土地）を、YU1- で始まる文字にする。写す（コピー）か、ファイルに書き出す。
 // - コードを読み込む: 貼りつけるか、ファイルから。いまの端末の保存と合わせる（上書きしない。縁やピースは下がらない）。
 //   開いたままのほかのタブは、保存が書き換わったのを見て進み具合を入れ替える（ProgressStore.follow。古い進み具合で書き戻さない）。
-//   ただ、そのタブで開いている画面は、切り替わるまで前のままのことがあるので、そう一言書く。
+//   ただ、そのタブで開いている画面（話の途中など）は、開き直すまで前のままのことがあるので、そう短く一言書く。
 // - テスト用の土地そのもの（家の近くの地図と地点）は、コードに入らない（transfer.ts の TRANSFER_SAVES）。そのことを札に書いておく。
 // - コードは人に渡さない（旅印や進み具合が、その人の端末にも写る。旅印は人に譲るものではない。02 §4.5）。
 // - 縁は数で見せない。読み込んだあとに出すのは、会った妖怪と開いた札の数だけ（入口の「つづき」と同じ）。
@@ -54,10 +54,12 @@ function escapeHtml(s: string): string {
 
 /**
  * 句ごとに折り返す（promise-sheet の phrases と同じ .ph）。この札は注意書きに括弧が多いので、
- * 「、。」のあとに加えて「（」「「」の前でも分ける（括弧の中の途中で行が分かれにくいように）
+ * 「、。」のあとに加えて「（」「「」の前と「）」「」」のあとでも分ける（括弧の中の途中で行が分かれにくいように。
+ * 「…の土地）だけで／す。」と、括弧のあとの字だけが次の行へ落ちないように）。
+ * ただし括弧のすぐあとの2字までのかな（「）は、」「」で」「）です。」）は、括弧の句に付ける（「は、」だけの句や、「で」で始まる行を作らない）
  */
 function phrases(s: string): string {
-  const parts = s.match(/[（「]?[^、。（「]+[、。]*/g) ?? []
+  const parts = s.match(/[（「]?[^、。（「）」]+(?:[）」]+(?:[ぁ-ゖ]{1,2}(?![ぁ-ゖ]))?)?[、。]*/g) ?? []
   // 分けきれない形（括弧が続くなど）は、分けずに出す（字を落とさない）
   return (parts.join('') === s ? parts : [s]).map((p) => `<span class="ph">${escapeHtml(p)}</span>`).join('')
 }
@@ -69,11 +71,15 @@ function when(iso: string): string {
   return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-/** その土地の進み具合を、ことばで（会った妖怪と開いた札の数。縁は数で見せない） */
+/**
+ * その土地の進み具合を、ことばで（会った妖怪と開いた札の数。縁は数で見せない）。HTML を返す。
+ * 二つの数でひとつの句にし、数ごとにひと続きにする（「開いた／札 9」と語の途中で分けない。
+ * 土地の名前のあとに収まらなければ句ごと次の行へ。それでも収まらないときだけ「・」のあとで分ける）
+ */
 function countsOf(storage: KeyValueStore, land: TransferLand): string {
   const p = new ProgressStore(storage, TRANSFER_SAVES[land]).get()
   const met = Object.values(p.yokai).filter((y) => y.met).length
-  return `会った妖怪 ${met}・開いた札 ${Object.keys(p.cards).length}`
+  return `<span class="ph"><span>会った妖怪 ${met}・</span><span>開いた札 ${Object.keys(p.cards).length}</span></span>`
 }
 
 /** 写す。navigator.clipboard が使えなければ、選んで copy を試す。写せたら true */
@@ -273,11 +279,12 @@ export function showTransfer(flow: TransferFlow): void {
       const noLand = r.merged.includes('test') && !loadTestLand()
       say(
         inMsg,
-        `<p><b>読み込みました。</b>${at ? phrases(`${at} に作ったコードです。`) : ''}</p>
-        <p>${phrases('この端末の進み具合と合わせました。縁やピースは下がりません。いまの進み具合は、')}</p>
+        // 日時と「作ったコードです。」は別の句に（狭い画面で「コードで／す。」と分かれないように）
+        `<p><b>読み込みました。</b>${at ? `${phrases(`${at} に`)}${phrases('作ったコードです。')}` : ''}</p>
+        <p>${phrases('この端末の進み具合と、合わせました。縁やピースは下がりません。いまの進み具合は、')}</p>
         <ul class="tf-lands">${rows}</ul>
         ${noLand ? `<p>${phrases('テスト用の土地は、進み具合だけが入りました。土地は、この端末の現の旅で、現地で作ると続きを遊べます。')}</p>` : ''}
-        <p class="tf-tabs">${phrases('ほかのタブで開いているこのゲームの画面は、切り替わるまで、前の進み具合のままのことがあります。')}</p>`,
+        <p class="tf-tabs">${phrases('ほかのタブの画面は、開き直すまで、前の進み具合のままかもしれません。')}</p>`,
         'ok',
       )
       paste.value = ''

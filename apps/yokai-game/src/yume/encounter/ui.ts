@@ -234,13 +234,17 @@ const CSS = /* css */ `
 .ym-legend p { margin: 0 0 6px; }
 .ym-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .ym-legend li { display: flex; align-items: center; gap: 8px; }
+/* 行の途中で分けない所（見本の括弧、断り書きの終わり） */
+.ym-nw { white-space: nowrap; }
 .ym-legend i { width: 18px; height: 14px; border-radius: 3px; flex: none; border: 1px dashed #8a7f70; background: rgba(249, 245, 234, 0.6); }
 .ym-legend i.hakubyo { border: 1.2px solid #3a332d; background: #fffdf7; }
 .ym-legend i.saishiki { border: 1.2px solid #3a332d; background: linear-gradient(135deg, #e7b98a, #9cc0a8); }
 .ym-legend i.kin { border: 2px solid #c9a24a; background: linear-gradient(135deg, #e7b98a, #9cc0a8); }
-.ym-note { font-size: 11px; opacity: 0.85; }
-/* スマホ幅で出す短い断り書き（【創作】の構図であることは、どの幅でも隠さない） */
-.ym-note-sp { display: none; margin: 2px 0 0; width: min(560px, 100%); font-size: 11px; line-height: 1.5; opacity: 0.9; }
+/* 断り書きは、文節で折り返し、最後の行に1〜2字だけ残さない */
+.ym-note { font-size: 11px; opacity: 0.85; text-wrap: pretty; word-break: auto-phrase; }
+/* スマホ幅で出す短い断り書き（【創作】の構図であることは、どの幅でも隠さない）。文ごとにひと続き */
+.ym-note-sp { display: none; margin: 2px 0 0; width: min(560px, 100%); font-size: 11px; line-height: 1.5; opacity: 0.9; text-wrap: pretty; word-break: auto-phrase; }
+.ym-note-sp span { display: inline-block; }
 .ym-reset { margin-top: auto; }
 .ym-back { align-self: stretch; }
 .ym-stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin: 6px 0 10px; }
@@ -264,6 +268,10 @@ const CSS = /* css */ `
   .ym-note-sp { display: block; }
   .ym-reset, .ym-back { margin-top: 0; align-self: stretch; font-size: 12px; padding: 0 10px; }
 }
+/* 狭い幅では、状態の見本を1列に（2列だと「白描（話を聞いた）」が1行に収まらない。右のボタン2つの高さに収まる） */
+@media (max-width: 460px) {
+  .ym-legend ul { grid-template-columns: 1fr; }
+}
 /* ピースの詳しい表示・確認 */
 .ym-pop { position: absolute; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; padding: 16px 16px calc(56px + var(--sab)); background: rgba(24, 22, 30, 0.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 .ym-pop.on { opacity: 1; pointer-events: auto; }
@@ -272,11 +280,14 @@ const CSS = /* css */ `
 .ym-pop .art.kin { outline: 3px double #b8913a; outline-offset: 2px; border-radius: 3px; }
 .ym-pop .row { display: flex; gap: 8px; }
 .ym-pop .row .yc-btn { flex: 1; }
+/* 「札を読む（4枚）」は1行で（「（4／枚）」と分けない） */
+.ym-pop .row .yc-btn[data-act="card"] { white-space: nowrap; }
 /* 稽古（語り返し）。ピースの表示の中で、いちばん上の大きなボタン */
 .ym-pop .yc-btn.keiko { font-family: var(--title-font); font-size: 15px; letter-spacing: 0.06em; background: #fffdf7; border: 1.5px solid rgba(43, 36, 32, 0.55); }
 .ym-pop .yc-btn.keiko small { display: block; font-family: var(--ui-font); font-size: 11px; letter-spacing: 0; color: var(--csoft); margin-top: -2px; }
-/* 稽古のあとの一言（金の縁取りが入った） */
-.ym-notice { margin: 0 0 8px; padding: 6px 10px; font-size: 13.5px; line-height: 1.6; border-left: 3px double #b8913a; background: rgba(255, 253, 247, 0.7); }
+/* 稽古のあとの一言（金の縁取りが入った）。「、」までの句ごとにひと続きにし、長い句は文節で折り返す（「た。」だけを次の行に残さない） */
+.ym-notice { margin: 0 0 8px; padding: 6px 10px; font-size: 13.5px; line-height: 1.6; border-left: 3px double #b8913a; background: rgba(255, 253, 247, 0.7); text-wrap: pretty; word-break: auto-phrase; }
+.ym-notice span { display: inline-block; }
 .ym-badge { display: none; position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; border-radius: 8px; background: #b5523b; color: #fff; font-size: 10px; line-height: 16px; text-align: center; padding: 0 4px; }
 .yh-btn.has-new .ym-badge, .cho-btn.has-new .ym-badge { display: block; }
 .yh-btn.mandala { position: relative; font-family: var(--title-font); letter-spacing: 0.08em; }
@@ -1314,21 +1325,24 @@ export class MandalaView {
     close.type = 'button'
     close.addEventListener('click', () => this.hooks.close())
     head.appendChild(close)
-    const noteSp = el('p', 'ym-note-sp', '【創作】の構図です。本物の立山曼荼羅を写したものではありません。')
+    // 二つの文は、それぞれひと続きに（「ありませ／ん。」と分かれないように）
+    const noteSp = el('p', 'ym-note-sp', '<span>【創作】の構図です。</span><span>本物の立山曼荼羅を写したものではありません。</span>')
     const body = el('div', 'ym-body')
     this.scroll = el('div', 'ym-scroll')
     const side = el('div', 'ym-side')
+    // 括弧の中（「（話を聞いた）」など）は、行の途中で分けない。断り書きは、終わりの4字を分けない（最後の行に「ん。」だけ残さない）
+    const note = [...def.note]
     side.innerHTML = `
       <div class="ym-legend">
         <p>ピースの状態</p>
         <ul>
-          <li><i></i>空白（まだ）</li>
-          <li><i class="hakubyo"></i>白描（話を聞いた）</li>
-          <li><i class="saishiki"></i>彩色（現地で）</li>
-          <li><i class="kin"></i>金の縁取り</li>
+          <li><i></i><span>空白<span class="ym-nw">（まだ）</span></span></li>
+          <li><i class="hakubyo"></i><span>白描<span class="ym-nw">（話を聞いた）</span></span></li>
+          <li><i class="saishiki"></i><span>彩色<span class="ym-nw">（現地で）</span></span></li>
+          <li><i class="kin"></i><span>金の縁取り</span></li>
         </ul>
       </div>
-      <p class="ym-note">${escapeHtml(def.note)}</p>`
+      <p class="ym-note">${escapeHtml(note.slice(0, -4).join(''))}<span class="ym-nw">${escapeHtml(note.slice(-4).join(''))}</span></p>`
     if (state.stamps) {
       const back = el('button', 'ym-btn ym-back', '巻末の旅印') as HTMLButtonElement
       back.type = 'button'
@@ -1581,7 +1595,7 @@ export class MandalaView {
     this.showPop(
       `
       <div class="yc-kind"><span>曼荼羅のピース</span><span class="new">${escapeHtml(PIECE_LABEL[st])}</span></div>
-      ${notice ? `<p class="ym-notice" role="status">${escapeHtml(notice)}</p>` : ''}
+      ${notice ? `<p class="ym-notice" role="status">${(notice.match(/[^、]+、?/g) ?? [notice]).map((s) => `<span>${escapeHtml(s)}</span>`).join('')}</p>` : ''}
       <h3 class="yc-title">${escapeHtml(p.label ?? '')}</h3>
       ${svg}
       ${hints.map((h) => `<p class="yc-foot" style="margin-top:0">${escapeHtml(h)}</p>`).join('')}

@@ -66,11 +66,15 @@ const STYLE = /* css */ `
 .en-badges { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .en-bond { display: grid; grid-template-columns: 150px 1fr; gap: 4px 14px; align-items: center; padding: 10px 0 12px; border-top: 1px solid rgba(42, 38, 34, 0.2); border-bottom: 1px solid rgba(42, 38, 34, 0.2); }
 .en-bond .en-th { width: 150px; height: 46px; grid-row: span 2; }
-.en-bond-l { margin: 0; display: flex; align-items: baseline; gap: 8px; }
+/* 縁のラベルと糸の名前は、語の途中で分けない（狭い幅では糸の名前を次の行へ。「顔見知／り」としない） */
+.en-bond-l { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; white-space: nowrap; }
 .en-bond-l b { font-family: var(--title-font); font-size: 19px; letter-spacing: 0.12em; }
 .en-bond-l span { font-size: 12.5px; color: rgba(42, 38, 34, 0.72); }
-.en-bond .en-sheen-l { margin: 0; font-size: 12.5px; color: rgba(42, 38, 34, 0.8); }
-.en-bond .en-small { grid-column: 1 / -1; }
+/* 艶の文と書き添えは、文節で折り返し、最後の行に1〜2字だけ残さない。艶の文は句ごと（sheenLine）。括弧の所（「（話しなれた）。」「家（夢の旅）」）はひと続きに */
+.en-bond .en-sheen-l { margin: 0; font-size: 12.5px; color: rgba(42, 38, 34, 0.8); text-wrap: pretty; word-break: auto-phrase; }
+.en-sheen-l .en-ph { display: inline-block; }
+.en .en-nw { white-space: nowrap; }
+.en-bond .en-small { grid-column: 1 / -1; text-wrap: pretty; word-break: auto-phrase; }
 .en-sec { margin-top: 14px; }
 /* 本作の創作（会話の枠と同じ、角の丸いふつうの枠。右上に「創作」の印） */
 .en-sosaku { position: relative; background: rgba(255, 253, 248, 0.92); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 14px; padding: 10px 14px 12px; }
@@ -128,6 +132,15 @@ const SHEEN: { tag: string; line: string }[] = [
   { tag: 'よく話す', line: '糸に、艶がある（よく話す）。' },
   { tag: '話しなれた', line: '糸が、つややかに光る（話しなれた）。' },
 ]
+/**
+ * 頁の艶の文（HTML）。句（「、」のあと・括弧の前）ごとにひと続きにして折り返す
+ * （狭い画面で「艶が出／る。」「（話しな／れた）。」と分けない。括弧の印は分けない）
+ */
+function sheenLine(step: number): string {
+  const s = step ? SHEEN[step].line : '話すほど、糸に艶が出る。'
+  const parts = s.match(/（[^（）]*）。?|[^、（]+、?/g) ?? []
+  return (parts.join('') === s ? parts : [s]).map((p) => `<span class="en-ph${p.startsWith('（') ? ' en-nw' : ''}">${escapeHtml(p)}</span>`).join('')
+}
 
 const INK = '#3a332d'
 /** 縁帳の紙の色（撚りの「上を通る」糸の下に、紙の色の隙間を描いて前後を見せる） */
@@ -574,8 +587,8 @@ class EnchoView {
       <section class="en-bond" aria-label="縁">
         <span class="en-th">${threadSvg(lv, step)}</span>
         <p class="en-bond-l"><b>${escapeHtml(BOND_LABEL[lv])}</b><span>${escapeHtml(THREAD_NAME[lv])}</span></p>
-        <p class="en-sheen-l">${step ? escapeHtml(SHEEN[step].line) : '話すほど、糸に艶が出る。'}</p>
-        <p class="en-small">${y.likes ? '縁は、悩みを解いたり好物を渡したりすると深まることがある。' : '縁は、悩みを解くと深まることがある。'}話した数では深まらず、糸の艶だけが増える。${homeCap ? '家（夢の旅）で結べる縁は「なじみ」まで。この先は、現地で。' : ''}</p>
+        <p class="en-sheen-l">${sheenLine(step)}</p>
+        <p class="en-small">${y.likes ? '縁は、悩みを解いたり好物を渡したりすると深まることがある。' : '縁は、悩みを解くと深まることがある。'}話した数では深まらず、糸の艶だけが増える。${homeCap ? '<span class="en-nw">家（夢の旅）</span>で結べる縁は<span class="en-nw">「なじみ」</span>まで。この先は、現地で。' : ''}</p>
       </section>
       <section class="en-sec en-sosaku" aria-labelledby="en-sosaku-h">
         <h4 class="en-sec-h" id="en-sosaku-h">本作の創作</h4>
