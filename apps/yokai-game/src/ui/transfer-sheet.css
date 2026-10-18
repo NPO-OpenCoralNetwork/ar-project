@@ -15,8 +15,9 @@
 }
 .tf-card * { box-sizing: border-box; }
 /* 句ごとに折り返す（phrases）。箇条の点が、折り返した句の最後の行に付かないよう、箇条の句は行の上にそろえる。
-   1行に収まらない長い句（狭い画面の知らせなど）は、その中で文節ごとに折り返す（「ようで／す。」と分かれないように） */
-.tf-card .ph { display: inline-block; text-wrap: pretty; word-break: auto-phrase; }
+   1行に収まらない長い句（狭い画面の知らせなど）は、その中で文節ごとに折り返す。句がまるごと1文節と見なされる
+   （「引き継ぎコードではないようです。」など）ときは、枠からはみ出さないよう字の間で折り返す（overflow-wrap: anywhere） */
+.tf-card .ph { display: inline-block; text-wrap: pretty; word-break: auto-phrase; overflow-wrap: anywhere; }
 .tf-card li .ph { vertical-align: top; }
 /* 数の行（会った妖怪 N・開いた札 N）は、数ごとにひと続きに（分かれるのは「・」のあとだけ） */
 .tf-lands .ph > span { white-space: nowrap; }
