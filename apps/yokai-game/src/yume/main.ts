@@ -532,7 +532,7 @@ function start(): void {
   save(saved)
   setSpeed(speed)
   hud.setSound(sound.enabled)
-  // T キーで時間帯（昼 → 夕 → 夜）、M キーで曼荼羅帳。出会いの途中（耳を澄まし終えてから、別れ終わるまで）は、どちらも効かない
+  // T キーで時間帯（昼 → 夕 → 夜）、M キーで帳。出会いの途中（耳を澄まし終えてから、別れ終わるまで）は、どちらも効かない
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
     const t = e.target as HTMLElement | null
@@ -591,7 +591,7 @@ function start(): void {
     time += dt
 
     rig.forward(fwd)
-    // 会話・曼荼羅帳を開いている間は、アバターを止める
+    // 会話・帳を開いている間は、アバターを止める
     const busy = encounters?.busy ?? false
     if (busy) player.walkTarget = null
     const ev = player.update(dt, time, busy ? STILL : controls.intent(fwd.x, fwd.y))

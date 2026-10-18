@@ -26,8 +26,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f1e3; ove
 .ez-btn.title { font-family: var(--title-font); letter-spacing: 0.08em; }
 .ez-btn small { font-size: 11px; color: var(--ink-soft); }
 .ez-btn[aria-pressed="false"] { color: var(--ink-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
-/* 曼荼羅帳の「新」（新しいピースがある。印は ui.ts の .ym-badge。色だけでなく字で） */
-.ez-btn.has-new .ym-badge { display: block; }
 .ez-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; max-width: calc(100vw - 230px - var(--sal) - var(--sar)); }
 .ez-title { font-family: var(--title-font); font-size: 13.5px; letter-spacing: 0.08em; line-height: 1.35; padding: 5px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; }
 .ez-title small { display: block; font-family: var(--ui-font); font-size: 10.5px; letter-spacing: 0.04em; color: var(--ink-soft); }

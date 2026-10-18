@@ -42,8 +42,8 @@ interface StudioState {
   time: TimeId
   band: BandId
   look: { washi: number; foil: number; holo: number; lineThreshold: number; lineWidth: number; lineOverlay: number }
-  /** showNumber: 札の下の HTML に番号を出すか（F-43 との関係は PO の判断待ち。09 §5.7-7） */
-  text: CardText & { showTitleOnFront: boolean; showNumber: boolean; showLore: boolean }
+  /** showNumber: 札の下の HTML に番号を出すか（F-43 との関係は PO の判断待ち。09 §5.7-7）。kind: 札の種類（名産の札は見出しを分ける） */
+  text: CardText & { showTitleOnFront: boolean; showNumber: boolean; showLore: boolean; kind: '伝承' | '名産' }
 }
 
 const STAGES: { id: StageId; label: string; value: number }[] = [
@@ -76,6 +76,7 @@ const DEFAULT_STATE: StudioState = {
     showTitleOnFront: true,
     showNumber: false,
     showLore: true,
+    kind: card0.kind ?? '伝承',
     number: card0.number ?? '',
     title: card0.title,
     body: card0.body,
@@ -165,6 +166,7 @@ app.innerHTML = `
       <h2>文字</h2>
       <p class="cs-small">題は表の題箋に描きます。本文と出典は札の下の HTML（ゲームの <code>cardHtml</code> と同じ）に出します。</p>
       <label class="cs-check"><input type="checkbox" id="c-lore" /> 札の下に本文と出典を出す</label>
+      <label class="cs-check"><input type="checkbox" id="c-meisan" /> 名産の札にする（見出しが「名産の札」になる。妖怪の伝承ではない札）</label>
       <label class="cs-field">題<input id="t-title" /></label>
       <label class="cs-field">本文<textarea id="t-body" rows="3"></textarea></label>
       <label class="cs-field">出典<input id="t-source" /></label>
@@ -466,6 +468,7 @@ function renderLore() {
     title: t.title,
     body: t.body,
     number: t.showNumber ? t.number : '',
+    kind: t.kind,
     source: { work: t.source },
   } as LoreCard
   loreCardEl.innerHTML = cardHtml(card, { number: t.showNumber })
@@ -670,6 +673,12 @@ numberCheck.addEventListener('change', () => {
   renderLore()
   refreshJson()
 })
+const meisanCheck = $<HTMLInputElement>('#c-meisan')
+meisanCheck.addEventListener('change', () => {
+  state.text.kind = meisanCheck.checked ? '名産' : '伝承'
+  renderLore()
+  refreshJson()
+})
 const alignCheck = $<HTMLInputElement>('#c-align')
 alignCheck.addEventListener('change', () => stageEl.classList.toggle('align', alignCheck.checked))
 
@@ -697,6 +706,7 @@ function syncControls() {
   titleCheck.checked = state.text.showTitleOnFront
   loreCheck.checked = state.text.showLore
   numberCheck.checked = state.text.showNumber
+  meisanCheck.checked = state.text.kind === '名産'
   for (const [id, key] of textInputs) {
     const el = $<HTMLInputElement | HTMLTextAreaElement>(`#${id}`)
     if (el.value !== state.text[key]) el.value = state.text[key]
@@ -1037,6 +1047,7 @@ $('#load-json').addEventListener('click', () => {
     if (j.text) {
       for (const k of ['title', 'body', 'source', 'number'] as const) if (typeof j.text[k] === 'string') state.text[k] = j.text[k]
       for (const k of ['showTitleOnFront', 'showNumber', 'showLore'] as const) if (typeof j.text[k] === 'boolean') state.text[k] = j.text[k]
+      if (j.text.kind === '伝承' || j.text.kind === '名産') state.text.kind = j.text.kind
     }
     if (j.time && TIMES.some((t) => t.id === j.time)) state.time = j.time
     if (j.band && BANDS.some((b) => b.id === j.band)) state.band = j.band

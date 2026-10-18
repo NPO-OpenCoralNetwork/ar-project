@@ -126,7 +126,7 @@ export type Condition =
   | { travel: Travel }
   /** 持ち物（供物・届け物）の状態。none＝まだ、held＝持っている、given＝渡した */
   | { item: string; state: ItemState }
-  /** 悩みをもう1つ抱えられるか（同時に3つまで。04 §2.4）。room: false で「いっぱい」 */
+  /** 悩みをもう1つ抱えられるか（同時に3つまで。04 §2.4）。questRoom: false で「いっぱい」 */
   | { questRoom: boolean }
 
 /** 持ち物の状態 */

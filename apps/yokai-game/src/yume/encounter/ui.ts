@@ -2,7 +2,8 @@
 //
 // - 耳を澄ますボタン（長押し。満ちていく輪）
 // - 会話の枠（画面の下。名前・本文・選択肢2〜3）。台本の台詞は「台本・創作」の印つきのふつうの枠
-// - 伝承の札（和紙のカード。プレイヤーには題・本文・出典だけ。確度・調べ・監修の状態は ?debug のときだけ。台本の枠とは形も書体も分ける。04 §3.2 F-43）
+// - 伝承の札（和紙のカード。プレイヤーには題・本文・出典だけ。確度・調べ・監修の状態は ?debug のときだけ。台本の枠とは形も書体も分ける。04 §3.2 F-43）。
+//   名産の札（kind: 名産。供物の札）は同じ形で、種類の字と断り書きだけを分ける（伝承として見せない）
 // - 帳（曼荼羅帳の頁と、ほかの頁のタブ。縁帳の中身は ui/cho.ts）。曼荼羅帳は縦長の掛軸（里・麓・山の三段の枠は【創作】の構図）。
 //   ピースの表示から稽古（語り返し）を始められる。最初からやり直す（確認つき）
 // - 会話の途中の小さな遊び（「払わずに待つ」= ミノモシ番外。04 §3.4。「絵解き鎮め」= 札を話の順に並べる。04 §3.5）。
@@ -443,8 +444,14 @@ const SHOW_PRODUCTION_META = (() => {
   }
 })()
 
-/** 短いかぎかっこ（「ガメ」『民族』など）は、行の途中で折らない */
-const keepQuotes = (html: string): string => html.replace(/[「『][^「」『』]{1,10}[」』]/g, (q) => `<span class="yc-nb">${q}</span>`)
+/**
+ * 短いかぎかっこ（「ガメ」『民族』など）は、行の途中で折らない。
+ * すぐ後ろの句読点・閉じかっこも一緒にくるむ（「ガメ」の後ろで折れて、次の行が「、」から始まらないように）
+ */
+const keepQuotes = (html: string): string => html.replace(/[「『][^「」『』]{1,10}[」』][、。，．！？」』）〕］】〉》]*/g, (q) => `<span class="yc-nb">${q}</span>`)
+
+/** 札の種類の名前。名産の札（供物の 03 #21〜#23）は妖怪の伝承ではないので、伝承の札と呼ばない */
+export const cardKindLabel = (card: LoreCard): string => (card.kind === '名産' ? '名産の札' : '伝承の札')
 
 /**
  * 札の中身（種類・題・本文・出典）。ゲームでは札の番号（card.number）は出さない（順番が分かってしまう。F-43 は題・本文・出典だけ）。
@@ -467,11 +474,12 @@ export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: strin
     </dl>`
     : `
     <p class="yc-source">出典 ${work}</p>`
+  const foot = card.kind === '名産' ? '名産の札は、土地の名産の記録です（妖怪の伝承ではありません）。' : '札は伝承の記録です。'
   return `
-    <div class="yc-kind"><span>伝承の札</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
+    <div class="yc-kind"><span>${cardKindLabel(card)}</span>${opts.first ? '<span class="new">札が開いた</span>' : ''}</div>
     <${h} class="yc-title">${opts.number && card.number ? `<small>${escapeHtml(card.number)}</small>` : ''}${escapeHtml(card.title)}</${h}>
     <p class="yc-body">${keepQuotes(escapeHtml(card.body))}</p>${meta}
-    ${opts.first ? '<p class="yc-foot">札は伝承の記録です。会話の台詞は、本作の創作です。</p>' : ''}
+    ${opts.first ? `<p class="yc-foot">${foot}会話の台詞は、本作の創作です。</p>` : ''}
     ${opts.button ? `<button class="yc-btn" type="button">${escapeHtml(opts.button)}</button>` : ''}`
 }
 
@@ -609,6 +617,7 @@ export class DialogueView {
       return
     }
     if (beat.kind === 'card') {
+      this.cardEl.setAttribute('aria-label', cardKindLabel(beat.card))
       this.cardEl.innerHTML = cardHtml(beat.card, { first: beat.first, button: '札をしまう' })
       const btn = this.cardEl.querySelector('.yc-btn') as HTMLButtonElement
       btn.addEventListener('click', () => this.advance())
@@ -1356,11 +1365,6 @@ export class MandalaView {
     return this.openFlag
   }
 
-  /** いま開いている頁（タブの id） */
-  get tab(): string {
-    return this.current
-  }
-
   /** tab: 開く頁（省くと、前に開いていた頁） */
   open(tab?: string): void {
     this.lastFocus = document.activeElement as HTMLElement | null
@@ -1627,7 +1631,7 @@ export class MandalaView {
     this.showPop(`
       <div class="yc-kind"><span>確認</span></div>
       <h3 class="yc-title">最初からやり直しますか</h3>
-      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物が、すべて消えます。元には戻せません。</p>
+      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物・旅印が、すべて消えます。この記録は家と現地の二つの旅で共通なので、どちらからも消えます。元には戻せません。</p>
       <div class="row">
         <button class="yc-btn" type="button" data-act="close">やめる</button>
         <button class="yc-btn" type="button" data-act="reset">やり直す</button>

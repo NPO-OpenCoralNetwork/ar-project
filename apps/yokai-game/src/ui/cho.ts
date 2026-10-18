@@ -8,17 +8,17 @@
 // - 縁帳（懸場帳が手本。04 §3.3）: 会った妖怪ごとの頁。まだ会っていない妖怪は名前を出さず「まだ会っていない気配」とだけ。
 //   - 縁は数字・棒で見せず、糸の形（気配＝糸くず、顔見知り＝一本の糸、なじみ＝より糸、語り仲間＝組紐、えにし＝結び目）と文字のラベルで見せる。
 //     糸は抽象的な墨の線にする（房・飾り結び・袋など、お守りや縁結びに見える形は描かない。05・09）。
-//   - 会話を最後まで話した回数（talks）は、糸の艶（3段）と小さな字にだけ使う。段階は変えない（F-24）。
-//   - 「本作の創作」（人となり・好物・悩みの題）と「伝承の札（出典つき）」を分けて見せる。札の番号は出さない（F-43）。
-//   - 好物は、渡したあとで分かる。悩みは「抱えている」「解けた」の字だけ（数も進み具合の棒も出さない）。
+//   - 会話を最後まで話した回数（talks）は、糸の艶（4段）と小さな字にだけ使う。段階は変えない（F-24）。
+//   - 「本作の創作」（人となり・好物・悩みの題）と「伝承の札（出典つき）」を分けて見せる。札の番号は出さない（F-43）。名産の札は伝承の札に並べない。
+//   - 好物は、渡したあとで分かる（好物のない妖怪は、好物の行を出さない）。悩みは「抱えている」「解けた」の字だけ（数も進み具合の棒も出さない）。
 //   - 一覧の上に持ち物（いま持っているもの）。
 // - 「新」の印: 見たピース・縁を、状態ごとにフラグで覚える（seen:<ピース>@<状態>、seen:en:<妖怪>@<縁>）。
 //   白描 → 彩色 → 金と上がると、また「新」になる（前の seen:<ピース> は白描を見た印として読む）。数は出さない。
 //   帳のボタンの「新」はページが付ける（onNew）。連続の記録や、未読の数は作らない（04 §5.1）。
 
-import { checkConditions } from '../core/story/dialogue'
+import { checkConditions, etokiHand } from '../core/story/dialogue'
 import type { Gained, ProgressStore } from '../core/story/progress'
-import { BOND_LABEL, type BondLevel, type EtokiHandCard, type EtokiSpec, type MandalaPieceDef, type PieceState, type Travel } from '../core/story/types'
+import { BOND_LABEL, type BondLevel, type EtokiSpec, type MandalaPieceDef, type PieceState, type Travel } from '../core/story/types'
 import type { StoryPack } from '../data/story-pack'
 import { ARTS, artToSvg } from '../yume/encounter/art'
 import { cardHtml, EtokiGame, escapeHtml, type KeikoState, MandalaView } from '../yume/encounter/ui'
@@ -77,7 +77,7 @@ const STYLE = /* css */ `
 .en-tag { position: absolute; top: 10px; right: 12px; font-size: 10.5px; color: rgba(42, 38, 34, 0.68); border: 1px solid rgba(42, 38, 34, 0.25); border-radius: 999px; padding: 1px 8px; }
 .en-sosaku dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: 14px; line-height: 1.7; }
 .en-sosaku dt { font-size: 12px; color: rgba(42, 38, 34, 0.7); padding-top: 2px; white-space: nowrap; }
-.en-sosaku dd { margin: 0; font-family: var(--title-font); }
+.en-sosaku dd { margin: 0; font-family: var(--title-font); text-wrap: pretty; word-break: auto-phrase; }
 .en-sosaku dd.unknown { font-family: var(--ui-font); font-size: 13px; color: rgba(42, 38, 34, 0.62); }
 .en-quests { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .en-quests li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -247,8 +247,6 @@ export interface ChoOptions {
   sound?: { bell(v?: number): void }
   /** 「新」の印が変わった（帳のボタンに「新」の字を出す。数は出さない） */
   onNew?(on: boolean): void
-  /** 閉じた */
-  onClose?(): void
   /** 最初からやり直した（保存はもう消してあり、帳も閉じてある） */
   onReset?(): void
 }
@@ -317,11 +315,7 @@ export function createCho(o: ChoOptions): Cho {
     if (!p?.keiko || keikoState(id) !== 'ready' || game) return
     const name = (p.yokaiId ? story.yokai[p.yokaiId]?.name : undefined) ?? p.label ?? ''
     // 手札（話の順）。会話の絵解きと同じ作り方: 開いた札、まだ拾っていない札は白紙、まだ作っていない札（pending:）も白紙
-    const hand: EtokiHandCard[] = p.keiko.map((k) => {
-      if (k.startsWith('pending:')) return { key: k, blank: 'pending' }
-      const card = story.cards[k]
-      return card && progress.isCardOpened(k) ? { key: k, card } : { key: k, blank: 'missing' }
-    })
+    const hand = etokiHand(p.keiko, story.cards, progress)
     const spec: EtokiSpec = {
       type: 'etoki',
       title: `${name}の話`,
@@ -418,7 +412,6 @@ export function createCho(o: ChoOptions): Cho {
       view.close()
       // 次に開いたときの縁帳は、一覧から（新しい縁が、すぐ見えるように）
       en.reset()
-      o.onClose?.()
     },
     get isOpen() {
       return view.isOpen || !!game
@@ -529,9 +522,9 @@ class EnchoView {
     // 姿は白描。現地で会っていれば彩色（現地で見た姿）
     const art = y.art ? ARTS[y.art] : undefined
     const artSvg = art ? `<svg class="en-art" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1, 1, w.site)}</svg>` : ''
-    // 伝承の札（開いた札だけ。この妖怪の札。了承待ちの札は開かないので出ない）
-    const cards = Object.values(this.story.cards).filter((c) => c.yokaiId === id && p.isCardOpened(c.id))
-    // 好物（渡したあとで分かる）
+    // 伝承の札（開いた札だけ。この妖怪の札。了承待ちの札は開かないので出ない。名産の札は伝承の札の欄に入れない）
+    const cards = Object.values(this.story.cards).filter((c) => c.yokaiId === id && c.kind !== '名産' && p.isCardOpened(c.id))
+    // 好物（渡したあとで分かる。好物のない妖怪は、行ごと出さない）
     const likes = y.likes && p.itemState(y.likes) === 'given' ? this.story.items[y.likes]?.name : undefined
     // 悩み（この妖怪がかかわる、始まった悩み）。字は「抱えている」「解けた」だけ
     const quests = this.story.quests
@@ -556,14 +549,14 @@ class EnchoView {
         <span class="en-th">${threadSvg(lv, step)}</span>
         <p class="en-bond-l"><b>${escapeHtml(BOND_LABEL[lv])}</b><span>${escapeHtml(THREAD_NAME[lv])}</span></p>
         <p class="en-sheen-l">${step ? escapeHtml(SHEEN[step].line) : '話すほど、糸に艶が出る。'}</p>
-        <p class="en-small">縁は、悩みを解いたり好物を渡したりすると深まる。話した数では深まらず、糸の艶だけが増える。${homeCap ? '家（夢の旅）で結べる縁は「なじみ」まで。この先は、現地で。' : ''}</p>
+        <p class="en-small">縁は、悩みを解いたり好物を渡したりすると深まることがある。話した数では深まらず、糸の艶だけが増える。${homeCap ? '家（夢の旅）で結べる縁は「なじみ」まで。この先は、現地で。' : ''}</p>
       </section>
       <section class="en-sec en-sosaku" aria-labelledby="en-sosaku-h">
         <h4 class="en-sec-h" id="en-sosaku-h">本作の創作</h4>
         <span class="en-tag" title="本作の創作（伝承の事実は「伝承の札」で示します）">【創作】</span>
         <dl>
           <dt>人となり</dt>${y.profile ? `<dd>${escapeHtml(y.profile)}</dd>` : '<dd class="unknown">まだよく知らない</dd>'}
-          <dt>好物</dt>${likes ? `<dd>${escapeHtml(likes)}</dd>` : '<dd class="unknown">まだ知らない</dd>'}
+          ${y.likes ? `<dt>好物</dt>${likes ? `<dd>${escapeHtml(likes)}</dd>` : '<dd class="unknown">まだ知らない</dd>'}` : ''}
           <dt>悩み</dt>${
             quests.length
               ? `<dd><ul class="en-quests">${quests.map((q) => `<li>${escapeHtml(q.title)}<span class="en-qs${q.done ? ' done' : ''}">${q.done ? '解けた' : '抱えている'}</span></li>`).join('')}</ul></dd>`

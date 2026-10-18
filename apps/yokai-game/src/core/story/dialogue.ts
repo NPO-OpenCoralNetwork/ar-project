@@ -13,6 +13,7 @@ import {
   type DialogueScript,
   type Effect,
   type EtokiHandCard,
+  type EtokiSlot,
   type GameResult,
   type GameSpec,
   type ItemDef,
@@ -211,11 +212,7 @@ export class DialogueRunner {
     if ('game' in e) {
       if (e.game.type !== 'etoki') return { kind: 'game', game: e.game, yokai }
       // 手札は、いま持っている札から作る（画面の側は進み具合を読まない）
-      const hand: EtokiHandCard[] = e.game.slots.map((s) => {
-        if ('pending' in s) return { key: `pending:${s.pending}`, blank: 'pending' }
-        const card = this.ctx.cards[s.card]
-        return card && progress.isCardOpened(s.card) ? { key: s.card, card } : { key: s.card, blank: 'missing' }
-      })
+      const hand = etokiHand(e.game.slots.map(slotKey), this.ctx.cards, progress)
       return { kind: 'game', game: e.game, yokai, hand }
     }
     return null
@@ -317,17 +314,45 @@ function validateGame(g: GameSpec, cards: Record<string, LoreCard>): string[] {
   for (const [k, v] of Object.entries(g.lines ?? {})) if (typeof v !== 'string') errs.push(`遊びの台詞 ${k} が文字でない`)
   if (g.type === 'etoki') {
     if (!g.title) errs.push('絵解き鎮めに題がない')
-    if (!g.slots?.length || g.slots.length > 4) errs.push('絵解き鎮めの札は1〜4枚')
-    const seen = new Set<string>()
-    for (const s of g.slots ?? []) {
-      const key = 'card' in s ? s.card : `pending:${s.pending}`
-      if (seen.has(key)) errs.push(`絵解き鎮めの札 ${key} が2回ある`)
-      seen.add(key)
-      if ('card' in s && !cards[s.card]) errs.push(`絵解き鎮めの札 ${s.card} がない`)
-      if ('pending' in s && !s.pending) errs.push('絵解き鎮めの白紙の札に、確認待ちの理由がない')
-    }
+    errs.push(...validateEtokiKeys((g.slots ?? []).map(slotKey), cards).map((m) => `絵解き鎮めの${m}`))
   }
   return errs
+}
+
+/** 並べる札の数のいちばん多いとき（絵解き鎮めも稽古も） */
+const ETOKI_MAX = 4
+
+/** 絵解き鎮めの札の並びを、稽古と同じ書き方（札の id か、pending:<確認待ちの理由>）にする */
+const slotKey = (s: EtokiSlot): string => ('card' in s ? s.card : `pending:${s.pending}`)
+
+/**
+ * 並べる札の点検（絵解き鎮めの slots と、曼荼羅のピースの稽古 keiko で同じ決まり）。
+ * 札の数（min〜4枚）、同じ札を2回入れない、知らない札がない、白紙の札には確認待ちの理由がある。文の頭は呼ぶ側が付ける
+ */
+export function validateEtokiKeys(keys: readonly string[], cards: Record<string, LoreCard>, min = 1): string[] {
+  const errs: string[] = []
+  if (keys.length < min || keys.length > ETOKI_MAX) errs.push(`札は${min}〜${ETOKI_MAX}枚`)
+  const seen = new Set<string>()
+  for (const key of keys) {
+    if (seen.has(key)) errs.push(`札 ${key} が2回ある`)
+    seen.add(key)
+    if (!key.startsWith('pending:')) {
+      if (!cards[key]) errs.push(`札 ${key} がない`)
+    } else if (key === 'pending:') errs.push('白紙の札に、確認待ちの理由がない')
+  }
+  return errs
+}
+
+/**
+ * 並べる遊びの手札（話の順。会話の絵解きと稽古で同じ作り方）。
+ * 開いた札は中身つき、まだ拾っていない札は白紙（missing）、まだ作っていない札（pending:）も白紙（pending）
+ */
+export function etokiHand(keys: readonly string[], cards: Record<string, LoreCard>, progress: ProgressStore): EtokiHandCard[] {
+  return keys.map((key): EtokiHandCard => {
+    if (key.startsWith('pending:')) return { key, blank: 'pending' }
+    const card = cards[key]
+    return card && progress.isCardOpened(key) ? { key, card } : { key, blank: 'missing' }
+  })
 }
 
 /**

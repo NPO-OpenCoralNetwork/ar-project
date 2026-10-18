@@ -28,7 +28,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-home { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 2px; pointer-events: auto; text-decoration: none; font-family: var(--title-font); letter-spacing: 0.08em; }
 .yh-home::before { content: ""; position: absolute; inset: -5px; }
 .yh-home span { font-family: var(--ui-font); font-size: 15px; line-height: 1; color: var(--ink-soft); }
-/* 曼荼羅帳・遊びのあいだは、題と一緒に隠す（encounter/ui.ts） */
+/* 帳・遊びのあいだは、題と一緒に隠す（encounter/ui.ts） */
 .yh.modal-open .yh-home, .yh.yg-playing .yh-home { visibility: hidden; }
 .yh-panel { position: absolute; top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; }
 .yh-row { display: flex; gap: 6px; align-items: center; }
@@ -118,7 +118,6 @@ export class Hud {
   private readonly speedBtn: HTMLButtonElement
   private readonly soundBtn: HTMLButtonElement
   private readonly mandalaBtn: HTMLButtonElement
-  private mandalaNew = false
   private promptText = ''
   private hint: HTMLDivElement | null = null
   private perfOpen = false
@@ -324,13 +323,8 @@ export class Hud {
 
   /** 帳に、まだ見ていないピースか縁がある（「新」の字だけ。数は出さない） */
   setMandalaNew(on: boolean): void {
-    this.mandalaNew = on
     this.mandalaBtn.classList.toggle('has-new', on)
     this.mandalaBtn.setAttribute('aria-label', on ? '帳をひらく（新しいピースや縁がある。M）' : '帳をひらく（曼荼羅帳・縁帳。M）')
-  }
-
-  get mandalaHasNew(): boolean {
-    return this.mandalaNew
   }
 
   toast(text: string, ms = 3200): void {

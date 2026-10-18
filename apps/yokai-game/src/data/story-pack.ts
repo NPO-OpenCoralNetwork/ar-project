@@ -3,7 +3,7 @@
 // 点検は、データ（F-70。コードを変えずに直す）の書き違いで地点や札が黙って消えないように、見つけた問題を problems に文で並べる。
 
 import { validateAppearance } from '../core/story/appearance'
-import { validateScript } from '../core/story/dialogue'
+import { validateEtokiKeys, validateScript } from '../core/story/dialogue'
 import type {
   AppearanceTable,
   ClueDef,
@@ -21,6 +21,7 @@ import type {
   SectionFile,
   YokaiDef,
 } from '../core/story/types'
+import { TEST_CLUES, TEST_PICKUPS } from '../utsutsu/test-land-clues'
 import appearanceJson from './appearance.json'
 import cluesJson from './clues.json'
 import { iwakurajiPack } from './iwakuraji-pack'
@@ -103,8 +104,8 @@ export function loadStoryPack(): StoryPack {
   for (const t of mandala.tiers)
     for (const p of t.pieces) {
       for (const id of p.cardIds ?? []) if (!cards[id]) problems.push(`ピース ${p.id} の札 ${id} がない`)
-      for (const id of p.keiko ?? []) if (!id.startsWith('pending:') && !cards[id]) problems.push(`ピース ${p.id} の稽古の札 ${id} がない`)
-      if (p.keiko && p.keiko.length < 2) problems.push(`ピース ${p.id} の稽古は札2枚から`)
+      // 稽古の札は、絵解き鎮めと同じ決まり（4枚まで・同じ札は1回・知らない札がない）。稽古は札2枚から
+      if (p.keiko) problems.push(...validateEtokiKeys(p.keiko, cards, 2).map((m) => `ピース ${p.id} の稽古の${m}`))
     }
   for (const c of Object.values(cards)) {
     // 札にしてよいのは 03 の「確認済」だけ（04 §5.2）。出典を必ず付ける（F-43）
@@ -123,11 +124,13 @@ export function loadStoryPack(): StoryPack {
     for (const w of c.showWhen) if ('card' in w && !cards[w.card]) problems.push(`調べる地点 ${c.id} の条件の札 ${w.card} がない`)
     for (const w of c.showWhen) if ('item' in w && !items[w.item]) problems.push(`調べる地点 ${c.id} の条件の持ち物 ${w.item} がない`)
   }
-  // 地域パックの地点が引く調べる地点（書き違えると、その地点は黙って出ない。テスト用の土地の分は test-land.ts が見る）
+  // 地域パックの地点が引く調べる地点（書き違えると、その地点は黙って出ない）
   for (const s of iwakurajiPack.spots) {
     if (s.clueId && !clues[s.clueId]) problems.push(`地点 ${s.id} の調べる地点 ${s.clueId} がない`)
     if (s.yokaiId && !yokai[s.yokaiId]) problems.push(`地点 ${s.id} の妖怪 ${s.yokaiId} がいない`)
   }
+  // テスト用の土地に置く調べる地点・持ち物を受け取る地点（utsutsu/test-land-clues.ts の決まった id。土地は端末の中で作るので、ここでは id だけ見る）
+  for (const id of [...TEST_CLUES, ...TEST_PICKUPS]) if (!clues[id]) problems.push(`テスト用の土地の調べる地点 ${id} がない`)
   const appearance = appearanceJson as unknown as AppearanceTable
   problems.push(...validateAppearance(appearance, new Set(Object.keys(yokai)), new Set(Object.keys(scripts))))
   return { yokai, scripts, cards, mandala, sections, clues, appearance, items, quests, problems }

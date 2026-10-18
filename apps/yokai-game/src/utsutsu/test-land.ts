@@ -31,6 +31,7 @@ import type { MapLayers, XZ } from '../core/map-layers'
 import { LEGACY_TESTLAND_KEY, TESTLAND_KEY } from '../core/storage-keys'
 import type { KeyValueStore } from '../core/story/progress'
 import type { PlaceKind } from '../core/story/types'
+import { TEST_CLUES, TEST_PICKUPS } from './test-land-clues'
 
 /** テスト用の土地の地点。yokaiId＝決まった妖怪、clueId＝調べる地点（白えびを受け取る地点も）、placeKind＝寄り道の地点（出現の表で妖怪を引く） */
 export interface TestSpot {
@@ -77,11 +78,8 @@ const TEST_YOKAI = ['kozobo', 'game', 'karabozu', 'minomoshi']
 const TEST_YOKAI_FEW = ['kozobo', 'minomoshi']
 /** テスト用の土地に置く気配の数（いちばん多いとき） */
 export const TEST_SPOTS_MAX = TEST_YOKAI.length
-/** 調べる地点（clues.json の id。光蔵坊の悩み #2） */
-const TEST_CLUES = ['kozobo-shirabe-1', 'kozobo-shirabe-2']
+/** 調べる地点・持ち物を受け取る地点の数（id は test-land-clues.ts。書き違いは data/story-pack.ts の点検が見る） */
 export const TEST_CLUES_MAX = TEST_CLUES.length
-/** 持ち物を受け取る地点（clues.json の id。ガメの悩み #11 の白えび。仕組みは調べる地点と同じ） */
-const TEST_PICKUPS = ['shiroebi']
 export const TEST_PICKUPS_MAX = TEST_PICKUPS.length
 /** 水辺の道の地点の数（いちばん多いとき） */
 export const TEST_WANDER_MAX = 2
