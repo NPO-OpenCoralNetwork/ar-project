@@ -46,6 +46,7 @@ import {
   loadTestLand,
   saveTestLand,
   TEST_CLUES_MAX,
+  TEST_PICKUPS_MAX,
   TEST_SPOTS_MAX,
   TEST_WANDER_MAX,
   type TestLand,
@@ -218,7 +219,7 @@ function showStart(): void {
     <p>現地を歩いて、立ち止まると、妖怪が色のついた姿で現れます。夢の旅で先に会っていれば、再会になります。</p>
     <button class="big" type="button" data-go="iwakuraji">歩きはじめる</button>
     <h3>チームのテスト用</h3>
-    <p class="soft">自分の地元で、仕組みを試すための土地です。いまいる所のまわり（約800m四方）の地図を OpenStreetMap から読み、気配を${TEST_SPOTS_MAX}つまで置き、調べる地点（${TEST_CLUES_MAX}つまで）と水辺の道の地点（${TEST_WANDER_MAX}つまで）も置きます。作った土地はこの端末の中だけに残ります。</p>
+    <p class="soft">自分の地元で、仕組みを試すための土地です。いまいる所のまわり（約800m四方）の地図を OpenStreetMap から読み、気配を${TEST_SPOTS_MAX}つまで置き、調べる地点（${TEST_CLUES_MAX}つまで）、白えびを受け取る地点（${TEST_PICKUPS_MAX}つ）、水辺の道の地点（${TEST_WANDER_MAX}つまで）も置きます。作った土地はこの端末の中だけに残ります。</p>
     <button class="sub" type="button" data-go="test-new">いまいる所で試す（テスト用の土地を作る）</button>
     ${t ? `<button class="sub" type="button" data-go="test-old">前に作ったテスト用の土地で歩く（${escapeHtml(stampDate(t.createdAt))}）</button>` : ''}
     ${!t && testLandIsOld() ? '<p class="soft">前に作ったテスト用の土地は古い形なので、もう一度作ってください。</p>' : ''}

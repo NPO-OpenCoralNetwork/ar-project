@@ -1,0 +1,72 @@
+/* 引き継ぎの札（transfer-sheet.ts）。どのページから開いても同じ見た目になるよう、色と書体は札の中で決める
+   （和紙と墨、藍のボタン。三つの約束の札 promise-sheet.css と同じ）。成否は枠の色だけでなく、文の頭の言葉でも分かるようにする */
+.tf-card {
+  --tf-paper: #faf7f0;
+  --tf-ink: #2a2622;
+  --tf-soft: rgba(42, 38, 34, 0.66);
+  --tf-line: rgba(42, 38, 34, 0.22);
+  --tf-ai: #2f4a7a;
+  --tf-shu: #a0442e;
+  --tf-ui: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --tf-title: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  box-sizing: border-box; width: min(560px, 100%); margin: 0 auto; padding: 20px 20px 12px;
+  color: var(--tf-ink); font-family: var(--tf-ui); text-align: left; -webkit-font-smoothing: antialiased;
+  background: var(--tf-paper); border: 1px solid var(--tf-line); border-radius: 16px; box-shadow: 0 10px 34px rgba(60, 50, 40, 0.1);
+}
+.tf-card * { box-sizing: border-box; }
+/* 句ごとに折り返す（phrases）。箇条の点が、折り返した句の最後の行に付かないよう、箇条の句は行の上にそろえる */
+.tf-card .ph { display: inline-block; }
+.tf-card li .ph { vertical-align: top; }
+.tf-card h1 { margin: 0; font-family: var(--tf-title); font-weight: 600; font-size: 21px; letter-spacing: 0.12em; line-height: 1.5; outline: none; }
+.tf-card h1 .kari { margin-left: 2px; font-size: 13px; font-weight: 400; letter-spacing: 0.04em; color: var(--tf-soft); }
+.tf-lead { margin: 8px 0 0; font-size: 14.5px; line-height: 1.8; }
+.tf-notes { margin: 8px 0 0; padding: 0 0 0 1.3em; font-size: 13px; line-height: 1.7; color: var(--tf-soft); }
+.tf-notes li + li { margin-top: 2px; }
+
+/* 作る・読み込む */
+.tf-part { margin: 18px 0 0; padding: 16px 0 0; border-top: 1px solid var(--tf-line); }
+.tf-part h2 { margin: 0; font-family: var(--tf-title); font-weight: 600; font-size: 17px; letter-spacing: 0.1em; line-height: 1.5; }
+.tf-part h2 small { margin-left: 10px; font-family: var(--tf-ui); font-weight: 400; font-size: 12px; letter-spacing: 0.04em; color: var(--tf-soft); }
+.tf-soft { margin: 6px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--tf-soft); }
+.tf-label { display: block; margin: 10px 0 6px; font-size: 13px; line-height: 1.6; }
+/* コードの欄（長い1語なので、どこでも折り返す） */
+.tf-code { display: block; width: 100%; min-height: 96px; margin: 0; padding: 10px 12px; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all; overflow-wrap: anywhere; color: var(--tf-ink); background: #fff; border: 1px solid rgba(42, 38, 34, 0.32); border-radius: 10px; resize: vertical; }
+.tf-code[readonly] { background: #fcfaf5; }
+.tf-code::placeholder { color: rgba(42, 38, 34, 0.42); }
+.tf-what { margin-top: 6px; }
+.tf-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tf-btn { min-width: 44px; min-height: 44px; padding: 0 18px; font: inherit; font-size: 14.5px; letter-spacing: 0.06em; color: var(--tf-ink);
+  background: #fff; border: 1px solid rgba(42, 38, 34, 0.36); border-radius: 12px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.tf-btn:hover { background: #f5f1e7; }
+.tf-btn.main { color: #faf7f0; background: var(--tf-ai); border-color: var(--tf-ai); font-family: var(--tf-title); letter-spacing: 0.1em; }
+.tf-btn.main:hover { background: #263e68; }
+.tf-btn[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+
+/* 知らせ（成否は文の頭の太字で言う。枠の左の線は添えるだけ） */
+.tf-msg { margin: 10px 0 0; padding: 9px 12px; font-size: 13.5px; line-height: 1.75; background: #fff; border: 1px solid var(--tf-line); border-radius: 10px; }
+.tf-msg:empty { display: none; }
+.tf-msg.ok { border-left: 4px solid var(--tf-ai); }
+.tf-msg.err { border-left: 4px solid var(--tf-shu); }
+.tf-msg p { margin: 0; }
+.tf-msg p + p, .tf-msg ul + p { margin-top: 4px; }
+.tf-msg b { font-weight: 600; margin-right: 6px; }
+.tf-lands { margin: 4px 0 0; padding: 0 0 0 1.3em; }
+.tf-lands b { margin-right: 10px; }
+.tf-tabs { color: var(--tf-soft); font-size: 12.5px; }
+/* 人に渡さない（注意。色だけに頼らず、文で言う） */
+.tf-warn { margin: 12px 0 0; padding: 8px 12px; font-size: 13px; line-height: 1.7; background: rgba(201, 168, 90, 0.16); border-radius: 10px; }
+.tf-keep { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--tf-line); }
+
+.tf-back { display: flex; align-items: center; justify-content: center; width: max-content; margin: 8px auto 0; min-height: 44px; padding: 0 14px;
+  font: inherit; font-size: 13.5px; color: var(--tf-soft); background: none; border: 0; border-radius: 10px; text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; touch-action: manipulation; }
+/* 札の頭の「もどる」（左に小さく） */
+.tf-top { margin: -10px 0 2px -12px; padding: 0 12px; }
+.tf-card :focus-visible { outline: 2px solid var(--tf-ai); outline-offset: 3px; }
+.tf-card h1:focus-visible { outline: none; }
+
+@media (min-width: 640px) {
+  .tf-card { padding: 26px 30px 14px; }
+  .tf-card h1 { font-size: 24px; }
+}

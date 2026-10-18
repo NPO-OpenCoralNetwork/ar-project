@@ -61,6 +61,11 @@ a { color: inherit; }
 .en-cont b { font-family: var(--title-font); font-weight: 600; letter-spacing: 0.1em; margin-right: 10px; }
 .en-cont small { display: block; font-size: 11.5px; color: var(--ink-soft); }
 
+/* 引き継ぎの入り口（旅の下に小さく。札は ui/transfer-sheet.css） */
+.en-hiki { margin: 16px 0 0; }
+/* 引き継ぎの札を開いているとき（入口の地に、札を置くだけ） */
+.en-sheet { padding-bottom: calc(40px + var(--sab)); }
+
 /* チームのテスト用（控えめに） */
 .en-test { margin: 30px 0 0; padding: 14px 14px 12px; border: 1px dashed rgba(42, 38, 34, 0.28); border-radius: 12px; background: rgba(255, 255, 255, 0.35); }
 .en-test h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink-soft); }
