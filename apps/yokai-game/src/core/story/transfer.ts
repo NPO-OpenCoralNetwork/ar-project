@@ -75,6 +75,15 @@ export async function readTransferCode(code: string): Promise<Envelope> {
     throw new Error('コードの一部が欠けているようです。もう一度、全部を写してください')
   }
   if (env?.format !== 'yumeutsutsu-save' || env.v !== 1 || !env.saves || typeof env.saves !== 'object') throw new Error('この引き継ぎコードの形は読めません')
+  // 中の保存が、このページで読める版か（新しい版のゲームで作ったコードは、読み込む前に断る。端末には何も書かない）
+  for (const key of TRANSFER_KEYS) {
+    if (!env.saves[key]) continue
+    try {
+      sanitize(env.saves[key])
+    } catch {
+      throw new Error('新しい版のゲームで作ったコードのようです。このページを読み込み直してから、もう一度試してください')
+    }
+  }
   return env
 }
 
@@ -82,19 +91,25 @@ export async function readTransferCode(code: string): Promise<Envelope> {
 export async function importTransferCode(code: string, storage: KeyValueStore): Promise<ImportResult> {
   const env = await readTransferCode(code)
   const merged: string[] = []
+  // 先に全部を合わせてから書く（途中で止まって、片方の土地だけ書くことのないように）
+  const writes: [string, string][] = []
   for (const key of TRANSFER_KEYS) {
     const incoming = env.saves[key]
     if (!incoming) continue
     const theirs = sanitize(incoming)
+    let raw: string | null = null
     let mine: Progress | null = null
     try {
-      const raw = storage.getItem(key)
+      raw = storage.getItem(key)
       mine = raw ? sanitize(JSON.parse(raw)) : null
     } catch {
+      // 読めない保存（壊れた JSON・知らない版）は、上書きする前に別の鍵へ写しておく（ProgressStore と同じ）
+      if (raw) writes.push([`${key}.broken`, raw])
       mine = null
     }
-    storage.setItem(key, JSON.stringify(mine ? mergeProgress(mine, theirs) : theirs))
+    writes.push([key, JSON.stringify(mine ? mergeProgress(mine, theirs) : theirs)])
     merged.push(key)
   }
+  for (const [key, value] of writes) storage.setItem(key, value)
   return { merged, exportedAt: typeof env.exportedAt === 'string' ? env.exportedAt : '' }
 }

@@ -70,3 +70,7 @@
   .tf-card { padding: 26px 30px 14px; }
   .tf-card h1 { font-size: 24px; }
 }
+/* 指で触る端末では、コードの欄の字を 16px に（iPhone の Safari は、16px より小さい字の欄に触れると、画面を拡大したままにする） */
+@media (pointer: coarse) {
+  .tf-code { font-size: 16px; }
+}

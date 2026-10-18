@@ -227,7 +227,8 @@ export function showTransfer(flow: TransferFlow): void {
   })
   q<HTMLButtonElement>('[data-act="save"]').addEventListener('click', () => {
     const name = saveFile(codeBox.value, madeAt)
-    say(outMsg, `<p><b>ファイルに書き出しました。</b>${phrases(`「${name}」です。別の端末の「ファイルから」で読み込めます。`)}</p>`, 'ok')
+    // ファイル名は長いので、ひとつの句にして「です。」を次の行へ送る（名前の途中で「で／す」と分かれないように）
+    say(outMsg, `<p><b>ファイルに書き出しました。</b>${phrases(`「${name}」`)}${phrases('です。別の端末の「ファイルから」で読み込めます。')}</p>`, 'ok')
   })
 
   // ------------------------------------------------ コードを読み込む
