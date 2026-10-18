@@ -6,11 +6,17 @@
 //   OSM API には範囲（緯度経度の四角）だけが伝わる。
 // - お休みの範囲: 社寺の面（amenity=place_of_worship・landuse=religious）、墓地（landuse=cemetery・amenity=grave_yard）。
 //   社寺が点だけのときは半径 50m の円、小さな祠（historic=wayside_shrine）は半径 10m の円で囲む（scripts/fetch-osm.mjs の簡易版）。
-// - 地点: 公道（歩道のある道を優先）の上で、お休みの範囲から 60m 以上、線路から 15m 以上、いまいる所から 60〜350m、
+// - 水の面: natural=water・water=*・waterway=riverbank・landuse=reservoir|basin。
+// - 面は、閉じた道のほか multipolygon の relation も読む（大きな川・広い境内は relation のことが多い）。
+//   外の輪（outer）の道をつないで輪にする（scripts/fetch-osm.mjs と同じやり方）。読んだ範囲の外で切れて輪が閉じないときは、
+//   その道を縁の線として使う（水の縁・お休みの範囲から離す距離をはかる。地図に描くのは閉じた輪だけ）。
+//   中州（inner）は、地図では塗らずに抜く。地点選びでは、中州の上も川の内に数える。
+// - 地点: 公道（歩道のある道を優先）の上で、水の上（水の面の中と縁から 3m・閉じない縁の線や川・用水の線の上）でなく、
+//   お休みの範囲から 60m 以上、線路から 15m 以上、いまいる所から 60〜350m、
 //   地点どうし 120m 以上離れた所を機械的に選ぶ（4か所まで）。1つ目（光蔵坊）は、いまいる所からいちばん近い候補にする。
 //   ガメとカーラボーズは、とりもつ（悩み #1）で行き来するので、2体そろって置けるとき（3か所以上）だけ置く。
 // - 調べる地点: 妖怪の地点のあとに、同じ決まりで2つ。ほかのどの地点からも 90m 以上。水の縁から 20m 以内の道は、ほかが無いときだけ使う。
-// - 水辺の道の地点: 同じ決まりの公道のうち、川・用水・小川の縁（線は幅の半分を引く）か水の面の縁から 20m 以内を、
+// - 水辺の道の地点: 同じ決まりの公道のうち、川・用水・小川の縁（線は幅の半分を引く）か水の面の縁（閉じない縁の線も）から 20m 以内を、
 //   水に沿って通っている所（前後 12m も同じくらいの近さ。橋・暗渠の上・河原（水路の幅の内）・水を横切る所は外す）。ほかのどの地点からも 90m 以上、2つまで。
 //   側溝（ditch・drain）は水辺に数えない。水辺の道が無ければ置かない（地点は道の上。水には近づけない）。
 // - どの地点も「住宅の前でないか」「2分立ち止まっても邪魔にならないか」は分からないので、歩いてみて合わなければ作り直す。
@@ -38,8 +44,18 @@ export interface TestLand {
   map: MapLayers
   restZones: XZ[][]
   spots: TestSpot[]
-  /** 作ったときの数（確認用）。waterSide は水辺の道の候補 */
-  stats: { nodes: number; ways: number; roads: number; buildings: number; restZones: number; candidates: number; waterSide: number }
+  /** 作ったときの数（確認用）。multipolygons は読んだ水の面・お休みの範囲の relation（輪が閉じなかったものも）、waterSide は水辺の道の候補。multipolygons・waterAreas は前に作った土地には無い */
+  stats: {
+    nodes: number
+    ways: number
+    multipolygons?: number
+    roads: number
+    buildings: number
+    waterAreas?: number
+    restZones: number
+    candidates: number
+    waterSide: number
+  }
 }
 
 const KEY = 'yume.testland.v1'
@@ -67,6 +83,8 @@ const OTHER_GAP_M = 90
 const WATER_NEAR_M = 20
 /** 水辺に数える水路（側溝は数えない） */
 const WATER_SIDE_KINDS = new Set(['river', 'canal', 'stream'])
+/** 水の上に数える近さ（m）。水の面の縁・閉じなかった縁の線からこの距離までと、水路の線（中心）からこの距離（か幅の半分）まで。地図の線のずれの分 */
+const WATER_MARGIN_M = 3
 
 export function loadTestLand(): TestLand | null {
   try {
@@ -110,14 +128,88 @@ interface OsmNode {
   tags: Record<string, string>
 }
 interface OsmWay {
+  id: string
   nodes: string[]
   tags: Record<string, string>
 }
+/** multipolygon の relation（メンバーは道だけ持つ。role は outer・inner・空） */
+interface OsmMultipolygon {
+  kind: AreaKind
+  members: { ref: string; role: string }[]
+}
+type AreaKind = 'rest' | 'water'
 
 function tagsOf(e: Element): Record<string, string> {
   const t: Record<string, string> = {}
   for (const c of Array.from(e.getElementsByTagName('tag'))) t[c.getAttribute('k')!] = c.getAttribute('v')!
   return t
+}
+
+/** 面の種類。お休みの範囲（境内・墓地）か、水の面か（閉じた道と multipolygon で同じ決まり。お休みを先に見る） */
+function areaKind(t: Record<string, string>): AreaKind | null {
+  if (t.amenity === 'place_of_worship' || t.landuse === 'religious' || t.landuse === 'cemetery' || t.amenity === 'grave_yard') return 'rest'
+  if (t.natural === 'water' || t.water || t.waterway === 'riverbank' || t.landuse === 'reservoir' || t.landuse === 'basin') return 'water'
+  return null
+}
+
+/**
+ * multipolygon のメンバーの道（ノードの列）をつないで輪にする（scripts/fetch-osm.mjs の assembleRings と同じやり方）。
+ * 読んだ範囲の外のメンバーは届かないので、輪が閉じないこともある。閉じない線は open で返す（縁の線として使う）
+ */
+function joinRings(segs: readonly (readonly string[])[]): { rings: string[][]; open: string[][] } {
+  const isRing = (s: readonly string[]) => s.length >= 4 && s[0] === s[s.length - 1]
+  const rings = segs.filter(isRing).map((s) => [...s])
+  const left = segs.filter((s) => !isRing(s) && s.length >= 2).map((s) => [...s])
+  const open: string[][] = []
+  while (left.length) {
+    let ring = left.shift()!
+    for (let guard = 0; ring[0] !== ring[ring.length - 1] && guard < 10000; guard++) {
+      const end = ring[ring.length - 1]
+      const i = left.findIndex((s) => s[0] === end || s[s.length - 1] === end)
+      if (i < 0) break
+      const s = left.splice(i, 1)[0]
+      if (s[0] !== end) s.reverse()
+      ring = ring.concat(s.slice(1))
+    }
+    ;(isRing(ring) ? rings : open).push(ring)
+  }
+  return { rings, open }
+}
+
+/** 輪の向き（面積の符号。1 か -1。つぶれた輪は 0） */
+function ringSign(r: readonly XZ[]): number {
+  let s = 0
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) s += (r[j][0] - r[i][0]) * (r[j][1] + r[i][1])
+  return Math.sign(s)
+}
+
+/** 輪の向きをそろえる（白描の地図は水の面をまとめて nonzero で塗るので、向きの逆な面が重なると、そこが抜けてしまう） */
+function facing(r: XZ[], sign: 1 | -1): XZ[] {
+  return ringSign(r) === -sign ? [...r].reverse() : r
+}
+
+/**
+ * 中州（inner）のある水の面を、穴の抜けた1本の輪にする（地図の層は輪を1本ずつしか持たないので）。
+ * 外の輪のいちばん近い頂点から中州へ切れ目を入れ、中州を逆向きに回って戻る。
+ * 切れ目は行きと帰りが重なるので、塗りにも「面の中か」にも効かない（白描の地図では、細い線が1本見える）。
+ */
+function withHoles(outer: XZ[], holes: XZ[][]): XZ[] {
+  if (!holes.length) return facing(outer, 1)
+  const unclosed = (r: XZ[]) => (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1] ? r.slice(0, -1) : r)
+  let ring = unclosed(facing(outer, 1))
+  for (const hole of holes) {
+    const h = unclosed(facing(hole, -1))
+    let best = Infinity
+    let bi = 0
+    let bj = 0
+    for (let i = 0; i < ring.length; i++)
+      for (let j = 0; j < h.length; j++) {
+        const d = (ring[i][0] - h[j][0]) ** 2 + (ring[i][1] - h[j][1]) ** 2
+        if (d < best) [best, bi, bj] = [d, i, j]
+      }
+    ring = [...ring.slice(0, bi + 1), ...h.slice(bj), ...h.slice(0, bj + 1), ...ring.slice(bi)]
+  }
+  return ring
 }
 
 function circle(cx: number, cz: number, r: number, n = 16): XZ[] {
@@ -174,13 +266,28 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     nodes.set(n.getAttribute('id')!, { lat: Number(n.getAttribute('lat')), lon: Number(n.getAttribute('lon')), tags: tagsOf(n) })
   const ways: OsmWay[] = []
   for (const w of Array.from(xml.getElementsByTagName('way')))
-    ways.push({ nodes: Array.from(w.getElementsByTagName('nd')).map((nd) => nd.getAttribute('ref')!), tags: tagsOf(w) })
+    ways.push({ id: w.getAttribute('id')!, nodes: Array.from(w.getElementsByTagName('nd')).map((nd) => nd.getAttribute('ref')!), tags: tagsOf(w) })
+  const wayById = new Map(ways.map((w) => [w.id, w]))
+  // multipolygon（お休みの範囲か水の面のものだけ）。メンバーの道は、読んだ範囲に掛かるものだけ届く
+  const multipolygons: OsmMultipolygon[] = []
+  for (const r of Array.from(xml.getElementsByTagName('relation'))) {
+    const t = tagsOf(r)
+    const kind = t.type === 'multipolygon' ? areaKind(t) : null
+    if (!kind) continue
+    const members = Array.from(r.getElementsByTagName('member'))
+      .filter((m) => m.getAttribute('type') === 'way')
+      .map((m) => ({ ref: m.getAttribute('ref')!, role: m.getAttribute('role') ?? '' }))
+    multipolygons.push({ kind, members })
+  }
+  /** multipolygon の外の輪の道（その道に同じ種類のタグがあっても、面は relation のほうで作る。同じ面を二度入れない） */
+  const outerOf = new Map<string, AreaKind>()
+  for (const r of multipolygons) for (const m of r.members) if (m.role === 'outer' || m.role === '') outerOf.set(m.ref, r.kind)
 
   const local = (n: OsmNode): XZ => {
     const p = toLocal(n, origin)
     return [Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10]
   }
-  const pts = (w: OsmWay): XZ[] => w.nodes.map((id) => nodes.get(id)).filter((n): n is OsmNode => !!n).map(local)
+  const pts = (ids: readonly string[]): XZ[] => ids.map((id) => nodes.get(id)).filter((n): n is OsmNode => !!n).map(local)
   const closed = (w: OsmWay) => w.nodes.length > 3 && w.nodes[0] === w.nodes[w.nodes.length - 1]
 
   const map: MapLayers = {
@@ -194,14 +301,19 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     stations: [],
   }
   const restZones: XZ[][] = []
+  /** お休みの範囲の、輪が閉じなかった縁の線（地点を 60m 離すのに使う。地図には描かない） */
+  const restEdges: XZ[][] = []
   const publicRoads: { kind: string; points: XZ[]; sidewalk: boolean }[] = []
   const parks: XZ[][] = []
   /** 水辺に数える水路（地図の層は種類を持たないので、ここで分けて持つ） */
   const sideWaters: { widthM: number; points: XZ[] }[] = []
+  /** 地点選びに使う水の面（外の輪だけ。中州も川の内）と、輪が閉じなかった水の面の縁の線 */
+  const waterPolys: XZ[][] = []
+  const waterEdges: XZ[][] = []
 
   for (const w of ways) {
     const t = w.tags
-    const p = pts(w)
+    const p = pts(w.nodes)
     if (p.length < 2) continue
     if (t.highway && !['proposed', 'construction', 'platform', 'corridor', 'elevator'].includes(t.highway)) {
       if (t.tunnel && t.tunnel !== 'no') continue
@@ -225,7 +337,9 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
       continue
     }
     if (!closed(w)) continue
-    if (t.amenity === 'place_of_worship' || t.landuse === 'religious' || t.landuse === 'cemetery' || t.amenity === 'grave_yard') {
+    const kind = areaKind(t)
+    if (kind && outerOf.get(w.id) === kind) continue
+    if (kind === 'rest') {
       restZones.push(p)
       continue
     }
@@ -233,8 +347,9 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
       map.buildings.push(p)
       continue
     }
-    if (t.natural === 'water' || t.water || t.waterway === 'riverbank' || t.landuse === 'reservoir' || t.landuse === 'basin') {
-      map.waterAreas.push(p)
+    if (kind === 'water') {
+      waterPolys.push(p)
+      map.waterAreas.push(facing(p, 1))
       continue
     }
     if (t.leisure === 'park' || t.leisure === 'garden' || t.leisure === 'playground') {
@@ -248,6 +363,30 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     }
     if (t.landuse === 'grass' || t.landuse === 'meadow' || t.landuse === 'recreation_ground') map.greens.push({ kind: 'grass', polygon: p })
   }
+  // multipolygon の面（外の輪をつなぐ。閉じない所は縁の線にする）
+  for (const r of multipolygons) {
+    const join = (inner: boolean) =>
+      joinRings(
+        r.members
+          .filter((m) => (inner ? m.role === 'inner' : m.role === 'outer' || m.role === ''))
+          .map((m) => wayById.get(m.ref)?.nodes)
+          .filter((s): s is string[] => !!s),
+      )
+    const outer = join(false)
+    const rings = outer.rings.map(pts).filter((p) => p.length >= 4)
+    const edges = outer.open.map(pts).filter((p) => p.length >= 2)
+    if (r.kind === 'rest') {
+      restZones.push(...rings)
+      restEdges.push(...edges)
+      continue
+    }
+    const holes = join(true).rings.map(pts).filter((p) => p.length >= 4)
+    for (const o of rings) {
+      waterPolys.push(o)
+      map.waterAreas.push(withHoles(o, holes.filter((h) => pointInPoly(h[0], o))))
+    }
+    waterEdges.push(...edges)
+  }
   // 社寺が点だけのとき・小さな祠
   for (const n of nodes.values()) {
     const t = n.tags
@@ -258,11 +397,20 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     restZones.push(circle(c[0], c[1], t.amenity === 'place_of_worship' ? 50 : 10))
   }
 
-  // 水の縁までの距離（線は幅の半分を引く。面の中は 0）と、水の上か（面の中か、水路の線から幅の半分（3m 以上）以内。河原の道も外す）
+  // 水の縁までの距離（水路の線は幅の半分を引く。面の中は 0。閉じなかった面の縁の線は、その線まで）と、
+  // 水の上か（面の中（中州も）とその縁から WATER_MARGIN_M 以内、水路の線から幅の半分（WATER_MARGIN_M 以上）以内、
+  // 閉じなかった縁の線から WATER_MARGIN_M 以内。河原の道も外す）
   const waterEdge = (q: XZ): number =>
-    Math.min(Infinity, ...sideWaters.map((l) => Math.max(0, distPolyline(q, l.points) - l.widthM / 2)), ...map.waterAreas.map((a) => distPolygon(q, a)))
+    Math.min(
+      Infinity,
+      ...sideWaters.map((l) => Math.max(0, distPolyline(q, l.points) - l.widthM / 2)),
+      ...waterPolys.map((a) => distPolygon(q, a)),
+      ...waterEdges.map((l) => distPolyline(q, l)),
+    )
   const onWater = (q: XZ): boolean =>
-    map.waterAreas.some((a) => pointInPoly(q, a)) || sideWaters.some((l) => distPolyline(q, l.points) < Math.max(3, l.widthM / 2))
+    waterPolys.some((a) => distPolygon(q, a) < WATER_MARGIN_M) ||
+    sideWaters.some((l) => distPolyline(q, l.points) < Math.max(WATER_MARGIN_M, l.widthM / 2)) ||
+    waterEdges.some((l) => distPolyline(q, l) < WATER_MARGIN_M)
   /** 水に沿って通る道か（その点と前後 12m が、水の縁から同じくらいの近さ。水を横切る道は、前後で近さが変わる）。e はその点の waterEdge */
   const alongWater = (p: XZ, a: XZ, b: XZ, e: number): boolean => {
     if (e > WATER_NEAR_M || onWater(p)) return false
@@ -287,7 +435,9 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
         const p: XZ = [a[0] + k * (b[0] - a[0]), a[1] + k * (b[1] - a[1])]
         const dStart = Math.hypot(p[0], p[1])
         if (dStart < 60 || dStart > 350) continue
-        if (restZones.some((z) => distPolygon(p, z) < 60)) continue
+        if (restZones.some((z) => distPolygon(p, z) < 60) || restEdges.some((l) => distPolyline(p, l) < 60)) continue
+        // 水の上（河原・川の面の中の道、水路の上）には、どの地点も置かない
+        if (onWater(p)) continue
         if (map.rails.some((l) => distPolyline(p, l.points) < 15)) continue
         const inPark = parks.some((pk) => distPolygon(p, pk) < 8)
         const rank = { primary: 3, secondary: 3, tertiary: 3, unclassified: 2, pedestrian: 3, residential: 1, living_street: 1 }[r.kind] ?? 0
@@ -339,8 +489,10 @@ export async function buildTestLand(origin: LatLon, onStep: (s: string) => void)
     stats: {
       nodes: nodes.size,
       ways: ways.length,
+      multipolygons: multipolygons.length,
       roads: map.roads.length,
       buildings: map.buildings.length,
+      waterAreas: map.waterAreas.length,
       restZones: restZones.length,
       candidates: samples.length,
       waterSide: waterSide.length,
