@@ -6,8 +6,9 @@
 // - つづき: 進み具合（STORY_KEY。二つの旅で共通）に会った妖怪や開いた札があれば、数を小さく添える。
 // - 引き継ぎ（試作。02 F-51）: 旅の下に小さな入り口だけを置き、#hikitsugi で札（ui/transfer-sheet.ts）を開く。
 //   入口の地のまま中身を入れ替える（覆いにしない）。ブラウザの「戻る」でも入口へ戻れる。テスト用の土地の場所は運ばない。
-// - 端末の保存を長く残すよう、一度だけ静かに頼む（persistOnce。進み具合があるときだけ）。開いただけでは頼まず、旅を選んだとき
-//   （Firefox は許可を尋ねる画面を出すので、押したあとに）。引き継ぎの札で読み込めたときも頼む。
+// - 端末の保存を長く残すよう、一度だけ静かに頼む（ui/persist.ts。進み具合があるときだけ）。開いただけでは頼まない（Firefox は
+//   許可を尋ねる画面を出すので、押したあとに）。旅のボタンは押すとすぐ旅のページへ移り、尋ねる画面が消えるので、ここで頼むのは
+//   約束の札を出したとき（ページはそのまま）と、引き継ぎの札で読み込めたときだけ。ふだんは旅のページで、遊びはじめてから頼む。
 // - チームのテスト用: 白描の絵地図（ezu.html）と、この端末にテスト用の土地があるか（日付だけ。位置は出さない）。
 //   ?debug のときだけ GPS の検証へも。
 // - three.js も箱庭の板（yume/hud.ts）も読み込まない（最初の読み込みを軽くする。ページはふつうにスクロール・拡大できる）。
@@ -17,7 +18,8 @@ import './style.css'
 import { STORY_KEY } from '../core/storage-keys'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import { phrases, promisesRead, withPromises } from '../ui/promise-sheet'
-import { persistOnce, showTransfer } from '../ui/transfer-sheet'
+import { persistOnce } from '../ui/persist'
+import { showTransfer } from '../ui/transfer-sheet'
 import { mashiroSvg } from '../utsutsu/mashiro'
 import { loadTestLand, testLandIsOld } from '../utsutsu/test-land'
 import { stampDate } from '../yume/encounter/stamp'
@@ -134,11 +136,11 @@ function showHome(): void {
     </main>`
   app.querySelectorAll<HTMLAnchorElement>('[data-journey]').forEach((a) => {
     // 約束を読んでいれば、そのまま旅へ。まだなら、新しいタブで開こうとしたとき（Ctrl・⌘・中ボタン）も先に約束を見せる。
-    // 旅を選んだところで、保存を長く残すよう一度だけ頼む（persistOnce）
+    // 保存を長く残す頼み（persistOnce）は、約束の札を出してページに残るときだけ（旅へ移るときに頼むと、届かないまま印だけ残る）
     const guard = (e: MouseEvent) => {
-      persistOnce()
       if (promisesRead()) return
       e.preventDefault()
+      persistOnce()
       const j = JOURNEYS.find((x) => x.id === a.dataset.journey)!
       showPromises(j)
     }

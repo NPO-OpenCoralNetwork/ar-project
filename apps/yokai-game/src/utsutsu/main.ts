@@ -33,6 +33,7 @@ import { iwakurajiPack } from '../data/iwakuraji-pack'
 import { loadStoryPack } from '../data/story-pack'
 import { type Cho, createCho } from '../ui/cho'
 import { focusSheet } from '../ui/focus'
+import { persistOnTap } from '../ui/persist'
 import { withPromises } from '../ui/promise-sheet'
 import { Sound } from '../yume/encounter/sound'
 import { stampDate, stampSvg } from '../yume/encounter/stamp'
@@ -319,6 +320,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   const progress = new ProgressStore(browserStorage(), key)
   // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
   progress.follow()
+  // 歩きはじめてから押したときに、保存を長く残すよう一度だけ頼む（「位置を使って はじめる」の押しは数えず、位置の許可を尋ねる画面と重ねない）
+  persistOnTap()
   const engine = new UtsutsuEngine(land.spots, land.rest.map((polygon, i) => ({ id: `rest-${i}`, polygon })), land.origin)
   log(`start ${land.id} ${kind} key=${key}`)
 

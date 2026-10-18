@@ -13,6 +13,7 @@
 //   （flagAt・updatedAt。引き継ぎで2台の保存を合わせるため）を足した。版1の保存は読み込むときに版2へ直す（捨てない）。
 //   夢の旅で初めて会った時（dreamMet。縁帳の「夢で会った」）は、あとから足した。無い保存は、夢で得た印から作る。
 // - 保存の名前は storage-keys.ts。前の名前の保存は、いまの名前に保存が無いときだけ写す（migrateLegacySave。4a review F1）。
+//   一度写したか、この版でやり直したら、印を残して、もう写さない（やり直しても、保存は消す。4a review R1）。
 // - ほかのタブが同じ保存を書いたら、このタブの状態をそれに入れ替える（follow。開いたままのタブが、古い状態で書き戻さないように）。
 
 import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
@@ -162,10 +163,13 @@ export function sanitize(raw: unknown): Progress {
 
 /** いまの保存の名前 → 前の名前（storage-keys.ts。前の版のゲームが読み書きする） */
 const LEGACY_SAVE_KEYS: Record<string, string> = { [STORY_KEY]: LEGACY_STORY_KEY, [TEST_KEY]: LEGACY_TEST_KEY }
+/** 前の名前の保存を、もう扱った印（写した・この版でやり直した）。あれば、いまの名前に保存が無くても写さない */
+const legacyDoneKey = (key: string): string => `${key}.legacy-done`
 
 /**
  * 前の名前の保存を、いまの名前へ写す（4a review F1）。保存を読む前に、どのページでもこれを通す（ProgressStore・引き継ぎ・写し）。
- * - 写すのは、いまの名前に保存が無いときだけ（あとでこの版でやり直しても、前の版で遊んでも、混ぜ戻さない）。
+ * - 写すのは、いまの名前に保存が無く、まだ一度も写していない（この版でやり直してもいない）ときだけ。写したら印を残す
+ *   （legacyDoneKey。あとでこの版でやり直しても、前の版で遊んでも、混ぜ戻さない）。
  * - 写すのは読める保存（版1・版2）だけ。直した形（sanitize）で写す。読めない保存（知らない版・壊れた JSON）は写さない。
  * - 前の名前の保存は、消さず、書き換えもしない（前の版の保存で、控えにもなる）。
  */
@@ -173,12 +177,13 @@ export function migrateLegacySave(storage: KeyValueStore, key: string): void {
   const legacy = LEGACY_SAVE_KEYS[key]
   if (!legacy) return
   try {
-    if (storage.getItem(key) !== null) return
+    if (storage.getItem(key) !== null || storage.getItem(legacyDoneKey(key)) !== null) return
     const raw = storage.getItem(legacy)
     if (raw === null) return
     const old = JSON.parse(raw) as { v?: unknown } | null
     if (old?.v !== 1 && old?.v !== 2) return
     storage.setItem(key, JSON.stringify(sanitize(old)))
+    storage.setItem(legacyDoneKey(key), '1')
   } catch {
     // 読めない・写せないときは、そのまま（前の名前の保存にも触れない）
   }
@@ -414,20 +419,22 @@ export class ProgressStore {
   }
 
   /**
-   * 最初からやり直す（保存も空にする）。保存を消さずに、空の保存を書く
-   * （消すと、次に開いたときに前の名前の保存から写し直してしまう。migrateLegacySave）
+   * 最初からやり直す（保存も消す）。前の名前の保存がある鍵では、先に「もう写さない」印を残す
+   * （印が無いと、次に開いたときに前の名前の保存から写し直して、やり直しが戻ってしまう。migrateLegacySave。4a review R1）。
+   * 空の保存は書かない（保存があるかを見る所が、やり直した端末を「進み具合あり」と取り違えないように）
    */
   reset(): void {
     this.state = emptyProgress()
     if (this.storage) {
       try {
-        this.storage.setItem(this.key, JSON.stringify(this.state))
+        if (LEGACY_SAVE_KEYS[this.key]) this.storage.setItem(legacyDoneKey(this.key), '1')
       } catch {
-        try {
-          this.storage.removeItem(this.key)
-        } catch {
-          // 消せなくても、次の保存で上書きされる
-        }
+        // 印を書けなくても、保存は消す
+      }
+      try {
+        this.storage.removeItem(this.key)
+      } catch {
+        // 消せなくても、次の保存で上書きされる
       }
     }
     for (const fn of this.listeners) fn(this.state)

@@ -28,6 +28,7 @@ import type { DayPhase } from '../core/utsutsu/sun'
 import { loadStoryPack } from '../data/story-pack'
 import { createCho } from '../ui/cho'
 import { focusSheet } from '../ui/focus'
+import { persistOnTap } from '../ui/persist'
 import { withPromises } from '../ui/promise-sheet'
 import { GenEncounter } from '../utsutsu/encounter'
 import { type MapKehai, type MapPad, MapView } from '../utsutsu/map-view'
@@ -181,6 +182,8 @@ function startMap(t: TestLand): void {
   const progress = new ProgressStore(browserStorage(), TEST_KEY)
   // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
   progress.follow()
+  // 遊びはじめてから押したときに、保存を長く残すよう一度だけ頼む（入口の旅のボタンでは、ページを移るので頼まない）
+  persistOnTap()
   const prefs = loadPrefs()
   let time: Time = prefs.time
   const rest: LocalXZ[][] = t.restZones.map((z) => z.map(([x, zz]) => ({ x, z: zz })))

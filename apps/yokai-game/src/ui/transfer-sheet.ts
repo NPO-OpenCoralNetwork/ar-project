@@ -8,17 +8,16 @@
 // - テスト用の土地そのもの（家の近くの地図と地点）は、コードに入らない（transfer.ts の TRANSFER_SAVES）。そのことを札に書いておく。
 // - コードは人に渡さない（旅印や進み具合が、その人の端末にも写る。旅印は人に譲るものではない。02 §4.5）。
 // - 縁は数で見せない。読み込んだあとに出すのは、会った妖怪と開いた札の数だけ（入口の「つづき」と同じ）。
-// - 端末の保存を長く残すよう、一度だけ静かに頼む（persistOnce。結果は見せない）。頼むのは、入口で旅を選んだときか、
-//   ここで読み込めたとき（押したあと。開いただけでは頼まない。Firefox は許可を尋ねる画面を出すので）。
+// - 端末の保存を長く残すよう、ここで読み込めたときに一度だけ静かに頼む（ui/persist.ts の persistOnce。押したあとで、ページはそのまま）。
 //   iPhone の Safari は、7日ほど開かないでいると、そのサイトの保存を消すことがある。確かなのは引き継ぎコードなので、札に一行だけ書く。
 // three.js は読み込まない。
 
 import './transfer-sheet.css'
-import { PERSIST_KEY } from '../core/storage-keys'
-import { browserStorage, type KeyValueStore, migrateLegacySave, ProgressStore } from '../core/story/progress'
+import { browserStorage, type KeyValueStore, ProgressStore } from '../core/story/progress'
 import { exportTransferCode, importTransferCode, readTransferCode, TRANSFER_LANDS, TRANSFER_SAVES, type TransferLand } from '../core/story/transfer'
 import { loadTestLand } from '../utsutsu/test-land'
 import { focusSheet } from './focus'
+import { persistOnce } from './persist'
 
 /** 読み込むファイルの大きさの上限（コードは数 KB。取り違えた大きなファイルは読まない） */
 const FILE_MAX = 256 * 1024
@@ -319,28 +318,4 @@ export function showTransfer(flow: TransferFlow): void {
   })
 
   focusSheet(card)
-}
-
-/**
- * 進み具合があれば、端末の保存を長く残すよう、一度だけ頼む（navigator.storage.persist。静かに。結果は見せない）。
- * 押したあとにだけ呼ぶ（入口で旅を選んだとき・ここで読み込めたとき。Firefox は許可を尋ねる画面を出すので、わけの分かる時に）。
- * 許されても許されなくても、もう一度は頼まない。
- */
-export function persistOnce(): void {
-  const storage = browserStorage()
-  if (!storage || !navigator.storage?.persist) return
-  const has = (key: string): boolean => {
-    migrateLegacySave(storage, key)
-    return !!storage.getItem(key)
-  }
-  try {
-    if (storage.getItem(PERSIST_KEY) || !Object.values(TRANSFER_SAVES).some(has)) return
-    storage.setItem(PERSIST_KEY, '1')
-  } catch {
-    return
-  }
-  navigator.storage
-    .persisted()
-    .then((done) => (done ? true : navigator.storage.persist()))
-    .catch(() => false)
 }

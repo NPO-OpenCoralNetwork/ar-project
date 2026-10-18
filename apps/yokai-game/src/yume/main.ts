@@ -12,6 +12,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { STORY_KEY } from '../core/storage-keys'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import { loadStoryPack } from '../data/story-pack'
+import { persistOnTap } from '../ui/persist'
 import { withPromises } from '../ui/promise-sheet'
 import { bendDrop, fogShapeUniforms, inkRimUniforms } from './bend'
 import { CameraRig, cameraTune } from './camera'
@@ -233,6 +234,8 @@ function start(): void {
   const progress = new ProgressStore(browserStorage(), STORY_KEY)
   // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
   progress.follow()
+  // 遊びはじめてから押したときに、保存を長く残すよう一度だけ頼む（入口の旅のボタンでは、ページを移るので頼まない）
+  persistOnTap()
   encounters = new Encounters({
     field,
     hud,
