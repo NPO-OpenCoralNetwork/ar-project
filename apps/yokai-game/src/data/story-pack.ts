@@ -1,46 +1,63 @@
 // 物語のデータ（台本・伝承の札・曼荼羅の構図・妖怪）をまとめて読み込み、点検する。
 // ゲーム独自のデータなので、OSM 由来のデータ（ODbL）とは別のファイルに分けている（05 §5.1）。
 // 点検は、データ（F-70。コードを変えずに直す）の書き違いで地点や札が黙って消えないように、見つけた問題を problems に文で並べる。
+// 段階4b: 便り（tayori.json）・今日の絵解き（etoki.json）・くらがりと夜話の台本を足し、validateStory4b・validatePartners でも見る。
 
+import { validatePartners } from '../core/region-pack'
 import { validateAppearance } from '../core/story/appearance'
 import { validateEtokiKeys, validateScript } from '../core/story/dialogue'
-import type {
-  AppearanceTable,
-  ClueDef,
-  ClueFile,
-  Condition,
-  DialogueScript,
-  ItemDef,
-  ItemFile,
-  LoreCard,
-  LoreCardFile,
-  MandalaDef,
-  QuestDef,
-  QuestFile,
-  SectionDef,
-  SectionFile,
-  YokaiDef,
+import {
+  type AppearanceTable,
+  type ClueDef,
+  type ClueFile,
+  type Condition,
+  type DialogueScript,
+  type EtokiFile,
+  type ItemDef,
+  type ItemFile,
+  type LoreCard,
+  type LoreCardFile,
+  type MandalaDef,
+  type QuestDef,
+  type QuestFile,
+  type SectionDef,
+  type SectionFile,
+  type StoryData,
+  TIME_PIECES,
+  type TayoriFile,
+  type YokaiDef,
 } from '../core/story/types'
+import { validateStory4b } from '../core/story/validate'
 import { TEST_CLUES, TEST_PICKUPS } from '../utsutsu/test-land-clues'
 import appearanceJson from './appearance.json'
 import cluesJson from './clues.json'
+import etokiJson from './etoki.json'
 import { iwakurajiPack } from './iwakuraji-pack'
 import itemsJson from './items.json'
 import cardsJson from './lore-cards.json'
 import mandalaJson from './mandala.json'
 import questsJson from './quests.json'
+import etokiFirstScript from './scripts/etoki-first.json'
 import gameScript from './scripts/game.json'
 import gameYorimichiScript from './scripts/game-yorimichi.json'
 import karabozuScript from './scripts/karabozu.json'
 import kozoboScript from './scripts/kozobo.json'
 import kozoboShirabe1Script from './scripts/kozobo-shirabe-1.json'
 import kozoboShirabe2Script from './scripts/kozobo-shirabe-2.json'
+import kuragariScript from './scripts/kuragari.json'
 import minomoshiScript from './scripts/minomoshi.json'
 import shiroebiSpotScript from './scripts/shiroebi-spot.json'
+import yobanashiGameScript from './scripts/yobanashi-game.json'
+import yobanashiKarabozuScript from './scripts/yobanashi-karabozu.json'
+import yobanashiKozoboScript from './scripts/yobanashi-kozobo.json'
+import yobanashiKuragariScript from './scripts/yobanashi-kuragari.json'
+import yobanashiMinomoshiScript from './scripts/yobanashi-minomoshi.json'
 import sectionsJson from './sections.json'
+import tayoriJson from './tayori.json'
 import yokaiJson from './yokai.json'
 
-export interface StoryPack {
+/** 物語のデータ一式（core の仕組みが読む StoryData を満たす） */
+export interface StoryPack extends StoryData {
   yokai: Record<string, YokaiDef>
   scripts: Record<string, DialogueScript>
   cards: Record<string, LoreCard>
@@ -55,6 +72,10 @@ export interface StoryPack {
   items: Record<string, ItemDef>
   /** 悩みごと（帳に出す題と、同時に3つまでの判定） */
   quests: QuestDef[]
+  /** 便り（決まった便り・ましろの便りの部品・夜の気配の一行） */
+  tayori: TayoriFile
+  /** 今日の絵解き（ましろの振り返り・添え書き・一言） */
+  etoki: EtokiFile
   /** 点検で見つかった問題（空なら問題なし） */
   problems: string[]
 }
@@ -74,6 +95,13 @@ export function loadStoryPack(): StoryPack {
     karabozuScript,
     minomoshiScript,
     shiroebiSpotScript,
+    kuragariScript,
+    etokiFirstScript,
+    yobanashiKozoboScript,
+    yobanashiGameScript,
+    yobanashiKarabozuScript,
+    yobanashiMinomoshiScript,
+    yobanashiKuragariScript,
   ] as unknown as DialogueScript[]
   for (const s of scriptList) scripts[s.id] = s
   const yokai: Record<string, YokaiDef> = {}
@@ -82,11 +110,15 @@ export function loadStoryPack(): StoryPack {
   const items: Record<string, ItemDef> = {}
   for (const it of (itemsJson as unknown as ItemFile).items) items[it.id] = it
   const quests = (questsJson as unknown as QuestFile).quests
+  const tayori = tayoriJson as unknown as TayoriFile
+  const etoki = etokiJson as unknown as EtokiFile
 
   const pieceIds = new Set(mandala.tiers.flatMap((t) => t.pieces.map((p) => p.id)))
   const itemIds = new Set(Object.keys(items))
   const problems: string[] = []
-  for (const s of Object.values(scripts)) problems.push(...validateScript(s, cards, pieceIds, itemIds))
+  // 台本の id が2回あると、あとのほうが前のを黙って上書きする
+  if (Object.keys(scripts).length !== scriptList.length) problems.push('台本の id が重なっている')
+  for (const s of Object.values(scripts)) problems.push(...validateScript(s, cards, pieceIds, itemIds, { timePieces: TIME_PIECES }))
   for (const it of Object.values(items)) if (it.card && !cards[it.card]) problems.push(`持ち物 ${it.id} の札 ${it.card} がない`)
   for (const y of Object.values(yokai)) if (y.likes && !items[y.likes]) problems.push(`妖怪 ${y.id} の好物 ${y.likes} がない`)
   const seenQuest = new Set<string>()
@@ -133,5 +165,8 @@ export function loadStoryPack(): StoryPack {
   for (const id of [...TEST_CLUES, ...TEST_PICKUPS]) if (!clues[id]) problems.push(`テスト用の土地の調べる地点 ${id} がない`)
   const appearance = appearanceJson as unknown as AppearanceTable
   problems.push(...validateAppearance(appearance, new Set(Object.keys(yokai)), new Set(Object.keys(scripts))))
-  return { yokai, scripts, cards, mandala, sections, clues, appearance, items, quests, problems }
+  // 段階4b の点検（監修・了承待ち・6ピースと時間のピース・夜話・便り・今日の絵解き・書かない言葉）と、協力先の枠（02 F-72）
+  problems.push(...validateStory4b({ yokai, scripts, cards, quests, items, mandala, tayori, etoki, sections, clues, appearance }))
+  problems.push(...validatePartners(iwakurajiPack, itemIds))
+  return { yokai, scripts, cards, mandala, sections, clues, appearance, items, quests, tayori, etoki, problems }
 }

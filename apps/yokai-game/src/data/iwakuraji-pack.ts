@@ -104,6 +104,8 @@ export const iwakurajiPack: RegionPack = {
   spots,
   restZones,
   attributions: ['© OpenStreetMap contributors', '地理院タイル（標高）を加工して作成'],
+  // 協力先の枠（02 F-72）。MVP では項目だけで、合意した協力先はまだ無い（画面には出さない）
+  partners: [],
 }
 
 export default iwakurajiPack
