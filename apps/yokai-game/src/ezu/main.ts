@@ -387,9 +387,14 @@ function startMap(t: TestLand): void {
     },
   })
   // ほかのタブの保存に入れ替えたら（引き継ぎの読み込み・やり直し）、名所の出方と札の名前も見直す。
-  // 会話の間は見直さない（話している名所を消さない）。会話が終わると onEnd で見直す
+  // 会話の間は見直さない（話している名所を消さない）。会話が終わると onEnd で見直す。
+  // キーボードの位置があった名所が消えたら（調べる地点など）、見えている名所の先頭へ（<body> に落とさない。onEnd と同じ）
   progress.onReplace(() => {
-    if (!encounter.isOpen) refreshSpots()
+    if (encounter.isOpen) return
+    const had = document.activeElement
+    refreshSpots()
+    if (had instanceof HTMLElement && had.classList.contains('ez-spot') && had.hidden)
+      spotLayer.querySelector<HTMLButtonElement>('.ez-spot:not([hidden])')?.focus({ preventScroll: true })
   })
 
   /** 名所の役目で、台本と姿の出し方が変わる。会えないときは、気配だけの言葉 */

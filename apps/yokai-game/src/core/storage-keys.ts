@@ -22,7 +22,7 @@ export const PROMISE_KEY = 'yume.promises.v1'
 /** 端末の保存を長く残すよう頼んだか（一度だけ頼む。ui/persist.ts の persistOnce） */
 export const PERSIST_KEY = 'yume.persist.v1'
 
-/** 前の名前（前の版のゲームが読み書きする。この版は読むだけ） */
+/** 前の名前（前の版のゲームが読み書きする。この版は読むだけ。ただ ?cleartest では、LEGACY_TESTLAND_KEY にある版4 の土地を消す） */
 export const LEGACY_STORY_KEY = 'yume.story.v1'
 export const LEGACY_TEST_KEY = 'yume.story.test.v1'
 export const LEGACY_TESTLAND_KEY = 'yume.testland.v1'
