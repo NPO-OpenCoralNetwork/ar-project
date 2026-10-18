@@ -17,7 +17,7 @@
 //   表は耳を澄ますたびに引く。会話の途中で時間帯が変わっても、浮かんだ姿は消さない（main.ts は会話の間 T キーを止める）。
 
 import * as THREE from 'three'
-import { canListenAtHome, clueActive, HOME_NIGHT_KEHAI, resolveAppearance, timeSlotOfDiorama } from '../../core/story/appearance'
+import { canListenAtHome, clueActive, clueWords, HOME_NIGHT_KEHAI, resolveAppearance, timeSlotOfDiorama } from '../../core/story/appearance'
 import { type Beat, DialogueRunner } from '../../core/story/dialogue'
 import { ListenGauge } from '../../core/story/listen'
 import type { ProgressStore } from '../../core/story/progress'
@@ -264,7 +264,7 @@ export class Encounters {
         hud.toast('……気配が、ふっと遠のいた。止まると、また聞こえる')
       }
       const met = target?.yokaiId ? this.d.progress.hasMet(target.yokaiId) : false
-      const sub = target && !target.yokaiId ? '長押し・古い話の気配' : met ? '長押し・また会いに' : '長押し・その場で止まる'
+      const sub = target && !target.yokaiId ? `長押し・${clueWords(target.spot.clueId ? this.d.story.clues[target.spot.clueId] : undefined).kehai}` : met ? '長押し・また会いに' : '長押し・その場で止まる'
       this.listenBtn.show(!!target && !this.cho.isOpen, sub)
       this.listenBtn.setProgress(this.gauge.progress)
       // 夜はどの地点も、ほかは台本のない妖怪の地点と、いまは出ない寄り道の地点が、気配だけ（夜の言葉は白描の絵地図と同じ）

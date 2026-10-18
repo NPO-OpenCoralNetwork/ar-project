@@ -22,7 +22,7 @@ import { type LatLon, type LocalXZ, toLocal } from '../core/geo'
 import type { MapLayers } from '../core/map-layers'
 import type { Fix } from '../core/location/types'
 import { SIM_KEY, STORY_KEY, TEST_KEY } from '../core/storage-keys'
-import { clueActive, resolveAppearance, type SpotRole, spotRole } from '../core/story/appearance'
+import { clueActive, clueWords, resolveAppearance, type SpotRole, spotRole } from '../core/story/appearance'
 import { checkConditions } from '../core/story/dialogue'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import type { SectionDef, TimeSlot } from '../core/story/types'
@@ -404,7 +404,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
         // 寄り道（水辺の道）の地点では、水のほうへ誘わない（道の上で立ち止まる）。調べる地点は集落の中なので、声をひそめて（04 §3.1 F-05）
         toast(
           sp?.role === 'clue'
-            ? `古い話の気配${far}。近くで立ち止まってみよう。家のそばでは、声をひそめて。`
+            ? `${clueWords(sp.clueId ? story.clues[sp.clueId] : undefined).kehai}${far}。近くで立ち止まってみよう。家のそばでは、声をひそめて。`
             : sp?.role === 'wander'
               ? `この地点${far}。道の上で、立ち止まってみよう。`
               : `この地点${far}。近くまで行って、立ち止まってみよう。`,
@@ -446,7 +446,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
         .filter((s) => !s.hidden)
         .map((s) => {
           const met = s.yokaiId ? progress.get().yokai[s.yokaiId]?.met : undefined
-          const label = s.role === 'clue' ? '古い話' : met && s.yokaiId ? (story.yokai[s.yokaiId]?.name ?? '？') : '？'
+          const label = s.role === 'clue' ? clueWords(s.clueId ? story.clues[s.clueId] : undefined).label : met && s.yokaiId ? (story.yokai[s.yokaiId]?.name ?? '？') : '？'
           return { id: s.id, x: s.x, z: s.z, label, onsite: !!met?.onsite }
         }),
     )
@@ -629,8 +629,9 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     }
 
     // 状態の帯
-    const nearRole = v.near ? land.spots.find((s) => s.id === v.near?.spotId)?.role : undefined
-    const [world, plain] = bandText(v, stationMin(), geoProblem, nearRole === 'clue')
+    const nearSpot = v.near ? land.spots.find((s) => s.id === v.near?.spotId) : undefined
+    const nearClue = nearSpot?.role === 'clue' ? clueWords(nearSpot.clueId ? story.clues[nearSpot.clueId] : undefined).kehai : null
+    const [world, plain] = bandText(v, stationMin(), geoProblem, nearClue)
     const html = `<b>${escapeHtml(world)}</b><span>${escapeHtml(plain)}</span>`
     if (html !== lastBand) {
       band.innerHTML = html
@@ -677,8 +678,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   })
 }
 
-/** 状態の帯の言葉（世界の言葉、普通の言葉）。04 §5.3、01-app-ux §3.3。nearClue: いちばん近い地点が調べる地点（誰もいない） */
-function bandText(v: UtsutsuEngine['view'], stationMin: number | null, geo: GeoProblem, nearClue = false): [string, string] {
+/** 状態の帯の言葉（世界の言葉、普通の言葉）。04 §5.3、01-app-ux §3.3。nearClue: いちばん近い地点が調べる地点（誰もいない）なら、その気配の言い方 */
+function bandText(v: UtsutsuEngine['view'], stationMin: number | null, geo: GeoProblem, nearClue: string | null = null): [string, string] {
   if (geo === 'unavailable') return ['ここは、空が遠いね', '位置が取れません。空が見える所で少し待ってください']
   switch (v.motion) {
     case 'locating':
@@ -695,7 +696,7 @@ function bandText(v: UtsutsuEngine['view'], stationMin: number | null, geo: GeoP
   if (v.phase.phase === 'night') return ['夜は、気配だけ', '夜は出会いがありません。明るいうちに来てください']
   const near = v.near
   if (near && v.motion === 'stopped' && v.clearing > 0) return ['気配が、澄んでいく…', 'そのまま、少し待ってください']
-  if (near && v.motion === 'stopped') return [nearClue ? 'このあたりに、古い話の気配' : 'このあたりに、誰かいる', '「足を止めた」を押すと、気配が澄みます']
+  if (near && v.motion === 'stopped') return [nearClue ? `このあたりに、${nearClue}` : 'このあたりに、誰かいる', '「足を止めた」を押すと、気配が澄みます']
   if (near) return ['このあたりだ。足を止めてみよう', '立ち止まると、気配が澄みます']
   const k = v.kehai[0]
   if (k) {

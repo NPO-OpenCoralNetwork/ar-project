@@ -82,3 +82,8 @@ export function validateAppearance(table: AppearanceTable, yokai: Set<string>, s
     }
   return errs
 }
+
+/** 調べる地点（持ち物を受け取る地点も）の、地図の札と気配の言い方。地点がなければ既定 */
+export function clueWords(clue: ClueDef | undefined): { label: string; kehai: string } {
+  return { label: clue?.label ?? '古い話', kehai: clue?.kehai ?? '古い話の気配' }
+}

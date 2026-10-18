@@ -21,7 +21,7 @@ import './style.css'
 import type { LocalXZ } from '../core/geo'
 import type { XZ } from '../core/map-layers'
 import { TEST_KEY } from '../core/storage-keys'
-import { canListenAtHome, clueActive, HOME_NIGHT_KEHAI, resolveAppearance, type SpotRole, spotRole, timeSlotOfDiorama } from '../core/story/appearance'
+import { canListenAtHome, clueActive, clueWords, HOME_NIGHT_KEHAI, resolveAppearance, type SpotRole, spotRole, timeSlotOfDiorama } from '../core/story/appearance'
 import { ListenGauge } from '../core/story/listen'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import type { DayPhase } from '../core/utsutsu/sun'
@@ -315,11 +315,13 @@ function startMap(t: TestLand): void {
   }
   let kehai: MapKehai[] = []
   let lastClear = ''
-  // 名所の出方を見直す（はじめ・会話のあと・やり直したとき）。札は、会った妖怪は名前、まだなら「？」、調べる地点は「古い話」
+  /** 調べる地点（持ち物を受け取る地点も）の札と気配の言い方 */
+  const wordsOf = (sp: EzuSpot) => clueWords(sp.clueId ? story.clues[sp.clueId] : undefined)
+  // 名所の出方を見直す（はじめ・会話のあと・やり直したとき）。札は、会った妖怪は名前、まだなら「？」、調べる地点は clues.json の言い方（既定「古い話」）
   const refreshSpots = () => {
     const vis = spots.filter(visible)
     map.setSpots(
-      vis.map((sp) => ({ id: sp.id, x: sp.x, z: sp.z, label: sp.role === 'clue' ? '古い話' : (metName(sp) ?? '？'), onsite: false })),
+      vis.map((sp) => ({ id: sp.id, x: sp.x, z: sp.z, label: sp.role === 'clue' ? wordsOf(sp).label : (metName(sp) ?? '？'), onsite: false })),
     )
     // 気配のにじみ（会った妖怪は淡く、調べる地点は小さく）
     kehai = vis.map((sp) => ({
@@ -335,7 +337,7 @@ function startMap(t: TestLand): void {
       const name = metName(sp)
       // 寄り道の地点は、出る妖怪が時間と進み具合で変わるので、場所だけを言う
       b.textContent =
-        sp.role === 'clue' ? '名所・古い話の気配' : sp.role === 'wander' ? '名所・水辺の道（寄り道）' : name ? `名所・${name}` : '名所・まだ会っていない誰か'
+        sp.role === 'clue' ? `名所・${wordsOf(sp).kehai}` : sp.role === 'wander' ? '名所・水辺の道（寄り道）' : name ? `名所・${name}` : '名所・まだ会っていない誰か'
       b.setAttribute('aria-label', b.textContent)
     }
     placeSpotButtons()
@@ -445,7 +447,7 @@ function startMap(t: TestLand): void {
   listenBtn.el.setAttribute('aria-label', '耳を澄ます（長押し。Space キーを押し続けても）')
   const subOf = (sp: EzuSpot): string => {
     if (!canListenAtHome(time)) return '長押し・夜は、気配だけ'
-    if (sp.role === 'clue') return '長押し・古い話の気配'
+    if (sp.role === 'clue') return `長押し・${wordsOf(sp).kehai}`
     const name = metName(sp)
     return name ? `長押し・${name}にまた会いに` : '長押し・この名所で'
   }

@@ -311,6 +311,10 @@ export interface ClueDef {
   script: string
   /** この条件を満たす間だけ、気配を出す（例: 悩みを頼まれた・札をまだ拾っていない）。拾い漏れの地点は「次の楽しみ」として残る */
   showWhen: Condition[]
+  /** 地図の札に書く字（既定「古い話」） */
+  label?: string
+  /** 気配の言い方（既定「古い話の気配」） */
+  kehai?: string
   note?: string
 }
 
