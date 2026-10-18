@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "id": "yobanashi-kuragari",
+  "kind": "yobanashi",
+  "yokaiId": "kuragari",
+  "creative": true,
+  "review": "下書き",
+  "note": "くらがりの夜話（04 §3.8、段階4b）。便りの画面で、夜（立山の日の入り20分後から翌4時）に、その日に会った「なじみ」以上のときだけ来る。一晩に一人。場面は聞いていないものから上の順に、聞き終えたら again。効果は showCard だけ（会ったことにせず、縁・ピース・持ち物も変えない）。選ぶところは場面に1つ・2択。どの場面も、休む・灯りと家・川に近寄らない、のどれかで閉じる。夜の外出に誘わない。呼び名は使わない。「きょう」の話は metToday と持ち物の条件だけで出し分ける。くらがりが「なじみ」になるのは #9 を解いたとき（kuragari.json）なので、来るのはそのあと。呼び方は「見習い」。一人称を持たず「影は」と言う。こわがらせない。",
+  "speakers": {
+    "kuragari": { "name": "くらがり", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "hiroi", "node": "hiroi" },
+    { "id": "shiro", "node": "shiro" },
+    { "id": "again", "node": "again" }
+  ],
+  "nodes": {
+    "hiroi": {
+      "lines": [
+        { "speaker": "kuragari", "text": "夜は、影が、いちばん広い。だから、夜の外は、影に任せておけばいい。人は、灯りのそばにいろ。" },
+        { "speaker": "mashiro", "text": "……きみ、やさしいね。" },
+        { "speaker": "kuragari", "text": "……影に、やさしいも何もない。" }
+      ],
+      "choices": [
+        { "text": "夜の影は、こわくない？", "next": "hiroi_a" },
+        { "text": "来てくれて、ありがとう", "next": "hiroi_b" }
+      ]
+    },
+    "hiroi_a": {
+      "lines": [{ "speaker": "kuragari", "text": "影は、影をこわがらない。" }],
+      "next": "hiroi_end"
+    },
+    "hiroi_b": {
+      "lines": [{ "speaker": "kuragari", "text": "……夕暮れに会ったから、来ただけだ。" }],
+      "next": "hiroi_end"
+    },
+    "hiroi_end": {
+      "lines": [{ "speaker": "kuragari", "text": "灯りを消したら、影は帳へ帰る。……おやすみ、見習い。" }],
+      "end": true
+    },
+    "shiro": {
+      "lines": [
+        { "speaker": "mashiro", "text": "ねえ、くらがり。ぼくの白、どう見える？" },
+        { "speaker": "kuragari", "text": "よく見える。影のとなりだからな。" },
+        { "speaker": "mashiro", "text": "……へへ。" }
+      ],
+      "choices": [
+        { "text": "ふたり、仲よくなったね", "next": "shiro_a" },
+        { "text": "ましろの影は、くらがりなの？", "next": "shiro_b" }
+      ]
+    },
+    "shiro_a": {
+      "lines": [
+        { "speaker": "kuragari", "text": "仲よく、というほどでもない。" },
+        { "speaker": "mashiro", "text": "（照れてる……？）" }
+      ],
+      "next": "shiro_end"
+    },
+    "shiro_b": {
+      "lines": [{ "speaker": "kuragari", "text": "さあな。……影は、だれかの影だ。それで、いい。" }],
+      "next": "shiro_end"
+    },
+    "shiro_end": {
+      "lines": [{ "speaker": "kuragari", "text": "暗いところも、絵のうちだ。……眠れ。" }],
+      "end": true
+    },
+    "again": {
+      "lines": [{ "speaker": "kuragari", "text": "……影は、ここにいる。灯りのそばで、眠れ。" }],
+      "end": true
+    }
+  }
+}

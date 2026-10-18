@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "id": "kuragari",
+  "yokaiId": "kuragari",
+  "creative": true,
+  "review": "下書き",
+  "note": "くらがり（本作オリジナル。04 §4.1）の台本。台詞はすべて【創作】（性格: 曼荼羅帳の影に住む、ましろの影のような存在。一人称を持たず、自分のことを「影は」と言う。言葉は短く低く、〜だ。呼び方は、はじめは無く、#9 を解いてから「見習い」。04 §4.1）。会うのは便りの画面の「逢魔が時」（帳の影。家でも。04 §3.6）だけで、箱庭・現地には出ない（段階4b）。伝承の事実は札 mandala-1・mandala-2（03 #4）でだけ出す。どの入口も、時間のピース（timePiece）を通る（会話を始めた時が立山の逢魔が時なら、家でも彩色。金は稽古で。04 §3.6 例外）。悩み #9「影は、こわがられるために」（とりもつ・くらがり⇄ましろ。04 付録A）: はじめての夕暮れに問いを受ける（kg-q9-asked。悩みが3つなら、ましろが「また今度にしよう」と保留にし、次の夕暮れに入口 ask で頼まれる）→ ましろの便り「影のこと」を読む（kg-mashiro-read。tayori.json）→ 次の夕暮れに、伝え方を3つから選ぶ → 札 mandala-2 と「なじみ」（kg-q9-done）。失敗はなく、選び方で台詞が変わるだけ。はじめての会話が札の前で途切れたら、次の夕暮れに続きから（入口 resume）。こわがらせない（04 §5.1「こわがらなくていい。話すだけだ」）。どの終わりも、灯りと家のほうへ向けて閉じる。夜の外出に誘わない。",
+  "speakers": {
+    "kuragari": { "name": "くらがり", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "first", "label": "はじめて（帳の影）", "when": [{ "met": false }], "node": "k1" },
+    { "id": "resume", "label": "はじめての会話が、札の前で途切れた", "when": [{ "met": true }, { "card": "mandala-1", "opened": false }], "node": "k2" },
+    { "id": "wait", "label": "ましろの便りを、まだ読んでいない", "when": [{ "flag": "kg-q9-asked", "is": true }, { "flag": "kg-mashiro-read", "is": false }], "node": "w1" },
+    { "id": "e2", "label": "ましろの便りを読んだ（#9 の答え）", "when": [{ "flag": "kg-q9-asked", "is": true }, { "flag": "kg-mashiro-read", "is": true }, { "flag": "kg-q9-done", "is": false }], "node": "e1" },
+    { "id": "again", "label": "また会う（#9 を解いたあと）", "when": [{ "flag": "kg-q9-done", "is": true }], "node": "a1" },
+    { "id": "ask", "label": "#9 を頼む（前の夕暮れは悩みでいっぱいだった）", "when": [{ "met": true }, { "flag": "kg-q9-asked", "is": false }, { "questRoom": true }], "node": "s1" },
+    { "id": "full", "label": "#9 を頼みたいが、悩みでいっぱい", "when": [{ "met": true }, { "flag": "kg-q9-asked", "is": false }, { "questRoom": false }], "node": "f1" }
+  ],
+  "nodes": {
+    "k1": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……帳のすみが、暗い。" },
+        { "speaker": "mashiro", "text": "影が……動いた。" },
+        { "speaker": "kuragari", "text": "こわがらなくていい。話すだけだ。" }
+      ],
+      "effects": [{ "meet": true }, { "bond": "kaomishiri" }],
+      "next": "k2"
+    },
+    "k2": {
+      "lines": [
+        { "speaker": "kuragari", "text": "影は、くらがり。帳の影に、住んでいる。" },
+        { "speaker": "mashiro", "text": "（……ぼく、ちょっと、こわい）" },
+        { "speaker": "kuragari", "text": "夕暮れにだけ、こうして、ふちが見える。" }
+      ],
+      "choices": [
+        { "text": "帳の影って？", "next": "k3a" },
+        { "text": "どうして、夕暮れだけ？", "next": "k3b" }
+      ]
+    },
+    "k3a": {
+      "lines": [{ "speaker": "kuragari", "text": "曼荼羅帳の、絵の暗いところだ。……絵には、明るいところと、暗いところがある。" }],
+      "effects": [{ "openCard": "mandala-1" }],
+      "next": "k4"
+    },
+    "k3b": {
+      "lines": [{ "speaker": "kuragari", "text": "昼は、光が強すぎる。夜は、影が広すぎる。……そのあいだだけ、形になれる。" }],
+      "effects": [{ "openCard": "mandala-1" }],
+      "next": "k4"
+    },
+    "k4": {
+      "lines": [{ "speaker": "mashiro", "text": "暗いところも、絵の一部なんだね。" }],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "next": "k5"
+    },
+    "k5": {
+      "lines": [
+        { "speaker": "mashiro", "text": "曼荼羅帳に……色が入った。夕暮れの色だ。" },
+        { "speaker": "kuragari", "text": "ひとつ、聞きたい。" },
+        { "speaker": "kuragari", "text": "影は、こわがられるために、いるのか。" }
+      ],
+      "choices": [
+        { "text": "そんなことないよ", "next": "q1" },
+        { "text": "ましろは、こわがってるみたい", "next": "q2" },
+        { "text": "わからない。でも、話してみたい", "next": "q3" }
+      ]
+    },
+    "q1": {
+      "lines": [{ "speaker": "kuragari", "text": "……そうか。" }],
+      "next": "qr"
+    },
+    "q2": {
+      "lines": [
+        { "speaker": "mashiro", "text": "（い、言わないでよ……）" },
+        { "speaker": "kuragari", "text": "……そうか。" }
+      ],
+      "next": "qr"
+    },
+    "q3": {
+      "lines": [{ "speaker": "kuragari", "text": "……話すだけなら、できる。" }],
+      "next": "qr"
+    },
+    "qr": {
+      "lines": [{ "speaker": "kuragari", "text": "紙の鳥にも、聞いてみてくれるか。影が、こわいかどうか。" }],
+      "choices": [
+        { "text": "うん、聞いてみる", "next": "qa", "when": [{ "questRoom": true }] },
+        { "text": "いまは、ほかの頼まれごとで手いっぱいなんだ", "next": "qf", "when": [{ "questRoom": false }] }
+      ]
+    },
+    "qa": {
+      "lines": [{ "speaker": "mashiro", "text": "（……あとで、ちゃんと考えるね）" }],
+      "effects": [{ "flag": "kg-q9-asked", "value": true }],
+      "next": "cl"
+    },
+    "qf": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……そうか。夕暮れは、また来る。" },
+        { "speaker": "mashiro", "text": "（いまは、ほかの頼まれごとでいっぱいだね。……また今度にしよう）" }
+      ],
+      "next": "cl"
+    },
+    "cl": {
+      "lines": [{ "speaker": "kuragari", "text": "もうすぐ、暗くなる。暗くなったら、外は歩くな。……影は、夕暮れに、また来る。" }],
+      "end": true
+    },
+    "s1": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……夕暮れだ。" },
+        { "speaker": "kuragari", "text": "このあいだの問いだ。紙の鳥にも、聞いてみてくれるか。" }
+      ],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "choices": [
+        { "text": "うん、聞いてみる", "next": "qa" }
+      ]
+    },
+    "f1": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……夕暮れだ。" },
+        { "speaker": "mashiro", "text": "（いまは、ほかの頼まれごとでいっぱいだね）" },
+        { "speaker": "kuragari", "text": "急がない。影は、ここにいる。" }
+      ],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "next": "a4"
+    },
+    "w1": {
+      "lines": [
+        { "speaker": "kuragari", "text": "紙の鳥には、聞いてみたか。" },
+        { "speaker": "mashiro", "text": "（……手紙、帳の「便り」にはさんでおいたんだけど）" },
+        { "speaker": "kuragari", "text": "急がない。夕暮れは、また来る。" }
+      ],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "next": "a4"
+    },
+    "e1": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……夕暮れだ。" },
+        { "speaker": "kuragari", "text": "紙の鳥は、なんと言っていた。" }
+      ],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "choices": [
+        { "text": "ましろは、こわかったって", "next": "e2a" },
+        { "text": "ましろも、話したがってる", "next": "e2b" },
+        { "text": "ましろ、自分で言ってごらん", "next": "e2c" }
+      ]
+    },
+    "e2a": {
+      "lines": [
+        { "speaker": "kuragari", "text": "……そうか。こわかったか。" },
+        { "speaker": "mashiro", "text": "……うん。でも、いまは、すこしだけ。" }
+      ],
+      "next": "e3"
+    },
+    "e2b": {
+      "lines": [
+        { "speaker": "kuragari", "text": "話したがっている、と。" },
+        { "speaker": "mashiro", "text": "……ほんとだよ。ぼく、影のこと、知りたい。" }
+      ],
+      "next": "e3"
+    },
+    "e2c": {
+      "lines": [{ "speaker": "mashiro", "text": "……ぼく、きみがこわかった。ぼくの影みたいで。" }],
+      "next": "e3"
+    },
+    "e3": {
+      "lines": [
+        { "speaker": "kuragari", "text": "影は、だれかの影だ。……紙の鳥の白が、よく見えるように、いる。" },
+        { "speaker": "mashiro", "text": "影がいるから、白が見える……？" },
+        { "speaker": "kuragari", "text": "絵は、暗いところまで、ぜんぶで、ひとつの話だ。" },
+        { "speaker": "mashiro", "text": "……そういえば、札に、曼荼羅の話がもうひとつあったよ。" }
+      ],
+      "effects": [{ "openCard": "mandala-2" }],
+      "next": "e4"
+    },
+    "e4": {
+      "lines": [{ "speaker": "kuragari", "text": "影は、こわがられるためじゃなく……話されるために、いるのかもしれない。" }],
+      "effects": [{ "bond": "najimi" }, { "flag": "kg-q9-done", "value": true }],
+      "next": "e5"
+    },
+    "e5": {
+      "lines": [
+        { "speaker": "kuragari", "text": "見習い。……そう呼んでも、いいか。" },
+        { "speaker": "mashiro", "text": "（ぼくのことは、まだ「紙の鳥」なのに……）" },
+        { "speaker": "kuragari", "text": "暗くなる。家の灯りのそばにいろ。" }
+      ],
+      "end": true
+    },
+    "a1": {
+      "lines": [{ "speaker": "kuragari", "text": "夕暮れだ。……見習い。" }],
+      "effects": [{ "timePiece": "fumoto-kuragari" }],
+      "choices": [
+        { "text": "札を、もう一度読みたい", "next": "a2" },
+        { "text": "あいさつに来ただけ", "next": "a3" }
+      ]
+    },
+    "a2": {
+      "lines": [{ "speaker": "kuragari", "text": "……暗いところも、絵のうちだ。" }],
+      "effects": [{ "showCard": "mandala-1" }, { "showCard": "mandala-2" }],
+      "next": "a4"
+    },
+    "a3": {
+      "lines": [{ "speaker": "kuragari", "text": "……影も、悪い気はしない。" }],
+      "next": "a4"
+    },
+    "a4": {
+      "lines": [{ "speaker": "kuragari", "text": "暗くなる前に、灯りのそばへ。" }],
+      "end": true
+    }
+  }
+}

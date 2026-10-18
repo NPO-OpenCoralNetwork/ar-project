@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "id": "yobanashi-game",
+  "kind": "yobanashi",
+  "yokaiId": "game",
+  "creative": true,
+  "review": "下書き",
+  "note": "ガメの夜話（04 §3.8、段階4b）。便りの画面で、夜（立山の日の入り20分後から翌4時）に、その日に会った「なじみ」以上のときだけ来る。一晩に一人。場面は聞いていないものから上の順に、聞き終えたら again。効果は showCard だけ（会ったことにせず、縁・ピース・持ち物も変えない）。選ぶところは場面に1つ・2択。どの場面も、休む・灯りと家・川に近寄らない、のどれかで閉じる。夜の外出に誘わない。呼び名は使わない。「きょう」の話は metToday と持ち物の条件だけで出し分ける。呼び方は「きみ」（04 §4.1 の例外）。どの場面も、夜の川に来ないように言って閉じる（安全）。好物（白えび）は、渡したあとでだけ言う。親方の昔の話（karabozu-1）は、ましろが知っていても言わない。",
+  "speakers": {
+    "game": { "name": "ガメ", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "oishii", "when": [{ "flag": "tm1-game-thanked", "is": true }], "node": "oishii" },
+    { "id": "oyakata", "when": [{ "flag": "tm1-done", "is": true }], "node": "oyakata" },
+    { "id": "oto", "node": "oto" },
+    { "id": "again", "node": "again" }
+  ],
+  "nodes": {
+    "oishii": {
+      "lines": [
+        { "speaker": "game", "text": "こんばんは！　……あ、しーっ、だね。夜だもんね。" },
+        { "speaker": "game", "text": "約束してた、おいしいものの話、しにきたよ。" },
+        { "speaker": "game", "when": [{ "item": "shiroebi", "state": "given" }], "text": "白えび、すっごくおいしかった。おいら、あの味、ずっとおぼえてる。" },
+        { "speaker": "game", "when": [{ "item": "shiroebi", "state": "none" }], "text": "おいら、まだ食べたことないもの、いっぱいあるんだ。" },
+        { "speaker": "game", "when": [{ "item": "shiroebi", "state": "held" }], "text": "おいら、まだ食べたことないもの、いっぱいあるんだ。" },
+        { "speaker": "game", "text": "人の町には、あったかい食べものが、たくさんあるんでしょ？　湯気が出てるやつ。" }
+      ],
+      "choices": [
+        { "text": "あるよ。冬は、とくに", "next": "oishii_a" },
+        { "text": "ガメの好きな食べものは？", "next": "oishii_b" }
+      ]
+    },
+    "oishii_a": {
+      "lines": [{ "speaker": "game", "text": "いいなあ。……おいら、湯気って、さわってみたい。" }],
+      "next": "oishii_end"
+    },
+    "oishii_b": {
+      "lines": [
+        { "speaker": "game", "when": [{ "item": "shiroebi", "state": "given" }], "text": "白えびと……あと、まだ食べたことないもの、ぜんぶ！" },
+        { "speaker": "game", "when": [{ "item": "shiroebi", "state": "none" }], "text": "……まだ、ないしょ。" },
+        { "speaker": "game", "when": [{ "item": "shiroebi", "state": "held" }], "text": "……まだ、ないしょ。" }
+      ],
+      "next": "oishii_end"
+    },
+    "oishii_end": {
+      "lines": [{ "speaker": "game", "text": "夜の川は、まっくらで、音だけ大きいんだ。夜は、川に来ちゃだめだよ。おやすみ！" }],
+      "end": true
+    },
+    "oyakata": {
+      "lines": [
+        { "speaker": "game", "text": "ねえ、きみ。親方って、むかしのこと、ぜんぜん話してくれないんだ。" },
+        { "speaker": "mashiro", "when": [{ "card": "karabozu-1", "opened": true }], "text": "（……あ。）" },
+        { "speaker": "game", "text": "なにか、知ってる？" }
+      ],
+      "choices": [
+        { "text": "親方にも、いろいろあったのかもね", "next": "oyakata_a" },
+        { "text": "そのうち、話してくれるよ", "next": "oyakata_b" }
+      ]
+    },
+    "oyakata_a": {
+      "lines": [{ "speaker": "game", "text": "いろいろ……かあ。" }],
+      "next": "oyakata_end"
+    },
+    "oyakata_b": {
+      "lines": [{ "speaker": "game", "text": "ほんと？　……じゃあ、待ってる。" }],
+      "next": "oyakata_end"
+    },
+    "oyakata_end": {
+      "lines": [
+        { "speaker": "mashiro", "when": [{ "card": "karabozu-1", "opened": true }], "text": "（言わないって、約束したもんね）" },
+        { "speaker": "game", "text": "親方、最近、ちょっとだけ、やさしいんだ。……へへ。夜は川に来ちゃだめだよ。おやすみ！" }
+      ],
+      "end": true
+    },
+    "oto": {
+      "lines": [
+        { "speaker": "game", "text": "夜の川の音、聞こえる？" },
+        { "speaker": "mashiro", "text": "ここからは、聞こえないよ。" },
+        { "speaker": "game", "text": "そっか。……じゃあ、おいらが、まねしてあげる。……ざああ。" }
+      ],
+      "choices": [
+        { "text": "上手だね", "next": "oto_a" },
+        { "text": "もう一回", "next": "oto_b" }
+      ]
+    },
+    "oto_a": {
+      "lines": [{ "speaker": "game", "text": "へへ。親方には、へたって言われた。" }],
+      "next": "oto_end"
+    },
+    "oto_b": {
+      "lines": [{ "speaker": "game", "text": "……ざああ、ざざ。" }],
+      "next": "oto_end"
+    },
+    "oto_end": {
+      "lines": [{ "speaker": "game", "text": "ほんものの川の音は、明るいときに、道から聞いてね。夜はだめだよ。おやすみ！" }],
+      "end": true
+    },
+    "again": {
+      "lines": [{ "speaker": "game", "text": "今夜は、おやすみを言いに来ただけ。夜の川には来ちゃだめだよ。またね！" }],
+      "end": true
+    }
+  }
+}

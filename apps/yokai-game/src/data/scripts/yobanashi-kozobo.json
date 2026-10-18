@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "id": "yobanashi-kozobo",
+  "kind": "yobanashi",
+  "yokaiId": "kozobo",
+  "creative": true,
+  "review": "下書き",
+  "note": "光蔵坊の夜話（04 §3.8、段階4b）。便りの画面で、夜（立山の日の入り20分後から翌4時）に、その日に会った「なじみ」以上のときだけ来る。一晩に一人。場面は聞いていないものから上の順に、聞き終えたら again。効果は showCard だけ（会ったことにせず、縁・ピース・持ち物も変えない）。選ぶところは場面に1つ・2択。どの場面も、休む・灯りと家・川に近寄らない、のどれかで閉じる。夜の外出に誘わない。呼び名は使わない。「きょう」の話は metToday と持ち物の条件だけで出し分ける。呼び方は、kozobo.json と同じく #2 を解いてから（kz-q2-done）「見習い」、それまでは「人の子」（昆布で「なじみ」になったときは「人の子」のまま）。「あのお方」の話はしない。",
+  "speakers": {
+    "kozobo": { "name": "光蔵坊", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "konbu", "when": [{ "item": "konbu", "state": "given" }], "node": "konbu" },
+    { "id": "hane", "when": [{ "flag": "kz-q2-done", "is": true }], "node": "hane" },
+    { "id": "yama", "node": "yama" },
+    { "id": "again", "node": "again" }
+  ],
+  "nodes": {
+    "yama": {
+      "lines": [
+        { "speaker": "kozobo", "when": [{ "flag": "kz-q2-done", "is": true }], "text": "……起きておったか、見習い。" },
+        { "speaker": "kozobo", "when": [{ "flag": "kz-q2-done", "is": false }], "text": "……起きておったか、人の子。" },
+        { "speaker": "kozobo", "when": [{ "metToday": "yume" }], "text": "きょうは、夢の中まで来おったな。" },
+        { "speaker": "kozobo", "when": [{ "metToday": "utsutsu" }], "text": "きょうは、まことに歩いて来おったな。足は痛まぬか。" },
+        { "speaker": "kozobo", "text": "夜の山は、昼より大きく見える。黒い影がの、空に、どっしりと座っておる。" },
+        { "speaker": "mashiro", "text": "（光蔵坊、夜も山を見てるんだ）" }
+      ],
+      "choices": [
+        { "text": "夜の山は、こわくない？", "next": "yama_a" },
+        { "text": "昼の山と、どっちが好き？", "next": "yama_b" }
+      ]
+    },
+    "yama_a": {
+      "lines": [{ "speaker": "kozobo", "text": "こわいものか。……と言いたいが、昔は、こわいもの知らずが過ぎた。少しこわいくらいが、ちょうどよい。" }],
+      "next": "yama_end"
+    },
+    "yama_b": {
+      "lines": [{ "speaker": "kozobo", "text": "どちらも、じゃ。……いや、夜のほうが、少しだけ好きかもしれん。だれにも見られずに、眺めておれる。" }],
+      "next": "yama_end"
+    },
+    "yama_end": {
+      "lines": [{ "speaker": "kozobo", "text": "夜は、出歩くでないぞ。話なら、こうして、わしのほうから来てやる。" }],
+      "end": true
+    },
+    "konbu": {
+      "lines": [
+        { "speaker": "kozobo", "when": [{ "flag": "kz-q2-done", "is": true }], "text": "見習い。……例のものを、少しずつ食べておる。" },
+        { "speaker": "kozobo", "when": [{ "flag": "kz-q2-done", "is": false }], "text": "人の子。……例のものを、少しずつ食べておる。" },
+        { "speaker": "mashiro", "text": "昆布？" },
+        { "speaker": "kozobo", "text": "声が大きい。……まだ、半分ある。" }
+      ],
+      "choices": [
+        { "text": "おいしい？", "next": "konbu_a" },
+        { "text": "少しずつ、大事にね", "next": "konbu_b" }
+      ]
+    },
+    "konbu_a": {
+      "lines": [{ "speaker": "kozobo", "text": "……いや、別に、好きというわけでは……うむ。" }],
+      "next": "konbu_end"
+    },
+    "konbu_b": {
+      "lines": [{ "speaker": "kozobo", "text": "わかっておる。……おぬしに言われんでもな。" }],
+      "next": "konbu_end"
+    },
+    "konbu_end": {
+      "lines": [{ "speaker": "kozobo", "text": "礼は、昼に言うた。夜は、もう寝よ。" }],
+      "end": true
+    },
+    "hane": {
+      "lines": [
+        { "speaker": "kozobo", "text": "今宵は、羽の先が、むずがゆうてかなわん。" },
+        { "speaker": "mashiro", "text": "照れてるときに、そうなるんだよね。" },
+        { "speaker": "kozobo", "text": "だれが照れておるか。……拾うてきてもろうた話を、夜になると、ひとつずつ思い出すのじゃ。" }
+      ],
+      "choices": [
+        { "text": "どの話を？", "next": "hane_a" },
+        { "text": "思い出すと、どんな気持ち？", "next": "hane_b" }
+      ]
+    },
+    "hane_a": {
+      "lines": [{ "speaker": "kozobo", "text": "どれも、じゃ。札は、帳にあるじゃろう。" }],
+      "effects": [{ "showCard": "kozobo-1" }],
+      "next": "hane_end"
+    },
+    "hane_b": {
+      "lines": [{ "speaker": "kozobo", "text": "むずがゆい。……が、悪くない。" }],
+      "next": "hane_end"
+    },
+    "hane_end": {
+      "lines": [{ "speaker": "kozobo", "text": "見習い。夢の中でも、歩きすぎるでないぞ。" }],
+      "end": true
+    },
+    "again": {
+      "lines": [
+        { "speaker": "kozobo", "text": "今夜は、顔を見に寄っただけじゃ。早う休め。" },
+        { "speaker": "mashiro", "text": "おやすみ、光蔵坊。" }
+      ],
+      "end": true
+    }
+  }
+}

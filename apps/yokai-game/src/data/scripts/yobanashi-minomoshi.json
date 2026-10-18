@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "id": "yobanashi-minomoshi",
+  "kind": "yobanashi",
+  "yokaiId": "minomoshi",
+  "creative": true,
+  "review": "下書き",
+  "note": "ミノモシの夜話（04 §3.8、段階4b）。便りの画面で、夜（立山の日の入り20分後から翌4時）に、その日に会った「なじみ」以上のときだけ来る。一晩に一人。場面は聞いていないものから上の順に、聞き終えたら again。効果は showCard だけ（会ったことにせず、縁・ピース・持ち物も変えない）。選ぶところは場面に1つ・2択。どの場面も、休む・灯りと家・川に近寄らない、のどれかで閉じる。夜の外出に誘わない。呼び名は使わない。「きょう」の話は metToday と持ち物の条件だけで出し分ける。呼び方は「きみ」（04 §4.1 の例外）。さみしさをプレイヤーに向けない。天気の話（mino-2）はしない。曲尺は札（mino-3）で見せ、台詞で説明しない。",
+  "speakers": {
+    "minomoshi": { "name": "ミノモシ", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "kanejaku", "when": [{ "card": "mino-3", "opened": true }], "node": "kanejaku" },
+    { "id": "attakai", "node": "attakai" },
+    { "id": "tanoshii", "node": "tanoshii" },
+    { "id": "again", "node": "again" }
+  ],
+  "nodes": {
+    "kanejaku": {
+      "lines": [{ "speaker": "minomoshi", "text": "……きみ、曲尺、差してない。" }],
+      "choices": [
+        { "text": "差さないよ", "next": "kanejaku_a" },
+        { "text": "曲尺って、なに？", "next": "kanejaku_b" }
+      ]
+    },
+    "kanejaku_a": {
+      "lines": [{ "speaker": "minomoshi", "text": "……よかった。" }],
+      "next": "kanejaku_end"
+    },
+    "kanejaku_b": {
+      "lines": [{ "speaker": "minomoshi", "text": "……札に、ある。" }],
+      "effects": [{ "showCard": "mino-3" }],
+      "next": "kanejaku_end"
+    },
+    "kanejaku_end": {
+      "lines": [{ "speaker": "minomoshi", "text": "……おやすみ。……また、ね。" }],
+      "end": true
+    },
+    "attakai": {
+      "lines": [
+        { "speaker": "minomoshi", "text": "……こんばんは。" },
+        { "speaker": "mashiro", "text": "ミノモシ、夜は、ちょっと明るいね。" },
+        { "speaker": "minomoshi", "text": "……夜は、くっつくと、あったかい。" }
+      ],
+      "choices": [
+        { "text": "くっついても、いいよ", "next": "attakai_a" },
+        { "text": "さむいの？", "next": "attakai_b" }
+      ]
+    },
+    "attakai_a": {
+      "lines": [
+        { "speaker": "minomoshi", "text": "……ほんと？" },
+        { "speaker": "mashiro", "text": "（肩のところが、ほんのり明るい）" }
+      ],
+      "next": "attakai_end"
+    },
+    "attakai_b": {
+      "lines": [{ "speaker": "minomoshi", "text": "……ううん。……きみが、あったかい。" }],
+      "next": "attakai_end"
+    },
+    "attakai_end": {
+      "lines": [{ "speaker": "minomoshi", "text": "……おやすみ。" }],
+      "end": true
+    },
+    "tanoshii": {
+      "lines": [
+        { "speaker": "minomoshi", "text": "……きょう、たのしかった。" },
+        { "speaker": "mashiro", "text": "ぼくも。" }
+      ],
+      "choices": [
+        { "text": "よかった", "next": "tanoshii_a" },
+        { "text": "なにが、たのしかった？", "next": "tanoshii_b" }
+      ]
+    },
+    "tanoshii_a": {
+      "lines": [{ "speaker": "minomoshi", "text": "……うん。" }],
+      "next": "tanoshii_end"
+    },
+    "tanoshii_b": {
+      "lines": [{ "speaker": "minomoshi", "text": "……ひかり、ふえた。……ほかの、ひかりも、いる。" }],
+      "next": "tanoshii_end"
+    },
+    "tanoshii_end": {
+      "lines": [
+        { "speaker": "minomoshi", "text": "……おやすみ。" },
+        { "speaker": "mashiro", "text": "おやすみ。あったかくして、寝よう。" }
+      ],
+      "end": true
+    },
+    "again": {
+      "lines": [
+        { "speaker": "minomoshi", "text": "……おやすみ。" },
+        { "speaker": "mashiro", "text": "（肩のところが、ほんのり、あたたかい）" }
+      ],
+      "end": true
+    }
+  }
+}

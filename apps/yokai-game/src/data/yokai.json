@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "note": "妖怪の基本の情報。名前・性格・台詞は【創作】で、伝承の事実は札（lore-cards.json）だけ（04 §4.1）。今も祀られている神仏はここに入れない。夢の姿の板の高さ（heightM）は全員同じにし、体の大きさの違いは絵の中（viewBox 200×300）で描き分ける。 段階4: 縁帳に出す人となり（profile。【創作】。伝承は札で別に出す）、好物（likes。渡すと「なじみ」。04 §3.3・§3.7）、本作オリジナルか（original。伝承にない妖怪は縁帳で明記する）を足した。いまの4体はどれも伝承にいる妖怪（03 #8・#17・#18）。",
+  "note": "妖怪の基本の情報。名前・性格・台詞は【創作】で、伝承の事実は札（lore-cards.json）だけ（04 §4.1）。今も祀られている神仏はここに入れない。夢の姿の板の高さ（heightM）は全員同じにし、体の大きさの違いは絵の中（viewBox 200×300）で描き分ける。 段階4: 縁帳に出す人となり（profile。【創作】。伝承は札で別に出す）、好物（likes。渡すと「なじみ」。04 §3.3・§3.7）、本作オリジナルか（original。伝承にない妖怪は縁帳で明記する）を足した。いまの4体はどれも伝承にいる妖怪（03 #8・#17・#18）。 段階4b: くらがり（本作オリジナル。04 §4.1）と夜話の台本（yobanashi）を足した。",
   "yokai": [
-    { "id": "kozobo", "name": "光蔵坊", "script": "kozobo", "art": "kozobo", "heightM": 4.4, "profile": "威張るが、昔のおごりを恥じている天狗。山を眺めるのが好きで、照れると羽の先がむずがゆくなる。", "likes": "konbu", "original": false },
-    { "id": "game", "name": "ガメ", "script": "game", "art": "game", "heightM": 4.4, "profile": "人懐っこい河童の子。人の町を見てみたくて、親方に叱られた。おいしいものの話になると、目がかがやく。", "likes": "shiroebi", "original": false },
-    { "id": "karabozu", "name": "カーラボーズ", "script": "karabozu", "art": "karabozu", "heightM": 4.4, "profile": "無口で頑固な、ガメたちの親方。言葉は短いが、だれよりも心配性。", "original": false },
-    { "id": "minomoshi", "name": "ミノモシ", "script": "minomoshi", "art": "minomoshi", "heightM": 4.4, "profile": "さみしがりの、ちいさな藁の房。言葉は短い。だれかのそばに、そっといたい。", "original": false }
+    { "id": "kozobo", "name": "光蔵坊", "script": "kozobo", "art": "kozobo", "heightM": 4.4, "profile": "威張るが、昔のおごりを恥じている天狗。山を眺めるのが好きで、照れると羽の先がむずがゆくなる。", "likes": "konbu", "original": false, "yobanashi": "yobanashi-kozobo" },
+    { "id": "game", "name": "ガメ", "script": "game", "art": "game", "heightM": 4.4, "profile": "人懐っこい河童の子。人の町を見てみたくて、親方に叱られた。おいしいものの話になると、目がかがやく。", "likes": "shiroebi", "original": false, "yobanashi": "yobanashi-game" },
+    { "id": "karabozu", "name": "カーラボーズ", "script": "karabozu", "art": "karabozu", "heightM": 4.4, "profile": "無口で頑固な、ガメたちの親方。言葉は短いが、だれよりも心配性。", "original": false, "yobanashi": "yobanashi-karabozu" },
+    { "id": "minomoshi", "name": "ミノモシ", "script": "minomoshi", "art": "minomoshi", "heightM": 4.4, "profile": "さみしがりの、ちいさな藁の房。言葉は短い。だれかのそばに、そっといたい。", "original": false, "yobanashi": "yobanashi-minomoshi" },
+    { "id": "kuragari", "name": "くらがり", "script": "kuragari", "art": "kuragari", "heightM": 4.4, "profile": "曼荼羅帳の影に住む、ましろの影のような存在。ほんとうの夕暮れにだけ、ふちが見える。言葉は短く、自分のことを「影」と言う。", "original": true, "yobanashi": "yobanashi-kuragari" }
   ]
 }

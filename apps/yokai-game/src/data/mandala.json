@@ -134,7 +134,24 @@
           "h": 54
         },
         {
-          "id": "fumoto-13",
+          "id": "fumoto-kuragari",
+          "label": "くらがり",
+          "yokaiId": "kuragari",
+          "art": "kuragari",
+          "time": true,
+          "cardIds": [
+            "mandala-1",
+            "mandala-2"
+          ],
+          "keiko": [
+            "mandala-1",
+            "mandala-2"
+          ],
+          "hint": {
+            "hakubyo": "時間のピース。ほんとうの夕暮れ（逢魔が時）に、帳の影に会うと、家でも色が入る。",
+            "saishiki": "逢魔が時に会って、夕暮れの色が入った。",
+            "kin": "語り返して、金の縁取りが入った。"
+          },
           "x": 32,
           "y": 484,
           "w": 56,
@@ -224,7 +241,15 @@
           "h": 54
         },
         {
-          "id": "sato-4",
+          "id": "sato-etoki",
+          "label": "絵解き",
+          "cardIds": [
+            "mandala-2"
+          ],
+          "hint": {
+            "hakubyo": "はじめての今日の絵解きで、線が入った。現の旅で絵解きをつくると、色が入る。",
+            "saishiki": "現地でつくった絵解きで、色が入った。"
+          },
           "x": 81,
           "y": 650,
           "w": 56,

@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "id": "yobanashi-karabozu",
+  "kind": "yobanashi",
+  "yokaiId": "karabozu",
+  "creative": true,
+  "review": "下書き",
+  "note": "カーラボーズの夜話（04 §3.8、段階4b）。便りの画面で、夜（立山の日の入り20分後から翌4時）に、その日に会った「なじみ」以上のときだけ来る。一晩に一人。場面は聞いていないものから上の順に、聞き終えたら again。効果は showCard だけ（会ったことにせず、縁・ピース・持ち物も変えない）。選ぶところは場面に1つ・2択。どの場面も、休む・灯りと家・川に近寄らない、のどれかで閉じる。夜の外出に誘わない。呼び名は使わない。「きょう」の話は metToday と持ち物の条件だけで出し分ける。呼び方は「見習い」（仲直りのあと。karabozu.json と同じ）。腕の話（karabozu-1）は台詞で語らない（札と、便り「川の話（また聞き）」にまかせる）。どの場面も、川に近寄らない・家にいる、で閉じる。",
+  "speakers": {
+    "karabozu": { "name": "カーラボーズ", "role": "yokai" },
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "konbu", "when": [{ "item": "konbu", "state": "given" }], "node": "konbu" },
+    { "id": "banmade", "node": "banmade" },
+    { "id": "game", "node": "game" },
+    { "id": "again", "node": "again" }
+  ],
+  "nodes": {
+    "konbu": {
+      "lines": [{ "speaker": "karabozu", "text": "……あの昆布は、だれかにやったか。" }],
+      "choices": [
+        { "text": "うん。喜んでくれたよ", "next": "konbu_a" },
+        { "text": "ないしょ", "next": "konbu_b" }
+      ]
+    },
+    "konbu_a": {
+      "lines": [{ "speaker": "karabozu", "text": "……そうか。なら、いい。" }],
+      "next": "konbu_end"
+    },
+    "konbu_b": {
+      "lines": [{ "speaker": "karabozu", "text": "……ふん。それでいい。" }],
+      "next": "konbu_end"
+    },
+    "konbu_end": {
+      "lines": [{ "speaker": "karabozu", "text": "川には、近寄るなよ。夜は、なおさらだ。" }],
+      "end": true
+    },
+    "banmade": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……おう、見習い。" },
+        { "speaker": "karabozu", "when": [{ "metToday": "utsutsu" }], "text": "足で来たそうだな。……暗くなる前に、戻れたか。" },
+        { "speaker": "karabozu", "text": "晩までに戻れ、と言ったのは、おれだ。おまえも、暗くなったら、家にいろ。" }
+      ],
+      "choices": [
+        { "text": "いるよ。だから来てくれたんでしょ", "next": "banmade_a" },
+        { "text": "心配してくれてるの？", "next": "banmade_b" }
+      ]
+    },
+    "banmade_a": {
+      "lines": [{ "speaker": "karabozu", "text": "……ふん。顔を見に来ただけだ。" }],
+      "next": "banmade_end"
+    },
+    "banmade_b": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……余計なことを聞くな。" },
+        { "speaker": "mashiro", "text": "（心配してる……）" }
+      ],
+      "next": "banmade_end"
+    },
+    "banmade_end": {
+      "lines": [{ "speaker": "karabozu", "text": "戸締まりは、しておけ。" }],
+      "end": true
+    },
+    "game": {
+      "lines": [{ "speaker": "karabozu", "text": "ガメのやつ、近ごろ、よく笑う。……おまえのせいだ。" }],
+      "choices": [
+        { "text": "いいことでしょ？", "next": "game_a" },
+        { "text": "親方も、笑えばいいのに", "next": "game_b" }
+      ]
+    },
+    "game_a": {
+      "lines": [{ "speaker": "karabozu", "text": "……悪いとは、言っておらん。" }],
+      "next": "game_end"
+    },
+    "game_b": {
+      "lines": [
+        { "speaker": "karabozu", "text": "……おれは、いい。" },
+        { "speaker": "mashiro", "text": "（ちょっと、口のはしが上がった）" }
+      ],
+      "next": "game_end"
+    },
+    "game_end": {
+      "lines": [{ "speaker": "karabozu", "text": "……用は、それだけだ。夜の川には、近寄るなよ。" }],
+      "end": true
+    },
+    "again": {
+      "lines": [{ "speaker": "karabozu", "text": "……顔を見に来ただけだ。寝ろ。" }],
+      "end": true
+    }
+  }
+}

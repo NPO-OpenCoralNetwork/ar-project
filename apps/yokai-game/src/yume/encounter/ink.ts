@@ -6,6 +6,11 @@ export interface InkPart {
   fill?: string
   /** 彩色（現地で会った本当の姿・曼荼羅の彩色のピース）で塗る色。なければ紙の白 */
   color?: string
+  /**
+   * 紙の白でなく、墨で塗る面の濃さ（0〜1。影の姿。段階4b のくらがり）。白描ではこの濃さの墨、彩色では color（あれば）で塗る。
+   * SVG（artToSvg）だけが見る。3D の板（dream-figure.ts）は見ないので、この部品を持つ絵は箱庭に置かない
+   */
+  inkFill?: number
   /** 墨の線（太さは viewBox の単位） */
   lines: { d: string; w: number }[]
 }
@@ -36,12 +41,19 @@ export const circle = (cx: number, cy: number, r: number) =>
 /** 部品に彩色の色を付ける */
 export const tint = (p: InkPart, color: string): InkPart => ({ ...p, color })
 
+/** 面の塗り。彩色で色があれば色、墨で塗る面（inkFill）なら墨をその濃さで、ほかは紙の白 */
+function fillAttrs(p: InkPart, paper: string, ink: string, fillOpacity: number, colored: boolean): string {
+  if (colored && p.color) return `fill="${p.color}" fill-opacity="${fillOpacity}"`
+  if (p.inkFill !== undefined) return `fill="${ink}" fill-opacity="${+(Math.min(1, Math.max(0, p.inkFill)) * fillOpacity).toFixed(3)}"`
+  return `fill="${paper}" fill-opacity="${fillOpacity}"`
+}
+
 /** SVG の中身（<g> の中）として書き出す。曼荼羅帳のピースと、現地の姿に使う。colored なら部品の色（彩色）で塗る */
 export function artToSvg(art: InkArt, paper: string, ink: string, lineScale = 1, fillOpacity = 1, colored = false): string {
   return art.parts
     .map(
       (p) =>
-        (p.fill ? `<path d="${p.fill}" fill="${colored && p.color ? p.color : paper}" fill-opacity="${fillOpacity}"/>` : '') +
+        (p.fill ? `<path d="${p.fill}" ${fillAttrs(p, paper, ink, fillOpacity, colored)}/>` : '') +
         p.lines
           .map((l) => `<path d="${l.d}" fill="none" stroke="${ink}" stroke-width="${(l.w * lineScale).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/>`)
           .join(''),

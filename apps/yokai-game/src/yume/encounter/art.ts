@@ -9,6 +9,7 @@
 import { artToSvg, circle, type InkArt, type InkPart, mirror, part, tint } from './ink'
 import { GAME_ART } from './arts/game'
 import { KARABOZU_ART } from './arts/karabozu'
+import { KURAGARI_ART } from './arts/kuragari'
 import { MINOMOSHI_ART } from './arts/minomoshi'
 
 export { artToSvg }
@@ -104,5 +105,5 @@ export const KOZOBO_ART: InkArt = {
   ],
 }
 
-/** 妖怪ごとの絵（yokai.json の art から引く）。光蔵坊はこのファイル、ほかは arts/*.ts（段階3で足した里の3体） */
-export const ARTS: Record<string, InkArt> = { kozobo: KOZOBO_ART, game: GAME_ART, karabozu: KARABOZU_ART, minomoshi: MINOMOSHI_ART }
+/** 妖怪ごとの絵（yokai.json の art から引く）。光蔵坊はこのファイル、ほかは arts/*.ts（段階3で足した里の3体と、段階4b のくらがり） */
+export const ARTS: Record<string, InkArt> = { kozobo: KOZOBO_ART, game: GAME_ART, karabozu: KARABOZU_ART, minomoshi: MINOMOSHI_ART, kuragari: KURAGARI_ART }

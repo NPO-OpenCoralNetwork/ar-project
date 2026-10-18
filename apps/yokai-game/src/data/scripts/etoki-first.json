@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "id": "etoki-first",
+  "creative": true,
+  "review": "下書き",
+  "note": "今日の絵解き（04 §2.4・§3.6、段階4b）を、はじめてつくったとき（絵解きのピースが空白）と、現地でつくったとき（白描から彩色）にだけ走らせる（ui/etoki-sheet.ts）。ましろだけが話す。札 mandala-2（03 #4）で、絵解きのことを伝承として見せる。piece の saishiki は、夢の旅では白描に止まる（PIECE_CAP）。",
+  "speakers": {
+    "mashiro": { "name": "ましろ", "role": "companion" }
+  },
+  "entries": [
+    { "id": "color", "when": [{ "piece": "sato-etoki", "atLeast": "hakubyo" }], "node": "color" },
+    { "id": "first", "node": "f1" }
+  ],
+  "nodes": {
+    "f1": {
+      "lines": [{ "speaker": "mashiro", "text": "……そういえば、札にも、絵解きのことが書いてあったよ。" }],
+      "effects": [{ "openCard": "mandala-2" }],
+      "next": "f2"
+    },
+    "f2": {
+      "lines": [{ "speaker": "mashiro", "text": "ぼくたちのしていることと、ちょっと似てるね。" }],
+      "effects": [{ "piece": "sato-etoki", "state": "saishiki" }],
+      "end": true
+    },
+    "color": {
+      "lines": [{ "speaker": "mashiro", "text": "現地でつくった絵解きだね。……絵解きのピースに、色が入るよ。" }],
+      "effects": [{ "piece": "sato-etoki", "state": "saishiki" }],
+      "end": true
+    }
+  }
+}
