@@ -514,6 +514,8 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
   /** 描く。deliver: 先に便りを届ける（描くときは届ける。進み具合が変わったときの描き直しでは届けない） */
   const render = (deliverFirst = true): void => {
     if (deliverFirst) deliver()
+    // やり直し・ほかのタブの保存で、ひらいていた便りが無くなっていれば、たたむ
+    if (openId && !progress.letter(openId)) openId = null
     const clock = clockNow()
     const t = d.mode === 'home' ? tonight(clock, progress, story) : null
     // キーボードの位置（描き直しても、同じボタンへ戻す）と、送りの位置
@@ -552,12 +554,8 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
       else reportNews()
     })
   }
+  // ほかのタブの保存に入れ替えたとき（follow）も onChange が来る
   progress.onChange(refresh)
-  progress.onReplace(() => {
-    // ほかのタブの保存に入れ替えた: 開いていた便りが無くなっていれば、たたむ
-    if (openId && !progress.letter(openId)) openId = null
-    refresh()
-  })
   memo.onChange(refresh)
   if (DEBUG) appClock().onChange(() => tick())
 
