@@ -7,6 +7,8 @@
 // - 会話の途中の小さな遊び（「払わずに待つ」= ミノモシ番外。04 §3.4。「絵解き鎮め」= 札を話の順に並べる。04 §3.5）
 //
 // 出典表示（右下）は、どの画面を開いても隠さない（.yh-credit を上に重ねる）。
+// 閉じている重ね（透明にして指を通しているだけの層）は inert にして、Tab で見えないボタンに入らないようにする（setOpen）。
+// 遊びの層を開いている間は、ほかの層を inert にして、Tab が遊びの中に留まるようにする（inertSiblings）。
 
 import type { Beat, Notice } from '../../core/story/dialogue'
 import type { EtokiHandCard, EtokiSpec, GameResult, LoreCard, MatsuSpec, MandalaDef, MandalaPieceDef, PieceState } from '../../core/story/types'
@@ -274,6 +276,28 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
 
+/** 重ねを開く・閉じる。閉じている間は inert（見えないので、Tab でも読み上げでも入れない） */
+function setOpen(e: HTMLElement, on: boolean): void {
+  e.classList.toggle('on', on)
+  e.inert = !on
+}
+
+/**
+ * 遊びの層（keep）を開いている間、同じ root のほかの層を inert にする（Tab が遊びの中に留まる）。
+ * 出典表示（.yh-credit）は、どの画面でも使えるように残す。自分が inert にした層だけを戻す関数を返す
+ */
+function inertSiblings(root: HTMLElement, keep: HTMLElement): () => void {
+  const changed: HTMLElement[] = []
+  for (const c of Array.from(root.children) as HTMLElement[]) {
+    if (c === keep || c.inert || c.classList.contains('yh-credit')) continue
+    c.inert = true
+    changed.push(c)
+  }
+  return () => {
+    for (const c of changed) c.inert = false
+  }
+}
+
 // ---------------------------------------------------------------- 耳を澄ます
 
 export class ListenButton {
@@ -324,6 +348,8 @@ export class ListenButton {
       if (e.code === 'Space' || e.code === 'Enter') this.keyHeld = false
     })
     b.addEventListener('blur', () => (this.keyHeld = false))
+    // 出すまでは、Tab で入れない
+    b.inert = true
     root.appendChild(b)
     this.el = b
   }
@@ -336,7 +362,7 @@ export class ListenButton {
   show(on: boolean, sub?: string): void {
     if (on !== this.shown) {
       this.shown = on
-      this.el.classList.toggle('on', on)
+      setOpen(this.el, on)
       if (!on) {
         this.heldFlag = false
         this.keyHeld = false
@@ -471,6 +497,7 @@ export class DialogueView {
     })
     this.wrap.append(close, this.box)
     this.box.addEventListener('click', () => this.advance())
+    this.wrap.inert = true
     root.appendChild(this.wrap)
     // 会話の枠の高さ（選択肢が増えると高くなる）。現地の姿は、この上に出す
     new ResizeObserver(() => root.style.setProperty('--yd-h', `${Math.round(this.wrap.offsetHeight)}px`)).observe(this.wrap)
@@ -480,6 +507,7 @@ export class DialogueView {
     this.cardEl.setAttribute('role', 'dialog')
     this.cardEl.setAttribute('aria-label', '伝承の札')
     this.cardWrap.appendChild(this.cardEl)
+    this.cardWrap.inert = true
     root.appendChild(this.cardWrap)
 
     // キーボードで操作しているか（遊びの札にキーボードの位置の枠を出すのは、そのときだけ）
@@ -510,16 +538,17 @@ export class DialogueView {
   open(label: string): void {
     this.openFlag = true
     this.wrap.setAttribute('aria-label', label)
-    this.wrap.classList.add('on')
+    setOpen(this.wrap, true)
   }
 
   close(): void {
     this.openFlag = false
     this.beat = null
-    this.wrap.classList.remove('on')
-    this.cardWrap.classList.remove('on')
+    // 遊びを先に閉じる（遊びが inert にしていた層を戻してから、会話の枠と札を閉じる）
     this.game?.dispose()
     this.game = null
+    setOpen(this.wrap, false)
+    setOpen(this.cardWrap, false)
   }
 
   private advance(): void {
@@ -532,7 +561,7 @@ export class DialogueView {
     this.beat = beat
     this.shownAt = performance.now()
     if (beat.kind === 'game') {
-      this.cardWrap.classList.remove('on')
+      setOpen(this.cardWrap, false)
       this.wrap.style.visibility = 'hidden'
       this.game?.dispose()
       const done = (result: GameResult) => {
@@ -551,12 +580,12 @@ export class DialogueView {
       this.cardEl.innerHTML = cardHtml(beat.card, { first: beat.first, button: '札をしまう' })
       const btn = this.cardEl.querySelector('.yc-btn') as HTMLButtonElement
       btn.addEventListener('click', () => this.advance())
-      this.cardWrap.classList.add('on')
+      setOpen(this.cardWrap, true)
       this.wrap.style.visibility = 'hidden'
       window.setTimeout(() => btn.focus({ preventScroll: true }), 50)
       return
     }
-    this.cardWrap.classList.remove('on')
+    setOpen(this.cardWrap, false)
     this.wrap.style.visibility = ''
     this.choicesEl.innerHTML = ''
     if (beat.kind === 'line' || beat.kind === 'choices') {
@@ -628,6 +657,8 @@ class MatsuGame {
   private disposed = false
   /** 動きを減らす設定なら、光は回らず・揺れず、離れるときも動かずに薄れる */
   private readonly motion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 1
+  /** 遊びの間 inert にした、ほかの層を戻す */
+  private readonly uninert: () => void
 
   constructor(
     private readonly root: HTMLElement,
@@ -664,6 +695,7 @@ class MatsuGame {
     this.el.append(this.say, wait, quitBtn)
     root.appendChild(this.el)
     root.classList.add('yg-playing')
+    this.uninert = inertSiblings(root, this.el)
     for (let i = 0; i < 6; i++) this.spawn(Math.random() * Math.PI * 2, 70 + Math.random() * 70)
     this.el.addEventListener('pointerdown', (e) => this.brush(e))
     // すぐに触れるようにする（次のフレームを待つと、重い端末で最初の一回の「払う」を取りこぼす）。読み直してからにすると、出るときのフェードは残る
@@ -736,7 +768,8 @@ class MatsuGame {
     if (this.disposed) return
     this.disposed = true
     cancelAnimationFrame(this.raf)
-    this.el.classList.remove('on')
+    this.uninert()
+    setOpen(this.el, false)
     this.el.style.pointerEvents = 'none'
     this.root.classList.remove('yg-playing')
     window.setTimeout(() => this.el.remove(), 450)
@@ -787,6 +820,8 @@ class EtokiGame {
   private finished = false
   private disposed = false
   private readonly timers = new Set<number>()
+  /** 遊びの間 inert にした、ほかの層を戻す（role=dialog。Tab は札と「会話をやめる」の間だけを回る） */
+  private readonly uninert: () => void
 
   constructor(
     private readonly root: HTMLElement,
@@ -866,6 +901,7 @@ class EtokiGame {
     })
     root.appendChild(this.el)
     root.classList.add('yg-playing')
+    this.uninert = inertSiblings(root, this.el)
     this.refresh()
     // 読み直してから付けると、出るときのフェードと、渦・藍が濃くなっていく様子が残る
     void this.el.offsetWidth
@@ -1014,7 +1050,8 @@ class EtokiGame {
     this.disposed = true
     for (const id of this.timers) window.clearTimeout(id)
     this.timers.clear()
-    this.el.classList.remove('on')
+    this.uninert()
+    setOpen(this.el, false)
     this.el.style.pointerEvents = 'none'
     this.root.classList.remove('yg-playing')
     window.setTimeout(() => this.el.remove(), 450)
@@ -1120,6 +1157,8 @@ export class MandalaView {
   private readonly popCard: HTMLDivElement
   private openFlag = false
   private lastFocus: HTMLElement | null = null
+  /** ピースの表示・確認を開く前にキーボードの位置があった所（閉じたら戻す） */
+  private popReturn: HTMLElement | SVGElement | null = null
 
   constructor(
     root: HTMLElement,
@@ -1164,6 +1203,7 @@ export class MandalaView {
     side.appendChild(reset)
     body.append(this.scroll, side)
     this.wrap.append(head, noteSp, body)
+    this.wrap.inert = true
     root.appendChild(this.wrap)
 
     this.pop = el('div', 'ym-pop')
@@ -1173,6 +1213,7 @@ export class MandalaView {
     this.pop.addEventListener('click', (e) => {
       if (e.target === this.pop) this.closePop()
     })
+    this.pop.inert = true
     root.appendChild(this.pop)
 
     window.addEventListener('keydown', (e) => {
@@ -1190,14 +1231,14 @@ export class MandalaView {
     this.lastFocus = document.activeElement as HTMLElement | null
     this.render()
     this.openFlag = true
-    this.wrap.classList.add('on')
+    setOpen(this.wrap, true)
     this.root.classList.add('modal-open')
     window.setTimeout(() => (this.wrap.querySelector('.ym-btn.close') as HTMLButtonElement | null)?.focus({ preventScroll: true }), 50)
   }
 
   close(): void {
     this.openFlag = false
-    this.wrap.classList.remove('on')
+    setOpen(this.wrap, false)
     this.root.classList.remove('modal-open')
     this.closePop()
     this.lastFocus?.focus?.({ preventScroll: true })
@@ -1350,14 +1391,23 @@ export class MandalaView {
   }
 
   private showPop(html: string): void {
+    if (!this.pop.classList.contains('on')) this.popReturn = document.activeElement as HTMLElement | SVGElement | null
     this.popCard.innerHTML = html
     this.popCard.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closePop())
-    this.pop.classList.add('on')
+    setOpen(this.pop, true)
     window.setTimeout(() => (this.popCard.querySelector('button') as HTMLButtonElement | null)?.focus({ preventScroll: true }), 30)
   }
 
   private closePop(): void {
-    this.pop.classList.remove('on')
+    const had = this.pop.contains(document.activeElement)
+    setOpen(this.pop, false)
+    // キーボードの位置を、開く前の所（描き直したピースなら、同じピース。無ければ「とじる」）へ戻す（<body> に落とさない）
+    const from = this.popReturn
+    this.popReturn = null
+    if (!had || !this.openFlag) return
+    const id = from?.dataset?.id
+    const back = from?.isConnected ? from : id ? Array.from(this.scroll.querySelectorAll<SVGElement>('.ym-piece')).find((g) => g.dataset.id === id) : null
+    ;(back ?? (this.wrap.querySelector('.ym-btn.close') as HTMLButtonElement | null))?.focus({ preventScroll: true })
   }
 
   private confirmReset(): void {

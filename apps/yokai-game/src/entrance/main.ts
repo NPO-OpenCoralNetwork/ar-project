@@ -1,8 +1,8 @@
 // 入口（04 §2.1 序の口、docs/product/01-app-ux.md A1・B2 の軽い版）。夢の旅と現の旅のどちらにも、ここから入る。
 //
 // - 二つの旅を選ぶ: 夢の旅（yume.html。家で箱庭を歩く。位置もカメラも使わない）と、現の旅（utsutsu.html。現地を歩く。位置を使う）。
-// - 三つの約束（F-60。文は core/promises.ts）: 初回だけ、どちらを選んでも旅に入る前に1画面ずつ見せる。飛ばせない。
-//   読み終えたら PROMISE_KEY を保存する（現の旅も同じ保存を見るので、もう一度は聞かない）。
+// - 三つの約束（F-60。文は core/promises.ts、札は ui/promise-sheet.ts）: 初回だけ、どちらを選んでも旅に入る前に1画面ずつ見せる。飛ばせない。
+//   読み終えたら PROMISE_KEY を保存する（旅のページも同じ保存を見るので、もう一度は聞かない。旅のページから始めた人には、そのページで見せる）。
 // - つづき: 進み具合（STORY_KEY。二つの旅で共通）に会った妖怪や開いた札があれば、数を小さく添える。
 // - チームのテスト用: 白描の絵地図（ezu.html）と、この端末にテスト用の土地があるか（日付だけ。位置は出さない）。
 //   ?debug のときだけ GPS の検証へも。
@@ -10,9 +10,9 @@
 // URL: ?debug と ?sim は、旅のページへそのまま渡す。
 
 import './style.css'
-import { PROMISES } from '../core/promises'
-import { PROMISE_KEY, STORY_KEY } from '../core/storage-keys'
+import { STORY_KEY } from '../core/storage-keys'
 import { browserStorage, ProgressStore } from '../core/story/progress'
+import { phrases, promisesRead, withPromises } from '../ui/promise-sheet'
 import { mashiroSvg } from '../utsutsu/mashiro'
 import { loadTestLand, testLandIsOld } from '../utsutsu/test-land'
 import { stampDate } from '../yume/encounter/stamp'
@@ -69,32 +69,6 @@ const JOURNEYS: Journey[] = [
 ]
 
 const app = document.getElementById('app')!
-/** 約束の「わかった」を、出したばかりの間は受けない（続けて2回押して、読まずに進まないように） */
-let readyAt = 0
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
-}
-
-/** 句読点のあとで折り返す（「しま／せん」のように語の途中で行が分かれないように。長い句は、その中で折り返す） */
-function phrases(s: string): string {
-  return (s.match(/[^、。]+[、。]*/g) ?? [s]).map((p) => `<span class="ph">${escapeHtml(p)}</span>`).join('')
-}
-
-function safeGet(k: string): string | null {
-  try {
-    return localStorage.getItem(k)
-  } catch {
-    return null
-  }
-}
-function safeSet(k: string, v: string): void {
-  try {
-    localStorage.setItem(k, v)
-  } catch {
-    // 保存できなくても進める（次に開いたときは、また約束を見せる）
-  }
-}
 
 /** 進み具合の数（会った妖怪・開いた札・旅印）。描画に依存しない ProgressStore で読むだけ（書かない） */
 function progressCounts(): { met: number; cards: number; stamps: number } {
@@ -153,10 +127,10 @@ function showHome(): void {
   app.querySelectorAll<HTMLAnchorElement>('[data-journey]').forEach((a) => {
     // 約束を読んでいれば、そのまま旅へ。まだなら、新しいタブで開こうとしたとき（Ctrl・⌘・中ボタン）も先に約束を見せる
     const guard = (e: MouseEvent) => {
-      if (safeGet(PROMISE_KEY) === '1') return
+      if (promisesRead()) return
       e.preventDefault()
       const j = JOURNEYS.find((x) => x.id === a.dataset.journey)!
-      showPromise(j, 0)
+      showPromises(j)
     }
     a.addEventListener('click', guard)
     // 中ボタンでは click が来ない（auxclick で新しいタブが開く）
@@ -166,39 +140,22 @@ function showHome(): void {
   })
 }
 
-// ---------------------------------------------------------------- 三つの約束（初回だけ・飛ばせない）
+// ---------------------------------------------------------------- 三つの約束（初回だけ・飛ばせない。札は ui/promise-sheet.ts）
 
-function showPromise(j: Journey, i: number): void {
-  const p = PROMISES[i]
-  app.innerHTML = `
-    <main class="en en-promise">
-      <section class="en-card" aria-labelledby="en-p-h">
-        <p class="en-count">${j.name}の前に</p>
-        <h1 id="en-p-h" tabindex="-1">三つの約束<span class="n">${i + 1} / ${PROMISES.length}</span></h1>
-        <div class="en-steps" aria-hidden="true">${PROMISES.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('')}</div>
-        ${mashiroSvg(false)}
-        <p class="en-speaker"><span class="who">ましろ<span class="tag">台本・創作</span></span>${phrases(p.mashiro)}</p>
-        <p class="en-plain">${phrases(p.plain)}</p>
-        <button class="en-big" type="button" data-act="ok">わかった</button>
-        <p class="en-note">${phrases(`はじめての時だけ、1つずつ読んでから旅に入ります。${j.id === 'yume' ? '家で遊ぶ人にも、いつか現地へ行く日のために。' : ''}`)}</p>
-        <button class="en-back" type="button" data-act="back">旅をえらびなおす</button>
-      </section>
-    </main>`
-  window.scrollTo(0, 0)
-  readyAt = performance.now() + 400
-  ;(app.querySelector('#en-p-h') as HTMLElement).focus({ preventScroll: true })
-  app.querySelector('[data-act="ok"]')!.addEventListener('click', () => {
-    if (performance.now() < readyAt) return
-    if (i + 1 < PROMISES.length) {
-      showPromise(j, i + 1)
-      return
-    }
-    safeSet(PROMISE_KEY, '1')
-    window.location.assign(j.href)
-  })
-  app.querySelector('[data-act="back"]')!.addEventListener('click', () => {
-    showHome()
-    ;(app.querySelector(`[data-journey="${j.id}"]`) as HTMLElement | null)?.focus()
+function showPromises(j: Journey): void {
+  app.innerHTML = '<main class="en en-promise"></main>'
+  withPromises({
+    host: app.querySelector('main') as HTMLElement,
+    journey: j.name,
+    home: j.id === 'yume',
+    back: {
+      label: '旅をえらびなおす',
+      go: () => {
+        showHome()
+        ;(app.querySelector(`[data-journey="${j.id}"]`) as HTMLElement | null)?.focus()
+      },
+    },
+    done: () => window.location.assign(j.href),
   })
 }
 

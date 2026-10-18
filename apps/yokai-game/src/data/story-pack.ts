@@ -1,5 +1,6 @@
 // 物語のデータ（台本・伝承の札・曼荼羅の構図・妖怪）をまとめて読み込み、点検する。
 // ゲーム独自のデータなので、OSM 由来のデータ（ODbL）とは別のファイルに分けている（05 §5.1）。
+// 点検は、データ（F-70。コードを変えずに直す）の書き違いで地点や札が黙って消えないように、見つけた問題を problems に文で並べる。
 
 import { validateAppearance } from '../core/story/appearance'
 import { validateScript } from '../core/story/dialogue'
@@ -17,6 +18,7 @@ import type {
 } from '../core/story/types'
 import appearanceJson from './appearance.json'
 import cluesJson from './clues.json'
+import { iwakurajiPack } from './iwakuraji-pack'
 import cardsJson from './lore-cards.json'
 import mandalaJson from './mandala.json'
 import gameScript from './scripts/game.json'
@@ -82,6 +84,13 @@ export function loadStoryPack(): StoryPack {
     clues[c.id] = c
     if (!scripts[c.script]) problems.push(`調べる地点 ${c.id} の台本 ${c.script} がない`)
     else if (scripts[c.script].yokaiId) problems.push(`調べる地点 ${c.id} の台本に妖怪がいる（ましろだけが話す）`)
+    // 気配を出す条件の札（書き違えると、いつまでも気配が出るか、出ない）
+    for (const w of c.showWhen) if ('card' in w && !cards[w.card]) problems.push(`調べる地点 ${c.id} の条件の札 ${w.card} がない`)
+  }
+  // 地域パックの地点が引く調べる地点（書き違えると、その地点は黙って出ない。テスト用の土地の分は test-land.ts が見る）
+  for (const s of iwakurajiPack.spots) {
+    if (s.clueId && !clues[s.clueId]) problems.push(`地点 ${s.id} の調べる地点 ${s.clueId} がない`)
+    if (s.yokaiId && !yokai[s.yokaiId]) problems.push(`地点 ${s.id} の妖怪 ${s.yokaiId} がいない`)
   }
   const appearance = appearanceJson as unknown as AppearanceTable
   problems.push(...validateAppearance(appearance, new Set(Object.keys(yokai)), new Set(Object.keys(scripts))))

@@ -9,26 +9,26 @@
 // - 名所の役目は現の旅と同じ（04 §3.1・§3.4）:
 //   決まった妖怪（夢の姿）、調べる地点（頼まれてから札を拾うまで。姿は無く、ましろだけが話す）、
 //   寄り道の地点（水辺。出現の表を時間で引く。会ったことのある妖怪が雑談で現れる。悩みは始めない・縁も上げない）。
-// - 時間（昼・夕・夜）は「時間」で切り替え、端末に覚える。夜は気配だけ（04 §2.5「箱庭も夜は気配だけ」）。
+// - 時間（昼・夕・夜）は「時間」で切り替え、端末に覚える。夜は気配だけ（04 §2.5「箱庭も夜は気配だけ」。決まりは core の canListenAtHome。箱庭と同じ）。
 //   夕は、決まった妖怪と調べる地点には会える。寄り道の地点は表のとおり（くらがりは段階4なので、まだ気配だけ）。
 // - お休みの範囲（境内・墓地）は霧。名前は出さず、中では会わない。
 // - 位置は使わない。土地はどこにも送らない（F-52）。出典表示（OSM）は常に出す（F-44）。
 // - テスターには、はじめに「伝承の土地ではない」「監修前の試作」と伝える（04 §6.2）。はじめの札は、開くたびに出す。
+// - 三つの約束（F-60）は、入口・現の旅で読んでいなければ、ここで見せる（札は ui/promise-sheet.ts。どのページでも同じもの）。
 
 import './style.css'
 import type { LocalXZ } from '../core/geo'
 import type { XZ } from '../core/map-layers'
-import { PROMISES } from '../core/promises'
-import { PROMISE_KEY, TEST_KEY } from '../core/storage-keys'
-import { clueActive, resolveAppearance, timeSlotOfDiorama } from '../core/story/appearance'
+import { TEST_KEY } from '../core/storage-keys'
+import { canListenAtHome, clueActive, HOME_NIGHT_KEHAI, resolveAppearance, type SpotRole, spotRole, timeSlotOfDiorama } from '../core/story/appearance'
 import { ListenGauge } from '../core/story/listen'
 import { browserStorage, ProgressStore } from '../core/story/progress'
-import type { PlaceKind } from '../core/story/types'
 import type { DayPhase } from '../core/utsutsu/sun'
 import { loadStoryPack } from '../data/story-pack'
+import { focusSheet } from '../ui/focus'
+import { withPromises } from '../ui/promise-sheet'
 import { GenEncounter } from '../utsutsu/encounter'
 import { type MapKehai, type MapPad, MapView } from '../utsutsu/map-view'
-import { mashiroSvg } from '../utsutsu/mashiro'
 import { loadTestLand, type TestLand, testLandIsOld } from '../utsutsu/test-land'
 import { Sound } from '../yume/encounter/sound'
 import { stampDate } from '../yume/encounter/stamp'
@@ -46,10 +46,11 @@ interface EzuSpot {
   id: string
   x: number
   z: number
-  role: 'yokai' | 'clue' | 'wander'
+  role: SpotRole
   yokaiId?: string
   clueId?: string
-  placeKind?: PlaceKind
+  /** 場所の種類（寄り道の地点は、出現の表の行） */
+  placeKind?: string
 }
 
 /** この端末に覚えること（時間と、はじめての一言を見せ終えたか）。土地や位置は入れない */
@@ -59,10 +60,8 @@ interface Prefs {
   listened: boolean
 }
 
-/** 寄り道の地点で、まだ姿の見えない誰か（【創作】。現の旅と同じ言葉） */
-const WANDER_FAINT = '……水の音のほうに、誰かいる。まだ声は遠い。'
-/** 夜は気配だけ（04 §2.5。【創作】） */
-const NIGHT_KEHAI = '夜は、気配だけ。'
+/** 寄り道の地点（水辺の道）で、まだ姿の見えない誰か（【創作】。現の旅と同じ言葉。水のほうへは誘わない） */
+const WANDER_FAINT = '……誰かいる。でも、まだ声は遠い。'
 
 const story = loadStoryPack()
 if (story.problems.length) console.warn('物語のデータの問題', story.problems)
@@ -126,10 +125,18 @@ const log = (s: string) => {
   if (logLines.length > 200) logLines.shift()
 }
 
-function showSheet(html: string): HTMLDivElement {
-  sheet.innerHTML = `<div class="ez-card">${html}</div>`
+/** 全面の札の地を空けて出す（三つの約束の札は ui/promise-sheet.ts が置く） */
+function openSheet(): HTMLDivElement {
+  sheet.replaceChildren()
   sheet.hidden = false
-  return sheet.querySelector('.ez-card') as HTMLDivElement
+  return sheet
+}
+function showSheet(html: string): HTMLDivElement {
+  openSheet().innerHTML = `<div class="ez-card">${html}</div>`
+  const card = sheet.querySelector('.ez-card') as HTMLDivElement
+  // 押したボタンが消えて、キーボードの位置が <body> に落ちないように、札の頭（見出しか最初のボタン）へ
+  focusSheet(card)
+  return card
 }
 function hideSheet(): void {
   sheet.hidden = true
@@ -161,33 +168,8 @@ function showStart(): void {
     <a class="sub" href="./">入口へ</a>`)
   card.querySelector('button')!.addEventListener('click', () => {
     sound.unlock()
-    withPromises(() => startMap(t))
+    withPromises({ host: openSheet(), journey: '白描の絵地図', home: true, back: { label: 'もどる', go: () => showStart() }, done: () => startMap(t) })
   })
-}
-
-/** 三つの約束（04 §2.1、F-60。文は core/promises.ts）。初回は飛ばせない（家で始めた人にも見せる）。入口で読んでいれば出さない */
-function withPromises(next: () => void): void {
-  if (safeGet(PROMISE_KEY) === '1') {
-    next()
-    return
-  }
-  const show = (i: number) => {
-    const p = PROMISES[i]
-    const card = showSheet(`
-      <p class="count">三つの約束　${i + 1} / ${PROMISES.length}</p>
-      ${mashiroSvg(false)}
-      <p class="speaker">${escapeHtml(p.mashiro)}</p>
-      <p class="soft">${escapeHtml(p.plain)}</p>
-      <button class="big" type="button">わかった</button>`)
-    card.querySelector('button')!.addEventListener('click', () => {
-      if (i + 1 < PROMISES.length) show(i + 1)
-      else {
-        safeSet(PROMISE_KEY, '1')
-        next()
-      }
-    })
-  }
-  show(0)
 }
 
 // ---------------------------------------------------------------- 遊ぶ（絵地図）
@@ -198,12 +180,11 @@ function startMap(t: TestLand): void {
   const prefs = loadPrefs()
   let time: Time = prefs.time
   const rest: LocalXZ[][] = t.restZones.map((z) => z.map(([x, zz]) => ({ x, z: zz })))
+  // 名所の役目（core の spotRole。現の旅・箱庭と同じ順。どの役目でもない地点は置かない）
   const spots: EzuSpot[] = []
   for (const s of t.spots) {
-    const at = { id: s.id, x: s.x, z: s.z }
-    if (s.yokaiId) spots.push({ ...at, role: 'yokai', yokaiId: s.yokaiId })
-    else if (s.clueId) spots.push({ ...at, role: 'clue', clueId: s.clueId })
-    else if (s.placeKind === 'mizube') spots.push({ ...at, role: 'wander', placeKind: s.placeKind })
+    const role = spotRole(s, story.appearance)
+    if (role) spots.push({ id: s.id, x: s.x, z: s.z, role, yokaiId: s.yokaiId, clueId: s.clueId, placeKind: s.placeKind })
   }
   const spotOf = (id: string | null): EzuSpot | undefined => (id ? spots.find((s) => s.id === id) : undefined)
   // お休みの範囲の中の名所では、耳を澄まさない（地点はお休みの範囲から離して作るが、念のため）
@@ -214,7 +195,8 @@ function startMap(t: TestLand): void {
   const tl = el('div', 'ez-tl')
   const back = el('a', 'ez-btn', '入口へ')
   back.href = './'
-  tl.append(back, el('div', 'ez-title', '白描の絵地図<small>テスト用の土地（試作）</small>'))
+  const title = el('div', 'ez-title', '白描の絵地図<small>テスト用の土地（試作）</small>')
+  tl.append(back, title)
   const tr = el('div', 'ez-tr')
   const timeBtn = el('button', 'ez-btn') as HTMLButtonElement
   const soundBtn = el('button', 'ez-btn', '音') as HTMLButtonElement
@@ -242,6 +224,9 @@ function startMap(t: TestLand): void {
   const credit = el('div', 'yh-credit', '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>')
   // 名所のボタンは板のあと（Tab で、板 → 名所の順に回る）
   root.append(tl, tr, tools, spotLayer, hint, toastEl, credit)
+  // 札（約束・はじめ）を閉じると、押したボタンが消える。キーボードの位置は題へ（Tab で、右上の板 → 名所の順）
+  title.tabIndex = -1
+  title.focus({ preventScroll: true })
 
   let toastTimer = 0
   // ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける（who を空にすると、地の文）。
@@ -345,7 +330,9 @@ function startMap(t: TestLand): void {
       const b = spotBtns.get(sp.id)!
       b.hidden = !vis.includes(sp)
       const name = metName(sp)
-      b.textContent = sp.role === 'clue' ? '名所・古い話の気配' : name ? `名所・${name}` : '名所・まだ会っていない誰か'
+      // 寄り道の地点は、出る妖怪が時間と進み具合で変わるので、場所だけを言う
+      b.textContent =
+        sp.role === 'clue' ? '名所・古い話の気配' : sp.role === 'wander' ? '名所・水辺の道（寄り道）' : name ? `名所・${name}` : '名所・まだ会っていない誰か'
       b.setAttribute('aria-label', b.textContent)
     }
     placeSpotButtons()
@@ -440,8 +427,8 @@ function startMap(t: TestLand): void {
       safeSet(PREF_KEY, JSON.stringify(prefs))
       hint.hidden = true
     }
-    if (time === 'night') {
-      toast(NIGHT_KEHAI)
+    if (!canListenAtHome(time)) {
+      toast(HOME_NIGHT_KEHAI)
       return
     }
     if (openTalk(sp)) root.classList.add('talking')
@@ -463,7 +450,7 @@ function startMap(t: TestLand): void {
     const next = TIMES[(TIMES.indexOf(time) + 1) % TIMES.length]
     setTime(next)
     log(`time ${next}`)
-    if (next === 'night') toast(NIGHT_KEHAI)
+    if (!canListenAtHome(next)) toast(HOME_NIGHT_KEHAI)
   })
   soundBtn.addEventListener('click', () => {
     sound.unlock()
@@ -477,7 +464,7 @@ function startMap(t: TestLand): void {
   const listenBtn = new ListenButton(root, () => sound.unlock())
   listenBtn.el.setAttribute('aria-label', '耳を澄ます（長押し。Space キーを押し続けても）')
   const subOf = (sp: EzuSpot): string => {
-    if (time === 'night') return '長押し・夜は、気配だけ'
+    if (!canListenAtHome(time)) return '長押し・夜は、気配だけ'
     if (sp.role === 'clue') return '長押し・古い話の気配'
     const name = metName(sp)
     return name ? `長押し・${name}にまた会いに` : '長押し・この名所で'

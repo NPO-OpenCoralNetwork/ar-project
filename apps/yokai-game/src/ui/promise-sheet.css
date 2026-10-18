@@ -1,0 +1,46 @@
+/* 三つの約束の札（promise-sheet.ts）。入口・夢の旅・現の旅・白描の絵地図で同じ見た目。
+   どのページの時間帯の色（夜の板など）にも引きずられないよう、色と書体は札の中で決める（和紙と墨、藍のボタン） */
+.pr-card {
+  --pr-paper: #faf7f0;
+  --pr-ink: #2a2622;
+  --pr-soft: rgba(42, 38, 34, 0.66);
+  --pr-line: rgba(42, 38, 34, 0.22);
+  --pr-ai: #2f4a7a;
+  --pr-ui: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --pr-title: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  box-sizing: border-box; width: min(420px, 100%); margin: auto; padding: 20px 22px 16px;
+  color: var(--pr-ink); font-family: var(--pr-ui); text-align: left; -webkit-font-smoothing: antialiased;
+  background: var(--pr-paper); border: 1px solid var(--pr-line); border-radius: 16px; box-shadow: 0 10px 34px rgba(60, 50, 40, 0.12);
+  pointer-events: auto; animation: pr-in 0.35s ease-out;
+}
+.pr-card * { box-sizing: border-box; }
+@keyframes pr-in { from { opacity: 0; transform: translateY(6px); } }
+/* 句ごとに折り返す（phrases） */
+.pr-card .ph { display: inline-block; }
+.pr-count { margin: 0; font-size: 12px; letter-spacing: 0.12em; color: var(--pr-soft); }
+.pr-card h1 { margin: 2px 0 0; font-family: var(--pr-title); font-weight: 600; font-size: 19px; letter-spacing: 0.12em; line-height: 1.5; outline: none; }
+.pr-card h1 .n { margin-left: 12px; font-family: var(--pr-ui); font-weight: 400; font-size: 13px; letter-spacing: 0.06em; color: var(--pr-soft); }
+.pr-steps { display: flex; gap: 6px; margin: 10px 0 6px; }
+.pr-steps i { flex: 1; height: 3px; border-radius: 2px; background: var(--pr-line); }
+.pr-steps i.on { background: var(--pr-ai); }
+.pr-card svg.mashiro { display: block; width: 120px; height: 90px; margin: 4px auto 2px; color: var(--pr-ink); }
+/* ましろの台詞（【創作】なので「台本・創作」の印） */
+.pr-speaker { margin: 6px 0 2px; font-family: var(--pr-title); font-size: 17px; line-height: 1.85; }
+.pr-who { display: block; font-family: var(--pr-ui); font-size: 11.5px; letter-spacing: 0.1em; color: var(--pr-soft); line-height: 1.6; }
+.pr-tag { display: inline-block; margin-left: 8px; vertical-align: 0.08em; font-size: 10px; letter-spacing: 0.04em; line-height: 1.5; border: 1px solid var(--pr-line); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.pr-plain { margin: 8px 0 0; font-size: 14px; line-height: 1.75; }
+.pr-big { display: block; width: 100%; margin-top: 16px; font: inherit; font-family: var(--pr-title); font-size: 16px; letter-spacing: 0.1em; min-height: 50px; color: #faf7f0; background: var(--pr-ai); border: 0; border-radius: 12px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.pr-big:hover { background: #263e68; }
+.pr-note { margin: 10px 0 0; font-size: 12px; line-height: 1.65; color: var(--pr-soft); }
+.pr-back { display: flex; align-items: center; justify-content: center; width: max-content; margin: 6px auto 0; min-height: 44px; padding: 0 14px; font: inherit; font-size: 13px; color: var(--pr-soft); background: none; border: 0; border-radius: 10px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
+.pr-card :focus-visible { outline: 2px solid var(--pr-ai); outline-offset: 3px; }
+.pr-card h1:focus-visible { outline: none; }
+
+/* 全面の覆い（夢の旅で、箱庭を始める前に出す。入口・現の旅・白描の絵地図は、ページの札の地に置く） */
+.pr-sheet { position: fixed; inset: 0; z-index: 100; display: flex; overflow: auto; overscroll-behavior: contain;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  background: radial-gradient(120% 420px at 50% 0, rgba(238, 214, 160, 0.5), rgba(238, 214, 160, 0) 100%), #f3eee2; background-repeat: no-repeat; background-color: #f3eee2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-card { animation: none; }
+}

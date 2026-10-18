@@ -1,6 +1,8 @@
 // 夢の旅（家の3D箱庭）の入口。段階1a「夢の旅の骨組み」、段階2「出会いと会話」（yume/encounter、core/story）。
 // 地域パックの範囲（段階1b: 東西 700m × 南北 400m）を、OSM と標高タイルから組み立てて、アバターとましろで歩く。
 // 画面に出す地域の名前は、地域パックの name（了承が出るまでは仮の呼び方）だけを使う。
+// 三つの約束（F-60）は、入口・現の旅・白描の絵地図で読んでいなければ、箱庭を始める前にここで見せる（札は ui/promise-sheet.ts）。
+// 1つの HTML にまとめた箱庭（vite.artifact.config.ts。mode 'artifact'。入口の無い、Claude のアーティファクトで見る試作）では出さない。
 
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
@@ -10,6 +12,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { STORY_KEY } from '../core/storage-keys'
 import { browserStorage, ProgressStore } from '../core/story/progress'
 import { loadStoryPack } from '../data/story-pack'
+import { withPromises } from '../ui/promise-sheet'
 import { bendDrop, fogShapeUniforms, inkRimUniforms } from './bend'
 import { CameraRig, cameraTune } from './camera'
 import { Controls } from './controls'
@@ -105,9 +108,11 @@ function start(): void {
   let timeOfDay: TimeId = TIMES.some((t) => t.id === saved.time) ? (saved.time as TimeId) : 'day'
   let quality = QUALITIES.find((q) => q.id === saved.quality) ?? QUALITIES[1]
 
-  const data = loadFieldData()
+  // 物語のデータ（地点の役目は出現の表も見て決めるので、箱庭の材料より先に読む）
+  const story = loadStoryPack()
+  const data = loadFieldData(story.appearance)
 
-  const hud = new Hud(host, `${TITLE_PREFIX} ・ ${data.pack.name}`, data.attributions, {
+  const hud = new Hud(host, { prefix: `${TITLE_PREFIX} ・ `, name: data.pack.name }, data.attributions, {
     rotate: (d) => rig.rotateStep(d),
     toggleLook: () => setLook(pendingLook === 'hikari' ? 'hakubyo' : 'hikari'),
     cycleTime: () => cycleTime(),
@@ -225,7 +230,6 @@ function start(): void {
   rig.yaw = rig.yawTarget = 90
 
   // 出会いと会話（段階2）。進み具合は端末に保存し、再読み込みしても続きから
-  const story = loadStoryPack()
   const progress = new ProgressStore(browserStorage(), STORY_KEY)
   encounters = new Encounters({
     field,
@@ -792,4 +796,20 @@ function startPoint(data: ReturnType<typeof loadFieldData>, field: Field, aspect
   return { x: w.x, z: w.z, heading: Math.PI / 2 }
 }
 
-start()
+// はじめる（約束をまだ読んでいなければ、先に1画面ずつ。読み終えるまで箱庭は始めない）
+if (import.meta.env.MODE === 'artifact') start()
+else {
+  const veil = document.createElement('div')
+  veil.className = 'pr-sheet'
+  document.getElementById('app')!.appendChild(veil)
+  withPromises({
+    host: veil,
+    journey: '夢の旅',
+    home: true,
+    back: { label: '入口へ', href: './' },
+    done: () => {
+      veil.remove()
+      start()
+    },
+  })
+}
