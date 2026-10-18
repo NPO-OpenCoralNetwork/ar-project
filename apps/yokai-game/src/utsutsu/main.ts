@@ -10,11 +10,11 @@
 //   （悩みは始めない・縁も上げない）。まだ会っていない・まだ作っていない妖怪は「誰かいる」まで。麓では逢魔が時に出会いを止め、夜は気配だけ。
 //
 // 土地:
-// - 立山のふもと（岩峅寺。本番の地域パック）。進み具合は夢の旅と同じ保存（yume.story.v1）なので、夢で会った妖怪と再会できる。
+// - 立山のふもと（岩峅寺。本番の地域パック）。進み具合は夢の旅と同じ保存（STORY_KEY）なので、夢で会った妖怪と再会できる。
 // - テスト用の土地（チームの地元。test-land.ts）。この端末の中だけに作る。進み具合は別の保存（まだ無いときだけ、作ったときに夢の旅の保存を写す。
 //   家の白描の地図も同じ保存に書くので、作り直しても消さない）。
 // - 位置シミュレーター（?sim または ?debug。F-06）。進み具合は別の保存（始めるたびに、その土地の保存を写す。
-//   立山のふもとは夢の旅と同じ yume.story.v1、テスト用の土地は家の白描の絵地図と同じ yume.story.test.v1）。
+//   立山のふもとは夢の旅と同じ STORY_KEY、テスト用の土地は家の白描の絵地図と同じ TEST_KEY。保存の名前は core/storage-keys.ts）。
 // URL: ?debug で判定の中身を表示。
 
 import './style.css'
@@ -24,7 +24,7 @@ import type { Fix } from '../core/location/types'
 import { SIM_KEY, STORY_KEY, TEST_KEY } from '../core/storage-keys'
 import { clueActive, clueWords, resolveAppearance, type SpotRole, spotRole } from '../core/story/appearance'
 import { checkConditions } from '../core/story/dialogue'
-import { browserStorage, ProgressStore } from '../core/story/progress'
+import { browserStorage, migrateLegacySave, ProgressStore } from '../core/story/progress'
 import type { SectionDef, TimeSlot } from '../core/story/types'
 import { type EngineEvent, type EngineSpot, UtsutsuEngine } from '../core/utsutsu/engine'
 import { sunTimes } from '../core/utsutsu/sun'
@@ -139,20 +139,20 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
   return e
 }
 
-function safeGet(k: string): string | null {
+/**
+ * 夢の旅の保存（from を渡せば、その保存）を、テスト用・シミュレーター用の保存へ写す（そちらで進めても、本番の保存は変わらない）。
+ * 前の名前の保存は、先にいまの名前へ写してから読む（migrateLegacySave）。keep: 写す先にもう保存があれば、写さない
+ */
+function copyMainProgress(to: string, from = STORY_KEY, keep = false): void {
+  const storage = browserStorage()
+  if (!storage) return
+  migrateLegacySave(storage, from)
+  migrateLegacySave(storage, to)
   try {
-    return localStorage.getItem(k)
-  } catch {
-    return null
-  }
-}
-
-/** 夢の旅の保存（from を渡せば、その保存）を、テスト用・シミュレーター用の保存へ写す（そちらで進めても、本番の保存は変わらない） */
-function copyMainProgress(to: string, from = STORY_KEY): void {
-  const s = safeGet(from)
-  try {
-    if (s) localStorage.setItem(to, s)
-    else localStorage.removeItem(to)
+    if (keep && storage.getItem(to) !== null) return
+    const s = storage.getItem(from)
+    if (s) storage.setItem(to, s)
+    else storage.removeItem(to)
   } catch {
     // そのまま
   }
@@ -284,7 +284,7 @@ function makeTestLand(): void {
         .then((t) => {
           saveTestLand(t)
           // 進み具合は、まだ無いときだけ夢の旅の保存を写す（家の白描の地図も同じ保存に書くので、作り直しても消さない）
-          if (safeGet(TEST_KEY) === null) copyMainProgress(TEST_KEY)
+          copyMainProgress(TEST_KEY, STORY_KEY, true)
           log(`testland ${JSON.stringify(t.stats)}`)
           startSession(testLand(t), 'gps')
         })
@@ -317,6 +317,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   // シミュレーターは、その土地の保存を写して始める（テスト用の土地は、家の白描の絵地図と同じ保存から。夢で会っていれば再会になる）
   if (kind === 'sim') copyMainProgress(SIM_KEY, land.id === 'test' ? TEST_KEY : STORY_KEY)
   const progress = new ProgressStore(browserStorage(), key)
+  // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
+  progress.follow()
   const engine = new UtsutsuEngine(land.spots, land.rest.map((polygon, i) => ({ id: `rest-${i}`, polygon })), land.origin)
   log(`start ${land.id} ${kind} key=${key}`)
 

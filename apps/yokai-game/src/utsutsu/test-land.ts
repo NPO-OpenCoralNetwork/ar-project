@@ -28,6 +28,8 @@
 
 import { type LatLon, toLocal } from '../core/geo'
 import type { MapLayers, XZ } from '../core/map-layers'
+import { LEGACY_TESTLAND_KEY, TESTLAND_KEY } from '../core/storage-keys'
+import type { KeyValueStore } from '../core/story/progress'
 import type { PlaceKind } from '../core/story/types'
 
 /** テスト用の土地の地点。yokaiId＝決まった妖怪、clueId＝調べる地点（白えびを受け取る地点も）、placeKind＝寄り道の地点（出現の表で妖怪を引く） */
@@ -62,7 +64,6 @@ export interface TestLand {
   }
 }
 
-const KEY = 'yume.testland.v1'
 const HALF_M = 400
 const PUBLIC_ROAD = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian'])
 const ROAD_WIDTH: Record<string, number> = {
@@ -93,10 +94,10 @@ const WATER_SIDE_KINDS = new Set(['river', 'canal', 'stream'])
 /** 水の上に数える近さ（m）。水の面の縁・閉じなかった縁の線からこの距離までと、水路の線（中心）からこの距離（か幅の半分）まで。地図の線のずれの分 */
 const WATER_MARGIN_M = 3
 
-export function loadTestLand(): TestLand | null {
+/** 読める土地（版4）か。読めなければ null */
+function parseTestLand(s: string | null): TestLand | null {
+  if (!s) return null
   try {
-    const s = localStorage.getItem(KEY)
-    if (!s) return null
     const t = JSON.parse(s) as TestLand
     return t?.version === 4 && t.spots?.length ? t : null
   } catch {
@@ -104,10 +105,34 @@ export function loadTestLand(): TestLand | null {
   }
 }
 
-/** 前に作った土地が古い版で、読めない（作り直してもらう） */
+/**
+ * 前の名前（LEGACY_TESTLAND_KEY）にある版4 の土地を、いまの名前へ写す（4a review F1。storage-keys.ts）。
+ * いまの名前に土地が無いときだけ。前の名前の土地は残す（前の版のゲームは版3 までしか読まず、作り直すと上書きするので名前を変えた）
+ */
+export function migrateTestLand(storage: KeyValueStore): void {
+  try {
+    if (storage.getItem(TESTLAND_KEY) !== null) return
+    const old = storage.getItem(LEGACY_TESTLAND_KEY)
+    if (parseTestLand(old)) storage.setItem(TESTLAND_KEY, old!)
+  } catch {
+    // そのまま
+  }
+}
+
+export function loadTestLand(): TestLand | null {
+  try {
+    migrateTestLand(localStorage)
+    return parseTestLand(localStorage.getItem(TESTLAND_KEY))
+  } catch {
+    return null
+  }
+}
+
+/** 前に作った土地が古い版で、読めない（作り直してもらう）。前の名前に、前の版のゲームで作った土地だけがあるときも */
 export function testLandIsOld(): boolean {
   try {
-    return !!localStorage.getItem(KEY) && !loadTestLand()
+    if (loadTestLand()) return false
+    return localStorage.getItem(TESTLAND_KEY) !== null || localStorage.getItem(LEGACY_TESTLAND_KEY) !== null
   } catch {
     return false
   }
@@ -115,7 +140,7 @@ export function testLandIsOld(): boolean {
 
 export function saveTestLand(t: TestLand): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(t))
+    localStorage.setItem(TESTLAND_KEY, JSON.stringify(t))
   } catch {
     // 保存できなくても、この回は遊べる
   }
@@ -123,7 +148,9 @@ export function saveTestLand(t: TestLand): void {
 
 export function clearTestLand(): void {
   try {
-    localStorage.removeItem(KEY)
+    localStorage.removeItem(TESTLAND_KEY)
+    // 前の名前に版4 の土地があると、次に読むときに写し直すので、それも消す（版3 までは前の版のゲームの土地なので残す）
+    if (parseTestLand(localStorage.getItem(LEGACY_TESTLAND_KEY))) localStorage.removeItem(LEGACY_TESTLAND_KEY)
   } catch {
     // そのまま
   }

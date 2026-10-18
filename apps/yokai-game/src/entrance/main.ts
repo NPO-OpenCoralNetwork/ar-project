@@ -6,7 +6,8 @@
 // - つづき: 進み具合（STORY_KEY。二つの旅で共通）に会った妖怪や開いた札があれば、数を小さく添える。
 // - 引き継ぎ（試作。02 F-51）: 旅の下に小さな入り口だけを置き、#hikitsugi で札（ui/transfer-sheet.ts）を開く。
 //   入口の地のまま中身を入れ替える（覆いにしない）。ブラウザの「戻る」でも入口へ戻れる。テスト用の土地の場所は運ばない。
-//   進み具合があれば、端末の保存を長く残すよう一度だけ静かに頼む（persistOnce）。
+// - 端末の保存を長く残すよう、一度だけ静かに頼む（persistOnce。進み具合があるときだけ）。開いただけでは頼まず、旅を選んだとき
+//   （Firefox は許可を尋ねる画面を出すので、押したあとに）。引き継ぎの札で読み込めたときも頼む。
 // - チームのテスト用: 白描の絵地図（ezu.html）と、この端末にテスト用の土地があるか（日付だけ。位置は出さない）。
 //   ?debug のときだけ GPS の検証へも。
 // - three.js も箱庭の板（yume/hud.ts）も読み込まない（最初の読み込みを軽くする。ページはふつうにスクロール・拡大できる）。
@@ -132,8 +133,10 @@ function showHome(): void {
       <footer class="en-foot"><p>試作です。伝承の札は監修前の下書きです。</p></footer>
     </main>`
   app.querySelectorAll<HTMLAnchorElement>('[data-journey]').forEach((a) => {
-    // 約束を読んでいれば、そのまま旅へ。まだなら、新しいタブで開こうとしたとき（Ctrl・⌘・中ボタン）も先に約束を見せる
+    // 約束を読んでいれば、そのまま旅へ。まだなら、新しいタブで開こうとしたとき（Ctrl・⌘・中ボタン）も先に約束を見せる。
+    // 旅を選んだところで、保存を長く残すよう一度だけ頼む（persistOnce）
     const guard = (e: MouseEvent) => {
+      persistOnce()
       if (promisesRead()) return
       e.preventDefault()
       const j = JOURNEYS.find((x) => x.id === a.dataset.journey)!
@@ -211,7 +214,6 @@ window.addEventListener('hashchange', () => {
 })
 
 route()
-persistOnce()
 // 旅のページから「戻る」で帰ってきたとき（ページがそのまま残っていた場合）は、入口を描き直す（約束の途中の画面や古い数を見せない）
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) route()

@@ -6,11 +6,16 @@
 //   金の縁取りは、彩色済みのピースを稽古で語り返したときだけ（家でも現地でも。goldPiece。04 §3.6）。
 // - 出会い・札・ピースには、最初から「現地で得たか」の印（onsite）を持たせる（02 F-46）。座標は残さない。
 //   彩色のあとに家で金になっても、彩色を現地で得た印（colored）は残す。
-// - 旅印（02 F-45）は現地で節を終えたときだけ押せる。日付（at）だけを持ち、場所は持たない。売ったり譲ったりする仕組みはない。
+// - 旅印（02 F-45）は現地で節を終えたときだけ押せる。日付（at）だけを持ち、場所は持たない。売ったり譲ったりする仕組みはない
+//   （ただ、引き継ぎコード（transfer.ts）では、旅印ごと別の端末へ写せる。04 §7）。
 // - 会話を最後まで話した回数（talks）は、縁の段階を上げない（04 §3.3「会話では段階は上がらない」）。糸の艶にだけ使う。
-// - 版2（10/18）: 持ち物・会話の回数・最後に会った時・フラグを書いた時（引き継ぎで2台の保存を合わせるため）を足した。
-//   版1の保存は読み込むときに版2へ直す（捨てない）。
+// - 版2（10/18）: 持ち物・会話の回数・最後に会った時・彩色を得た時（colored）・フラグを書いた時と最後に書いた時
+//   （flagAt・updatedAt。引き継ぎで2台の保存を合わせるため）を足した。版1の保存は読み込むときに版2へ直す（捨てない）。
+//   夢の旅で初めて会った時（dreamMet。縁帳の「夢で会った」）は、あとから足した。無い保存は、夢で得た印から作る。
+// - 保存の名前は storage-keys.ts。前の名前の保存は、いまの名前に保存が無いときだけ写す（migrateLegacySave。4a review F1）。
+// - ほかのタブが同じ保存を書いたら、このタブの状態をそれに入れ替える（follow。開いたままのタブが、古い状態で書き戻さないように）。
 
+import { LEGACY_STORY_KEY, LEGACY_TEST_KEY, STORY_KEY, TEST_KEY } from '../storage-keys'
 import {
   BOND_CAP,
   BOND_LEVELS,
@@ -31,7 +36,10 @@ export interface Gained {
 }
 
 export interface YokaiProgress {
+  /** 会った時（夢で会ったあとに現地で会うと、現地の印に書き換える） */
   met?: Gained
+  /** 夢の旅で初めて会った時（会った・話し終えた・縁が上がった、のうち最初。現地で会い直しても残す。縁帳の「夢で会った」） */
+  dreamMet?: Gained
   bond: BondLevel
   /** 縁が上がった時（夢か現地か） */
   bondGained?: Gained
@@ -70,6 +78,8 @@ export interface KeyValueStore {
   getItem(key: string): string | null
   setItem(key: string, value: string): void
   removeItem(key: string): void
+  /** ほかのタブがその鍵を書いた・消したときに呼ぶ（新しい値。消したら null）。やめる関数を返す。ブラウザだけ（browserStorage） */
+  subscribe?(key: string, fn: (value: string | null) => void): () => void
 }
 
 export function emptyProgress(): Progress {
@@ -80,7 +90,7 @@ export const bondRank = (b: BondLevel): number => BOND_LEVELS.indexOf(b)
 export const pieceRank = (s: PieceState): number => PIECE_STATES.indexOf(s)
 
 /** 読めない版の保存（版1・版2 のどちらでもない）。読み込まずに、別の鍵へ写して残す */
-class UnknownVersion extends Error {}
+export class UnknownVersion extends Error {}
 
 /**
  * 壊れた保存や古い形を、読める形に直す（読めない項目は捨てる）。版1 は版2 に直す。
@@ -101,8 +111,10 @@ export function sanitize(raw: unknown): Progress {
   }
   const gainedOf = (g: unknown): Gained | undefined => (isGained(g) ? { at: g.at, travel: g.travel, onsite: g.onsite } : undefined)
   const obj = (o: unknown): Record<string, unknown> => (o && typeof o === 'object' && !Array.isArray(o) ? (o as Record<string, unknown>) : {})
-  for (const [id, yv] of Object.entries(obj(r.yokai))) {
-    if (!yv || typeof yv !== 'object') continue
+  /** 項目が表（オブジェクト）の表を読む。null・数・配列の項目は飛ばす */
+  const records = (o: unknown): [string, Record<string, unknown>][] =>
+    Object.entries(obj(o)).filter((e): e is [string, Record<string, unknown>] => !!e[1] && typeof e[1] === 'object' && !Array.isArray(e[1]))
+  for (const [id, yv] of records(r.yokai)) {
     const y = yv as Partial<YokaiProgress>
     const met = gainedOf(y.met)
     const bondGained = gainedOf(y.bondGained)
@@ -112,36 +124,64 @@ export function sanitize(raw: unknown): Progress {
     if (bondRank(bond) > bondRank(cap)) bond = cap
     const lastMet = gainedOf(y.lastMet)
     const talks = typeof y.talks === 'number' && Number.isFinite(y.talks) && y.talks > 0 ? Math.floor(y.talks) : undefined
-    p.yokai[id] = { bond, met, bondGained: bond === 'kehai' ? undefined : bondGained, lastMet, talks }
+    const keptBond = bond === 'kehai' ? undefined : bondGained
+    // 夢で初めて会った印。無い保存（版1・前の版2）は、夢で得た印（会った・縁が上がった・最後に会った）のいちばん早いものから作る
+    const dm = gainedOf(y.dreamMet)
+    const dreamMet = dm?.travel === 'yume' ? dm : [met, keptBond, lastMet].filter((g) => g?.travel === 'yume').reduce<Gained | undefined>(earlier, undefined)
+    p.yokai[id] = { bond, met, dreamMet, bondGained: keptBond, lastMet, talks }
   }
-  for (const [id, g] of Object.entries(obj(r.cards))) {
+  for (const [id, g] of records(r.cards)) {
     const c = gainedOf(g)
     if (c) p.cards[id] = c
   }
-  for (const [id, g] of Object.entries(obj(r.pieces))) {
+  for (const [id, g] of records(r.pieces)) {
     const c = gainedOf(g)
-    const st = (g as { state?: unknown }).state as PieceState
+    const st = g.state as PieceState
     if (!c || !PIECE_STATES.includes(st) || st === 'empty') continue
     // 彩色を現地で得た印があれば、金まで（家で稽古した金も残す）。なければ、その旅で台本が入れられる上限まで
-    let colored = gainedOf((g as { colored?: unknown }).colored)
+    let colored = gainedOf(g.colored)
     if (!colored && c.onsite && pieceRank(st) >= pieceRank('saishiki')) colored = c
     const cap: PieceState = colored?.onsite ? 'kin' : PIECE_CAP[c.travel]
     p.pieces[id] = { ...c, state: pieceRank(st) > pieceRank(cap) ? cap : st, ...(colored?.onsite ? { colored } : {}) }
   }
   for (const [k, v] of Object.entries(obj(r.flags))) if (typeof v === 'boolean') p.flags[k] = v
   for (const [k, v] of Object.entries(obj(r.flagAt))) if (typeof v === 'string' && k in p.flags) p.flagAt[k] = v
-  for (const [id, it] of Object.entries(obj(r.items))) {
-    const got = gainedOf((it as { got?: unknown })?.got)
+  for (const [id, it] of records(r.items)) {
+    const got = gainedOf(it.got)
     if (!got) continue
-    const given = gainedOf((it as { given?: unknown }).given)
+    const given = gainedOf(it.given)
     p.items[id] = given ? { got, given } : { got }
   }
   if (typeof r.updatedAt === 'string') p.updatedAt = r.updatedAt
-  for (const [id, g] of Object.entries(obj(r.stamps))) {
+  for (const [id, g] of records(r.stamps)) {
     const c = gainedOf(g)
     if (c?.onsite) p.stamps[id] = c
   }
   return p
+}
+
+/** いまの保存の名前 → 前の名前（storage-keys.ts。前の版のゲームが読み書きする） */
+const LEGACY_SAVE_KEYS: Record<string, string> = { [STORY_KEY]: LEGACY_STORY_KEY, [TEST_KEY]: LEGACY_TEST_KEY }
+
+/**
+ * 前の名前の保存を、いまの名前へ写す（4a review F1）。保存を読む前に、どのページでもこれを通す（ProgressStore・引き継ぎ・写し）。
+ * - 写すのは、いまの名前に保存が無いときだけ（あとでこの版でやり直しても、前の版で遊んでも、混ぜ戻さない）。
+ * - 写すのは読める保存（版1・版2）だけ。直した形（sanitize）で写す。読めない保存（知らない版・壊れた JSON）は写さない。
+ * - 前の名前の保存は、消さず、書き換えもしない（前の版の保存で、控えにもなる）。
+ */
+export function migrateLegacySave(storage: KeyValueStore, key: string): void {
+  const legacy = LEGACY_SAVE_KEYS[key]
+  if (!legacy) return
+  try {
+    if (storage.getItem(key) !== null) return
+    const raw = storage.getItem(legacy)
+    if (raw === null) return
+    const old = JSON.parse(raw) as { v?: unknown } | null
+    if (old?.v !== 1 && old?.v !== 2) return
+    storage.setItem(key, JSON.stringify(sanitize(old)))
+  } catch {
+    // 読めない・写せないときは、そのまま（前の名前の保存にも触れない）
+  }
 }
 
 export class ProgressStore {
@@ -166,8 +206,29 @@ export class ProgressStore {
     return () => this.listeners.delete(fn)
   }
 
+  /**
+   * ほかのタブが同じ保存を書いたら、この状態をそれに入れ替えて知らせる（引き継ぎの読み込み・ほかのタブで進めた・やり直した）。
+   * ページは、開いている間使う ProgressStore で、はじめに一度呼ぶ。
+   * 合わせずに入れ替える（このタブは変えるたびにすぐ書くので、いまの状態はもう保存にある。合わせると、やり直しが戻ってしまう）。
+   * 読めない値（知らない版・壊れた JSON）なら、いまの状態のままにして、何も書かない。やめる関数を返す
+   */
+  follow(): () => void {
+    const stop = this.storage?.subscribe?.(this.key, (raw) => {
+      let next: Progress
+      try {
+        next = raw === null ? emptyProgress() : sanitize(JSON.parse(raw))
+      } catch {
+        return
+      }
+      this.state = next
+      for (const fn of this.listeners) fn(this.state)
+    })
+    return stop ?? (() => {})
+  }
+
   private load(): Progress {
     if (!this.storage) return emptyProgress()
+    migrateLegacySave(this.storage, this.key)
     let s: string | null = null
     try {
       s = this.storage.getItem(this.key)
@@ -222,6 +283,7 @@ export class ProgressStore {
     const y = this.yokaiOf(yokai)
     y.talks = (y.talks ?? 0) + 1
     y.lastMet = this.gained(travel)
+    if (travel === 'yume') y.dreamMet ??= y.lastMet
     this.commit()
   }
 
@@ -229,13 +291,22 @@ export class ProgressStore {
     return this.state.yokai[yokai]?.talks ?? 0
   }
 
-  /** 会った（夢の姿でも現地でも）。はじめてなら true */
+  /** 会った（夢の姿でも現地でも）。はじめてなら true。夢で初めて会った印（dreamMet）も、まだ無ければ残す */
   meet(yokai: string, travel: Travel): boolean {
     const y = this.yokaiOf(yokai)
-    if (y.met && (y.met.onsite || travel === 'yume')) return false
-    // 夢で会った後に現地で会ったら、現地の印に書き換える（格が上がる）
+    const dream = travel === 'yume' && !y.dreamMet
+    if (y.met && (y.met.onsite || travel === 'yume')) {
+      // 現地で先に会っていても、夢で会った印は残す
+      if (dream) {
+        y.dreamMet = this.gained(travel)
+        this.commit()
+      }
+      return false
+    }
+    // 夢で会った後に現地で会ったら、現地の印に書き換える（格が上がる。夢で会った印は dreamMet に残る）
     const first = !y.met
     y.met = this.gained(travel)
+    if (dream) y.dreamMet = y.met
     this.commit()
     return first
   }
@@ -252,6 +323,7 @@ export class ProgressStore {
     if (bondRank(want) <= bondRank(y.bond)) return { level: y.bond, changed: false, capped }
     y.bond = want
     y.bondGained = this.gained(travel)
+    if (travel === 'yume') y.dreamMet ??= y.bondGained
     this.commit()
     return { level: want, changed: true, capped }
   }
@@ -341,28 +413,47 @@ export class ProgressStore {
     this.commit()
   }
 
-  /** 最初からやり直す（保存も消す） */
+  /**
+   * 最初からやり直す（保存も空にする）。保存を消さずに、空の保存を書く
+   * （消すと、次に開いたときに前の名前の保存から写し直してしまう。migrateLegacySave）
+   */
   reset(): void {
     this.state = emptyProgress()
     if (this.storage) {
       try {
-        this.storage.removeItem(this.key)
+        this.storage.setItem(this.key, JSON.stringify(this.state))
       } catch {
-        // 消せなくても、次の保存で上書きされる
+        try {
+          this.storage.removeItem(this.key)
+        } catch {
+          // 消せなくても、次の保存で上書きされる
+        }
       }
     }
     for (const fn of this.listeners) fn(this.state)
   }
 }
 
-/** localStorage を安全に包む（使えない環境では null） */
+/** localStorage を安全に包む（使えない環境では null）。ほかのタブが書いたら storage イベントで知らせる（subscribe。書いたタブには来ない） */
 export function browserStorage(): KeyValueStore | null {
   try {
     const s = window.localStorage
     const k = '__probe__'
     s.setItem(k, '1')
     s.removeItem(k)
-    return s
+    return {
+      getItem: (key) => s.getItem(key),
+      setItem: (key, value) => s.setItem(key, value),
+      removeItem: (key) => s.removeItem(key),
+      subscribe: (key, fn) => {
+        // key が null なのは、ほかのタブが全部を消したとき（clear）
+        const on = (e: StorageEvent) => {
+          if (e.storageArea === s && (e.key === key || e.key === null)) fn(e.key === null ? null : e.newValue)
+        }
+        window.addEventListener('storage', on)
+        return () => window.removeEventListener('storage', on)
+      },
+    }
   } catch {
     return null
   }
@@ -381,7 +472,7 @@ const betterMet = (a: Gained | undefined, b: Gained | undefined): Gained | undef
  * 2つの保存を合わせる（引き継ぎ。F-51）。どちらも読める形（sanitize 済み）であること。
  * - 縁・ピースは高いほう（同じなら早く得たほう）。札・旅印・持ち物は両方を合わせる（早く得たほう、渡した印は残す）
  * - フラグは、書いた時（flagAt）が新しいほう。時の分からないフラグは、時の分かるほうに負ける
- * - 会話の回数は多いほう、最後に会った時は新しいほう
+ * - 会話の回数は多いほう、最後に会った時は新しいほう、夢で初めて会った時は早いほう
  */
 export function mergeProgress(a: Progress, b: Progress): Progress {
   const out = emptyProgress()
@@ -397,6 +488,7 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
       bond: hi.bond,
       bondGained: hi.bondGained,
       met: betterMet(x.met, y.met),
+      dreamMet: earlier(x.dreamMet, y.dreamMet),
       lastMet: later(x.lastMet, y.lastMet),
       talks: Math.max(x.talks ?? 0, y.talks ?? 0) || undefined,
     }

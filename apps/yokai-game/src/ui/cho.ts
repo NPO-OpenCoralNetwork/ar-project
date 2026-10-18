@@ -582,8 +582,10 @@ class EnchoView {
   }
 }
 
-/** 会った所（夢・現地）。最初に会った印・最後に会った印・縁が上がった印のどれかで分かる */
-function whereMet(y: { met?: Gained; lastMet?: Gained; bondGained?: Gained } | undefined): { dream: boolean; site: boolean } {
-  const gs = [y?.met, y?.lastMet, y?.bondGained].filter((g): g is Gained => !!g)
-  return { dream: gs.some((g) => !g.onsite), site: gs.some((g) => g.onsite) }
+/**
+ * 会った所（夢・現地）。夢は、夢で初めて会った印（dreamMet。現地で会い直しても残る）で分かる。
+ * 現地は、現地で得た印（会った・最後に会った・縁が上がった）のどれかで分かる
+ */
+function whereMet(y: { met?: Gained; dreamMet?: Gained; lastMet?: Gained; bondGained?: Gained } | undefined): { dream: boolean; site: boolean } {
+  return { dream: !!y?.dreamMet, site: [y?.met, y?.lastMet, y?.bondGained].some((g) => g?.onsite === true) }
 }

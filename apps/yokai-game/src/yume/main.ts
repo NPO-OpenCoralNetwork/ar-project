@@ -231,6 +231,8 @@ function start(): void {
 
   // 出会いと会話（段階2）。進み具合は端末に保存し、再読み込みしても続きから
   const progress = new ProgressStore(browserStorage(), STORY_KEY)
+  // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
+  progress.follow()
   encounters = new Encounters({
     field,
     hud,

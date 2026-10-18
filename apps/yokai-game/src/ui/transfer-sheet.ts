@@ -3,28 +3,28 @@
 //
 // - コードを作る: この端末の進み具合（立山のふもと・テスト用の土地）を、YU1- で始まる文字にする。写す（コピー）か、ファイルに書き出す。
 // - コードを読み込む: 貼りつけるか、ファイルから。いまの端末の保存と合わせる（上書きしない。縁やピースは下がらない）。
-//   開いたままのほかのタブは、前の進み具合で書き戻すことがあるので（ページは保存を丸ごと書く）、読み込み直してもらう。
-// - テスト用の土地そのもの（家の近くの地図と地点）は、コードに入らない（transfer.ts の TRANSFER_KEYS）。そのことを札に書いておく。
-// - コードは人に渡さない（旅印や進み具合が、その人に移る。旅印は譲れない。02 §4.5）。
+//   開いたままのほかのタブは、保存が書き換わったのを見て進み具合を入れ替える（ProgressStore.follow。古い進み具合で書き戻さない）。
+//   ただ、そのタブで開いている画面は、切り替わるまで前のままのことがあるので、そう一言書く。
+// - テスト用の土地そのもの（家の近くの地図と地点）は、コードに入らない（transfer.ts の TRANSFER_SAVES）。そのことを札に書いておく。
+// - コードは人に渡さない（旅印や進み具合が、その人の端末にも写る。旅印は人に譲るものではない。02 §4.5）。
 // - 縁は数で見せない。読み込んだあとに出すのは、会った妖怪と開いた札の数だけ（入口の「つづき」と同じ）。
-// - 端末の保存を長く残すよう、進み具合があれば一度だけ静かに頼む（persistOnce。結果は見せない）。
+// - 端末の保存を長く残すよう、一度だけ静かに頼む（persistOnce。結果は見せない）。頼むのは、入口で旅を選んだときか、
+//   ここで読み込めたとき（押したあと。開いただけでは頼まない。Firefox は許可を尋ねる画面を出すので）。
 //   iPhone の Safari は、7日ほど開かないでいると、そのサイトの保存を消すことがある。確かなのは引き継ぎコードなので、札に一行だけ書く。
 // three.js は読み込まない。
 
 import './transfer-sheet.css'
-import { STORY_KEY, TEST_KEY } from '../core/storage-keys'
-import { browserStorage, type KeyValueStore, ProgressStore } from '../core/story/progress'
-import { exportTransferCode, importTransferCode, readTransferCode, TRANSFER_KEYS } from '../core/story/transfer'
+import { PERSIST_KEY } from '../core/storage-keys'
+import { browserStorage, type KeyValueStore, migrateLegacySave, ProgressStore } from '../core/story/progress'
+import { exportTransferCode, importTransferCode, readTransferCode, TRANSFER_LANDS, TRANSFER_SAVES, type TransferLand } from '../core/story/transfer'
 import { loadTestLand } from '../utsutsu/test-land'
 import { focusSheet } from './focus'
 
-/** 端末の保存を長く残すよう頼んだか（一度だけ頼む。Firefox は許可を尋ねるので、何度も聞かない） */
-const PERSIST_KEY = 'yume.persist.v1'
 /** 読み込むファイルの大きさの上限（コードは数 KB。取り違えた大きなファイルは読まない） */
 const FILE_MAX = 256 * 1024
 
-/** 保存の名前 → 札に出す土地の名前 */
-const LAND_NAME: Record<string, string> = { [STORY_KEY]: '立山のふもと', [TEST_KEY]: 'テスト用の土地' }
+/** 札に出す土地の名前 */
+const LAND_NAME: Record<TransferLand, string> = { iwakuraji: '立山のふもと', test: 'テスト用の土地' }
 
 export interface TransferFlow {
   /** 札を置く所（中身を入れ替える）。札の地はページが用意する */
@@ -33,8 +33,19 @@ export interface TransferFlow {
   back: { label: string; go: () => void }
 }
 
-/** コードを作る・読む仕組みが、このブラウザにあるか（deflate-raw の圧縮。iPhone は iOS 16.4 から） */
-const canCode = (): boolean => typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined'
+/**
+ * コードを作る・読む仕組みが、このブラウザにあるか（deflate-raw の圧縮。iPhone は iOS 16.4 から）。
+ * Chromium 80〜102 は CompressionStream があっても deflate-raw を断るので、作ってみて確かめる
+ */
+const canCode = (): boolean => {
+  try {
+    new CompressionStream('deflate-raw')
+    new DecompressionStream('deflate-raw')
+    return true
+  } catch {
+    return false
+  }
+}
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
@@ -60,8 +71,8 @@ function when(iso: string): string {
 }
 
 /** その土地の進み具合を、ことばで（会った妖怪と開いた札の数。縁は数で見せない） */
-function countsOf(storage: KeyValueStore, key: string): string {
-  const p = new ProgressStore(storage, key).get()
+function countsOf(storage: KeyValueStore, land: TransferLand): string {
+  const p = new ProgressStore(storage, TRANSFER_SAVES[land]).get()
   const met = Object.values(p.yokai).filter((y) => y.met).length
   return `会った妖怪 ${met}・開いた札 ${Object.keys(p.cards).length}`
 }
@@ -125,7 +136,7 @@ export function showTransfer(flow: TransferFlow): void {
           </div>
         </div>
         <div class="tf-msg" data-msg="out" role="status" aria-live="polite"></div>
-        <p class="tf-warn">${phrases('コードは人に渡さないでください（旅印や進み具合が、その人に移ります）。')}</p>
+        <p class="tf-warn">${phrases('コードは人に渡さないでください（旅印や進み具合が、その人の端末にも写ります）。')}</p>
       </section>
       <section class="tf-part" aria-labelledby="tf-in-h">
         <h2 id="tf-in-h">コードを読み込む<small>この端末へ</small></h2>
@@ -203,7 +214,7 @@ export function showTransfer(flow: TransferFlow): void {
         return
       }
       const env = await readTransferCode(code)
-      const lands = TRANSFER_KEYS.filter((k) => env.saves[k]).map((k) => LAND_NAME[k])
+      const lands = TRANSFER_LANDS.filter((l) => env.saves[l]).map((l) => LAND_NAME[l])
       madeAt = new Date(env.exportedAt)
       codeBox.value = code
       what.innerHTML = phrases(`${when(env.exportedAt)} の進み具合（${lands.join('・')}）です。`)
@@ -259,15 +270,15 @@ export function showTransfer(flow: TransferFlow): void {
         return
       }
       const at = when(r.exportedAt)
-      const rows = r.merged.map((k) => `<li><b>${LAND_NAME[k] ?? k}</b>${countsOf(storage, k)}</li>`).join('')
-      const noLand = r.merged.includes(TEST_KEY) && !loadTestLand()
+      const rows = r.merged.map((l) => `<li><b>${LAND_NAME[l]}</b>${countsOf(storage, l)}</li>`).join('')
+      const noLand = r.merged.includes('test') && !loadTestLand()
       say(
         inMsg,
         `<p><b>読み込みました。</b>${at ? phrases(`${at} に作ったコードです。`) : ''}</p>
         <p>${phrases('この端末の進み具合と合わせました。縁やピースは下がりません。いまの進み具合は、')}</p>
         <ul class="tf-lands">${rows}</ul>
         ${noLand ? `<p>${phrases('テスト用の土地は、進み具合だけが入りました。土地は、この端末の現の旅で、現地で作ると続きを遊べます。')}</p>` : ''}
-        <p class="tf-tabs">${phrases('ほかのタブで、このゲームを開いていたら（夢の旅・現の旅・白描の絵地図）、そのタブを読み込み直してください。開いたままだと、前の進み具合で上書きされることがあります。')}</p>`,
+        <p class="tf-tabs">${phrases('ほかのタブで開いているこのゲームの画面は、切り替わるまで、前の進み具合のままのことがあります。')}</p>`,
         'ok',
       )
       paste.value = ''
@@ -312,13 +323,18 @@ export function showTransfer(flow: TransferFlow): void {
 
 /**
  * 進み具合があれば、端末の保存を長く残すよう、一度だけ頼む（navigator.storage.persist。静かに。結果は見せない）。
- * 許されても許されなくても、もう一度は頼まない（Firefox は許可を尋ねる画面を出すので）。
+ * 押したあとにだけ呼ぶ（入口で旅を選んだとき・ここで読み込めたとき。Firefox は許可を尋ねる画面を出すので、わけの分かる時に）。
+ * 許されても許されなくても、もう一度は頼まない。
  */
 export function persistOnce(): void {
   const storage = browserStorage()
   if (!storage || !navigator.storage?.persist) return
+  const has = (key: string): boolean => {
+    migrateLegacySave(storage, key)
+    return !!storage.getItem(key)
+  }
   try {
-    if (storage.getItem(PERSIST_KEY) || !TRANSFER_KEYS.some((k) => storage.getItem(k))) return
+    if (storage.getItem(PERSIST_KEY) || !Object.values(TRANSFER_SAVES).some(has)) return
     storage.setItem(PERSIST_KEY, '1')
   } catch {
     return

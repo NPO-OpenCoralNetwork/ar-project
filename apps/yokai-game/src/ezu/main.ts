@@ -179,6 +179,8 @@ function showStart(): void {
 function startMap(t: TestLand): void {
   hideSheet()
   const progress = new ProgressStore(browserStorage(), TEST_KEY)
+  // ほかのタブで書いた進み具合（引き継ぎの読み込みなど）に入れ替える（古い進み具合で書き戻さない）
+  progress.follow()
   const prefs = loadPrefs()
   let time: Time = prefs.time
   const rest: LocalXZ[][] = t.restZones.map((z) => z.map(([x, zz]) => ({ x, z: zz })))
