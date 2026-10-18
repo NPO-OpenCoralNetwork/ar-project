@@ -3,11 +3,13 @@
   "id": "kozobo-shirabe-2",
   "creative": true,
   "review": "下書き",
-  "note": "調べる地点2（光蔵坊の悩み #2「人はわしの話をどう語っておる」。04 §3.4・§3.5）の台本。妖怪はおらず、ましろだけが話す（台詞は【創作】）。伝承の中身は札 kozobo-3（03 #8 の後半（②））でだけ出し、ましろは話の中身を言わない。気配を出す条件は clues.json（頼まれていて、札をまだ拾っていない間）。拾い漏れの地点は、悩みを解いたあとも「次の楽しみ」として残る。",
+  "note": "調べる地点2（光蔵坊の悩み #2「人はわしの話をどう語っておる」。04 §3.4・§3.5）の台本。妖怪はおらず、ましろだけが話す（台詞は【創作】）。伝承の中身は札 kozobo-3（03 #8 の後半（②））でだけ出し、ましろは話の中身を言わない。気配を出す条件は clues.json（頼まれていて、札をまだ拾っていない間）。拾い漏れの地点は、悩みを解いたあとも「次の楽しみ」として残り、そこで拾うと光蔵坊が受け取る（kz-q2-late → kozobo の q2_late）。現地では集落の中なので、ましろが「声をひそめて」と言う（04 §3.1）。",
   "speakers": {
     "mashiro": { "name": "ましろ", "role": "companion" }
   },
   "entries": [
+    { "label": "現地で、解いたあとに拾い残しを拾う", "when": [{ "travel": "utsutsu" }, { "flag": "kz-q2-done", "is": true }, { "card": "kozobo-3", "opened": false }], "node": "u_late" },
+    { "label": "解いたあとに拾い残しを拾う", "when": [{ "flag": "kz-q2-done", "is": true }, { "card": "kozobo-3", "opened": false }], "node": "late" },
     { "label": "現地で拾う", "when": [{ "travel": "utsutsu" }, { "flag": "kz-q2-asked", "is": true }, { "card": "kozobo-3", "opened": false }], "node": "u_find" },
     { "label": "拾う", "when": [{ "flag": "kz-q2-asked", "is": true }, { "card": "kozobo-3", "opened": false }], "node": "find" },
     { "label": "もう拾った", "when": [{ "card": "kozobo-3", "opened": true }], "node": "found" },
@@ -16,6 +18,7 @@
   "nodes": {
     "u_find": {
       "lines": [
+        { "speaker": "mashiro", "text": "……しっ。家のそばだから、声はひそめてね。" },
         { "speaker": "mashiro", "text": "……立ち止まったら、聞こえた。古い話の気配がする。" },
         { "speaker": "mashiro", "text": "誰かが昔、ここで語った話かな。" }
       ],
@@ -32,6 +35,24 @@
     },
     "find_end": {
       "lines": [{ "speaker": "mashiro", "text": "光蔵坊に、聞かせに行こう。" }],
+      "end": true
+    },
+    "u_late": {
+      "lines": [
+        { "speaker": "mashiro", "text": "……しっ。家のそばだから、声はひそめてね。" },
+        { "speaker": "mashiro", "text": "……立ち止まったら、聞こえた。拾い残していた話だ。" }
+      ],
+      "effects": [{ "openCard": "kozobo-3" }],
+      "next": "late_end"
+    },
+    "late": {
+      "lines": [{ "speaker": "mashiro", "text": "……耳を澄ましたら、聞こえた。拾い残していた話だ。" }],
+      "effects": [{ "openCard": "kozobo-3" }],
+      "next": "late_end"
+    },
+    "late_end": {
+      "lines": [{ "speaker": "mashiro", "text": "光蔵坊にも、聞かせてあげよう。" }],
+      "effects": [{ "flag": "kz-q2-late", "value": true }],
       "end": true
     },
     "found": {

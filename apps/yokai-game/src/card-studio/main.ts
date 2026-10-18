@@ -63,7 +63,7 @@ const BANDS: { id: BandId; label: string }[] = [
   { id: 'fuji', label: '藤' },
 ]
 
-const card0 = lore.cards[0]
+const card0 = lore.cards[0] as LoreCard
 const DEFAULT_STATE: StudioState = {
   image: { name: '見本（光蔵坊・仮）', width: 1024, height: 1024, source: 'sample' },
   frame: 'karuta',

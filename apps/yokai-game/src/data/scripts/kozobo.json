@@ -4,23 +4,26 @@
   "yokaiId": "kozobo",
   "creative": true,
   "review": "下書き",
-  "note": "夢の旅（家）で光蔵坊とはじめて会う台本。台詞はすべて【創作】（性格: 威張るが昔のおごりを恥じている。呼び方は「人の子」。04 §3.3・§4.1）。伝承の事実は札 kozobo-1（03 #8、04 §3.5 の札①）でだけ出す。神仏の名は出さず、姿も描かない（光蔵坊は「あのお方」とだけ呼ぶ。04 §3.5）。はじめて会うときに上がる縁は「顔見知り」まで（悩み #2 を解くと「なじみ」）。富山弁の監修までは「〜じゃ」程度の古風な言い方にとどめる。現地（段階3）: 夢で先に会っていれば再会（「夢で見た顔じゃ」）、そうでなければ現地ではじめて会う。どちらも札①を開き、曼荼羅のピースに色を入れる（彩色）。その場でしか聞けない台詞は u_onlyhere。縁は「顔見知り」まで（「語り仲間」は段階4の悩みごとで）。悩み #2「人はわしの話をどう語っておる」（調べる→鎮め。04 §3.5・付録A）: 2回目に会ったときに頼む（kz-q2-asked）→ 道の調べる地点で札①②（kozobo-2・3）を拾う（clues.json）→ 1枚でも拾って戻ると、絵解き鎮め（etoki）で話の順に並べる。拾っていない札は白紙で出て、ましろは伝承の中身を言わずに先へ進める（拾い漏れの救い）。③（刀尾権現）は PO・監修の確認待ちなので白紙（pending）。並べ終えると「なじみ」（kz-q2-done）になり、呼び方が「人の子」から「見習い」に変わる（04 §3.3）。「今もときどき胸がさわぐ」は【創作】（#8 は追い出されたところで終わる）。家でも現地でも同じ流れで、家で解いたら現地でやり直さない。",
+  "note": "夢の旅（家）で光蔵坊とはじめて会う台本。台詞はすべて【創作】（性格: 威張るが昔のおごりを恥じている。呼び方は「人の子」。04 §3.3・§4.1）。伝承の事実は札（kozobo-1＝03 #8 の①②を合わせた札、kozobo-2・3＝①・②。04 §3.5）でだけ出す。神仏の名は出さず、姿も描かない（光蔵坊は「あのお方」とだけ呼ぶ。04 §3.5）。はじめて会うときに上がる縁は「顔見知り」まで（悩み #2 を解くと「なじみ」）。富山弁の監修までは「〜じゃ」程度の古風な言い方にとどめる。現地（段階3）: 夢で先に会っていれば再会（「夢で見た顔じゃ」）、そうでなければ現地ではじめて会う。どちらも札 kozobo-1 を開き、曼荼羅のピースに色を入れる（彩色）。その場でしか聞けない台詞は u_onlyhere。縁は「顔見知り」まで（「語り仲間」は段階4の悩みごとで）。悩み #2「人はわしの話をどう語っておる」（調べる→鎮め。04 §3.5・付録A）: 2回目に会ったときに頼む（kz-q2-asked）→ 道の調べる地点で札 kozobo-2（①）と kozobo-3（②）を拾う（clues.json）→ 1枚でも拾って戻ると、絵解き鎮め（etoki）で話の順に並べる。拾っていない札は白紙で出て、ましろは伝承の中身を言わずに先へ進める（拾い漏れの救い）。③（刀尾権現）は PO・監修の確認待ちなので白紙（pending）。並べ終えると「なじみ」（kz-q2-done）になり、呼び方が「人の子」から「見習い」に変わる（04 §3.3）。「今もときどき胸がさわぐ」は【創作】（#8 は追い出されたところで終わる）。家でも現地でも同じ流れで、家で解いたら現地でやり直さない。 解いたあとに拾い残しを拾うと、次に会ったときに受け取る（q2_late）。現地ではじめて会う前に家で解いていれば、再会でも「見習い」と呼ぶ（u_reunion_m）。現地のはじめての会話が途中で途切れたら、続きから（kozobo-u-first）。",
   "speakers": {
     "kozobo": { "name": "光蔵坊", "role": "yokai" },
     "mashiro": { "name": "ましろ", "role": "companion" }
   },
   "entries": [
+    { "label": "現地・はじめての会話の途中で途切れた", "when": [{ "travel": "utsutsu" }, { "flag": "kozobo-genchi", "is": false }, { "flag": "kozobo-u-first", "is": true }], "node": "u_first2" },
+    { "label": "現地・夢で会っていた（悩みを解いたあと）", "when": [{ "travel": "utsutsu" }, { "flag": "kozobo-genchi", "is": false }, { "met": true }, { "flag": "kz-q2-done", "is": true }], "node": "u_reunion_m" },
     { "label": "現地・夢で会っていた", "when": [{ "travel": "utsutsu" }, { "flag": "kozobo-genchi", "is": false }, { "met": true }], "node": "u_reunion" },
     { "label": "現地・はじめて", "when": [{ "travel": "utsutsu" }, { "flag": "kozobo-genchi", "is": false }], "node": "u_first" },
     { "label": "悩み #2 を頼む（2回目から）", "when": [{ "piece": "fumoto-kozobo", "atLeast": "hakubyo" }, { "flag": "kz-q2-asked", "is": false }], "node": "q2_ask" },
     { "label": "話を拾って戻った（①）", "when": [{ "flag": "kz-q2-asked", "is": true }, { "flag": "kz-q2-done", "is": false }, { "card": "kozobo-2", "opened": true }], "node": "q2_back" },
     { "label": "話を拾って戻った（②）", "when": [{ "flag": "kz-q2-asked", "is": true }, { "flag": "kz-q2-done", "is": false }, { "card": "kozobo-3", "opened": true }], "node": "q2_back" },
     { "label": "まだ話を拾っていない", "when": [{ "flag": "kz-q2-asked", "is": true }, { "flag": "kz-q2-done", "is": false }], "node": "q2_wait" },
+    { "label": "解いたあとに拾い残しを拾ってきた", "when": [{ "flag": "kz-q2-done", "is": true }, { "flag": "kz-q2-late", "is": true }], "node": "q2_late" },
     { "label": "現地・また会う（悩みを解いたあと）", "when": [{ "travel": "utsutsu" }, { "flag": "kz-q2-done", "is": true }], "node": "u_again_m" },
     { "label": "現地・また会う", "when": [{ "travel": "utsutsu" }], "node": "u_again" },
     { "label": "はじめて（夢の姿）", "when": [{ "met": false }], "node": "first" },
-    { "label": "札の前で途切れた", "when": [{ "card": "kozobo-1", "opened": false }], "node": "resume" },
     { "label": "また会う（悩みを解いたあと）", "when": [{ "flag": "kz-q2-done", "is": true }], "node": "again_m" },
+    { "label": "札の前で途切れた", "when": [{ "card": "kozobo-1", "opened": false }, { "flag": "kozobo-genchi", "is": false }], "node": "resume" },
     { "label": "また会う", "when": [{ "piece": "fumoto-kozobo", "atLeast": "hakubyo" }], "node": "again" },
     { "label": "札のあとで途切れた", "node": "resume_end" }
   ],
@@ -142,6 +145,14 @@
       "lines": [{ "speaker": "kozobo", "text": "夢の中でも、歩きすぎるでないぞ。" }],
       "end": true
     },
+    "u_reunion_m": {
+      "lines": [
+        { "speaker": "kozobo", "text": "……ほう。夢で見た顔じゃな。" },
+        { "speaker": "kozobo", "text": "本当に来おったか、見習い。" }
+      ],
+      "effects": [{ "meet": true }],
+      "next": "u_reunion2"
+    },
     "u_reunion": {
       "lines": [
         { "speaker": "kozobo", "text": "……ほう。夢で見た顔じゃな。" },
@@ -192,7 +203,7 @@
         { "speaker": "mashiro", "text": "……いる。立ち止まったら、ほんとうに見えた。" },
         { "speaker": "kozobo", "text": "ほう。足で歩いて、ここまで来たか。人の子。" }
       ],
-      "effects": [{ "meet": true }, { "bond": "kaomishiri" }],
+      "effects": [{ "meet": true }, { "bond": "kaomishiri" }, { "flag": "kozobo-u-first", "value": true }],
       "next": "u_first2"
     },
     "u_first2": {
@@ -316,6 +327,14 @@
         { "speaker": "kozobo", "text": "話を拾い、並べて、語り返す。それが、おぬしらの仕事じゃろう。" },
         { "speaker": "kozobo", "text": "拾い残した話があれば、また聞かせてくれ。" }
       ],
+      "end": true
+    },
+    "q2_late": {
+      "lines": [
+        { "speaker": "kozobo", "text": "……拾い残しを、拾うてきたか。" },
+        { "speaker": "kozobo", "text": "うむ。それも、わしの話じゃ。……ようやった、見習い。" }
+      ],
+      "effects": [{ "flag": "kz-q2-late", "value": false }],
       "end": true
     },
     "again_m": {
