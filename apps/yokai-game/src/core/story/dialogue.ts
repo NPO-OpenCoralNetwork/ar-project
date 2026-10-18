@@ -322,8 +322,8 @@ function validateGame(g: GameSpec, cards: Record<string, LoreCard>): string[] {
 /** 並べる札の数のいちばん多いとき（絵解き鎮めも稽古も） */
 const ETOKI_MAX = 4
 
-/** 絵解き鎮めの札の並びを、稽古と同じ書き方（札の id か、pending:<確認待ちの理由>）にする */
-const slotKey = (s: EtokiSlot): string => ('card' in s ? s.card : `pending:${s.pending}`)
+/** 絵解き鎮めの札の並びを、稽古と同じ書き方（札の id か、pending:<確認待ちの理由>）にする。理由が文字でなければ、理由なし（pending:）として点検にかける */
+const slotKey = (s: EtokiSlot): string => ('card' in s ? s.card : `pending:${typeof s.pending === 'string' ? s.pending : ''}`)
 
 /**
  * 並べる札の点検（絵解き鎮めの slots と、曼荼羅のピースの稽古 keiko で同じ決まり）。
@@ -332,11 +332,13 @@ const slotKey = (s: EtokiSlot): string => ('card' in s ? s.card : `pending:${s.p
 export function validateEtokiKeys(keys: readonly string[], cards: Record<string, LoreCard>, min = 1): string[] {
   const errs: string[] = []
   if (keys.length < min || keys.length > ETOKI_MAX) errs.push(`札は${min}〜${ETOKI_MAX}枚`)
-  const seen = new Set<string>()
-  for (const key of keys) {
-    if (seen.has(key)) errs.push(`札 ${key} が2回ある`)
+  const seen = new Set<unknown>()
+  // 台本・パックの JSON から来るので、文字でない札（"card": null など）も、落ちずに「ない」と返す
+  for (const key of keys as readonly unknown[]) {
+    if (seen.has(key)) errs.push(`札 ${String(key)} が2回ある`)
     seen.add(key)
-    if (!key.startsWith('pending:')) {
+    if (typeof key !== 'string') errs.push(`札 ${String(key)} がない`)
+    else if (!key.startsWith('pending:')) {
       if (!cards[key]) errs.push(`札 ${key} がない`)
     } else if (key === 'pending:') errs.push('白紙の札に、確認待ちの理由がない')
   }

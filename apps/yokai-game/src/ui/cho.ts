@@ -10,7 +10,7 @@
 //     糸は抽象的な墨の線にする（房・飾り結び・袋など、お守りや縁結びに見える形は描かない。05・09）。
 //   - 会話を最後まで話した回数（talks）は、糸の艶（4段）と小さな字にだけ使う。段階は変えない（F-24）。
 //   - 「本作の創作」（人となり・好物・悩みの題）と「伝承の札（出典つき）」を分けて見せる。札の番号は出さない（F-43）。名産の札は伝承の札に並べない。
-//   - 好物は、渡したあとで分かる（好物のない妖怪は、好物の行を出さない）。悩みは「抱えている」「解けた」の字だけ（数も進み具合の棒も出さない）。
+//   - 好物は、渡したあとで分かる（好物のない妖怪は、好物の行を出さず、縁の書き添えでも好物に触れない）。悩みは「抱えている」「解けた」の字だけ（数も進み具合の棒も出さない）。
 //   - 一覧の上に持ち物（いま持っているもの）。
 // - 「新」の印: 見たピース・縁を、状態ごとにフラグで覚える（seen:<ピース>@<状態>、seen:en:<妖怪>@<縁>）。
 //   白描 → 彩色 → 金と上がると、また「新」になる（前の seen:<ピース> は白描を見た印として読む）。数は出さない。
@@ -243,6 +243,8 @@ export interface ChoOptions {
   travel: Travel
   /** 巻末の旅印に出す節の土地（地域パックの id。iwakuraji・test） */
   stampRegion: string
+  /** 保存が家と現地の二つの旅で共通か（やり直しの確認に書く）。位置シミュレーターの写しなら false。省くと共通 */
+  sharedSave?: boolean
   /** 稽古の鈴（なければ鳴らさない） */
   sound?: { bell(v?: number): void }
   /** 「新」の印が変わった（帳のボタンに「新」の字を出す。数は出さない） */
@@ -357,6 +359,7 @@ export function createCho(o: ChoOptions): Cho {
           .filter((s) => s.region === o.stampRegion)
           .map((s) => ({ id: s.id, title: s.title, stampTitle: s.stampTitle, motif: s.stampMotif, at: progress.stampOf(s.id)?.at ?? null })),
       keiko: keikoState,
+      sharedSave: o.sharedSave,
     },
     {
       close: () => cho.close(),
@@ -549,7 +552,7 @@ class EnchoView {
         <span class="en-th">${threadSvg(lv, step)}</span>
         <p class="en-bond-l"><b>${escapeHtml(BOND_LABEL[lv])}</b><span>${escapeHtml(THREAD_NAME[lv])}</span></p>
         <p class="en-sheen-l">${step ? escapeHtml(SHEEN[step].line) : '話すほど、糸に艶が出る。'}</p>
-        <p class="en-small">縁は、悩みを解いたり好物を渡したりすると深まることがある。話した数では深まらず、糸の艶だけが増える。${homeCap ? '家（夢の旅）で結べる縁は「なじみ」まで。この先は、現地で。' : ''}</p>
+        <p class="en-small">${y.likes ? '縁は、悩みを解いたり好物を渡したりすると深まることがある。' : '縁は、悩みを解くと深まることがある。'}話した数では深まらず、糸の艶だけが増える。${homeCap ? '家（夢の旅）で結べる縁は「なじみ」まで。この先は、現地で。' : ''}</p>
       </section>
       <section class="en-sec en-sosaku" aria-labelledby="en-sosaku-h">
         <h4 class="en-sec-h" id="en-sosaku-h">本作の創作</h4>

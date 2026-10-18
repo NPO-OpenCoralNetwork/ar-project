@@ -1223,6 +1223,8 @@ export interface MandalaState {
   stamps?(): { id: string; title: string; stampTitle: string; motif: string; at: string | null }[]
   /** 稽古（04 §3.6）。無ければ、稽古のボタンも案内も出さない */
   keiko?(id: string): KeikoState
+  /** 保存が家と現地の二つの旅で共通か（やり直しの確認に書く）。位置シミュレーターの写しなら false。省くと共通 */
+  sharedSave?: boolean
 }
 
 /** 帳のほかの頁（タブ。いまは縁帳）。panel は中身の要素で、帳が見せたり隠したりする */
@@ -1631,7 +1633,11 @@ export class MandalaView {
     this.showPop(`
       <div class="yc-kind"><span>確認</span></div>
       <h3 class="yc-title">最初からやり直しますか</h3>
-      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物・旅印が、すべて消えます。この記録は家と現地の二つの旅で共通なので、どちらからも消えます。元には戻せません。</p>
+      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物・旅印が、すべて消えます。${
+        this.state.sharedSave === false
+          ? '消えるのはシミュレーターの写しだけで、家と現地の記録は残ります。'
+          : 'この記録は家と現地の二つの旅で共通なので、どちらからも消えます。元には戻せません。'
+      }</p>
       <div class="row">
         <button class="yc-btn" type="button" data-act="close">やめる</button>
         <button class="yc-btn" type="button" data-act="reset">やり直す</button>

@@ -465,6 +465,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     progress,
     travel: 'utsutsu',
     stampRegion: land.id,
+    // シミュレーターの保存は、始めるたびに写し直す写し（やり直しても、家と現地の記録は消えない）
+    sharedSave: kind !== 'sim',
     sound,
     onNew: (on) => {
       choBtn.classList.toggle('has-new', on)
