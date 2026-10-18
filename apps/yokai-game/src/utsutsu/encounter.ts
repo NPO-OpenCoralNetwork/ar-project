@@ -10,8 +10,14 @@
 // - 寄り道の妖怪は、決まった台本ではなく、出現の表の台本（雑談）で話す（呼ぶ側が script を渡す）。
 // - お休みの範囲・道中に入ったら、会話とカメラをすぐ止める（D2・D3）。
 // - 出会っていない間は、層ごと inert（透明な層の「カメラで見る」に、Tab で入らないように）。
+// - 段階4b: 便りの画面（ui/tayori.ts）の夜話・帳の影（くらがり）・今日の絵解き（etoki-first）も、この出会いで話す。
+//   会話の時計（既定は会話を始めた時の storyClock(appNow())）・呼び名・記録の仕方（夜話は visit）・入口・最後まで話したときの知らせを
+//   台本の進め方（DialogueRunner）へ渡す。背景は開くたびに選べる（dusk＝夕暮れの和紙、night＝夜の和紙）。了承待ちの台本は開かない（02 F-71）。
 
+import { appNow } from '../core/debug-clock'
+import { type StoryClock, storyClock } from '../core/story/clock'
 import { type Beat, DialogueRunner } from '../core/story/dialogue'
+import type { MemoReader } from '../core/story/memo'
 import type { ProgressStore } from '../core/story/progress'
 import type { Travel } from '../core/story/types'
 import type { StoryPack } from '../data/story-pack'
@@ -37,6 +43,8 @@ export interface GenEncounterDeps {
   camera?: boolean
   /** 背景。scene＝昼の景色（AR 段階0。既定）、paper＝無地の和紙（家の白描の地図） */
   backdrop?: 'scene' | 'paper'
+  /** ピースのお知らせで、帳のある所を言う一言（既定「右上の「帳」で見られる。」。帳のボタンの無い入口の便りでは変える） */
+  choHint?: string
 }
 
 export interface GenOpenOptions {
@@ -48,7 +56,24 @@ export interface GenOpenOptions {
   form?: 'color' | 'dream' | 'none'
   /** 既定 utsutsu */
   travel?: Travel
+  /** 台本の入口の id（夜話の場面。成り立たなければ、上から最初に成り立つ入口） */
+  entry?: string
+  /** talk（既定）: 出会いの会話。visit: 夜話（会ったことにしない。最後まで話したら回数だけ） */
+  record?: 'talk' | 'visit'
+  /** 既定は storyClock(appNow())（会話を始めた時） */
+  clock?: StoryClock
+  /** {呼び名}（無ければ「きみ」） */
+  memo?: MemoReader
+  /** 最後まで話した（終わりに来た）とき1回。途中で閉じたら呼ばない */
+  onFinish?(): void
+  /** 背景: 既定は作ったときの backdrop。dusk＝夕暮れの和紙（ばら色→藍）、night＝夜の和紙（藍 #2b3148 と、灯籠の形にしない、ぼんやりした暖かい光） */
+  tone?: 'paper' | 'dusk' | 'night'
 }
+
+type Tone = 'scene' | 'paper' | 'dusk' | 'night'
+
+/** SVG の id を出会いごとに分ける（現の旅のページでは、ページの出会いと便りの出会いの二つが同じ文書にある） */
+let uids = 0
 
 export class GenEncounter {
   private readonly el: HTMLDivElement
@@ -61,13 +86,18 @@ export class GenEncounter {
   private stream: MediaStream | null = null
   private timer = 0
   private orient: { anchor: number | null; yaw: number; pitch: number; x: number; y: number; raf: number } | null = null
+  private readonly bg: HTMLDivElement
+  private readonly uid = ++uids
+  /** いま敷いている背景（作ったときの backdrop と違えば、会話のあとに戻す） */
+  private tone: Tone
 
   constructor(private readonly d: GenEncounterDeps) {
     injectStyle()
+    this.tone = d.backdrop ?? 'scene'
     this.el = document.createElement('div')
     this.el.className = 'ue'
     this.el.innerHTML = `
-      <div class="ue-bg">${d.backdrop === 'paper' ? paperSvg() : backdropSvg()}</div>
+      <div class="ue-bg">${toneSvg(this.tone, this.uid)}</div>
       <video class="ue-cam" playsinline muted autoplay></video>
       <div class="ue-fig"></div>
       <div class="ue-veil"></div>
@@ -77,6 +107,7 @@ export class GenEncounter {
     this.video = this.el.querySelector('.ue-cam') as HTMLVideoElement
     this.camBtn = this.el.querySelector('.ue-cam-btn') as HTMLButtonElement
     this.note = this.el.querySelector('.ue-note') as HTMLDivElement
+    this.bg = this.el.querySelector('.ue-bg') as HTMLDivElement
     this.camBtn.addEventListener('click', () => void (this.stream ? this.stopCamera() : this.startCamera()))
     this.el.inert = true
     d.root.appendChild(this.el)
@@ -87,7 +118,7 @@ export class GenEncounter {
         choose: (i) => this.onBeat(this.active?.runner.choose(i) ?? { kind: 'end' }),
         close: () => this.end('closed'),
       },
-      { yokaiName: (id) => d.story.yokai[id]?.name ?? id, sound: d.sound },
+      { yokaiName: (id) => d.story.yokai[id]?.name ?? id, sound: d.sound, choHint: d.choHint },
     )
   }
 
@@ -95,21 +126,27 @@ export class GenEncounter {
     return this.active !== null
   }
 
-  /** 姿が現れ（姿なしなら霞の中で）、台本の会話を始める。台本が無い・姿の絵が無いときは false */
+  /** 姿が現れ（姿なしなら霞の中で）、台本の会話を始める。台本が無い・了承待ちの台本・姿の絵が無いときは false */
   open(spotId: string, opts: GenOpenOptions): boolean {
     const script = this.d.story.scripts[opts.script]
     const y = opts.yokaiId ? this.d.story.yokai[opts.yokaiId] : undefined
     const form = y ? (opts.form ?? 'color') : 'none'
     const art = y?.art ? ARTS[y.art] : undefined
-    if (!script || (opts.yokaiId && !y) || (form !== 'none' && !art)) return false
+    if (!script || script.needsConsent || (opts.yokaiId && !y) || (form !== 'none' && !art)) return false
     const runner = new DialogueRunner(script, {
       progress: this.d.progress,
       cards: this.d.story.cards,
       travel: opts.travel ?? 'utsutsu',
       items: this.d.story.items,
       quests: this.d.story.quests,
+      clock: opts.clock ?? storyClock(appNow()),
+      memo: opts.memo,
+      record: opts.record,
+      onFinish: opts.onFinish,
     })
     this.active = { spotId, runner }
+    // 背景（夕暮れ・夜の和紙）。省けば、作ったときの背景
+    this.setTone(opts.tone ?? this.d.backdrop ?? 'scene')
     if (!y || !art || form === 'none') this.fig.innerHTML = ''
     else if (form === 'dream')
       this.fig.innerHTML = `<svg class="line" viewBox="0 0 ${art.w} ${art.h}" role="img" aria-label="${escapeHtml(y.name)}（夢の姿）">${artToSvg(art, '#fffdf7', INK, 1.25)}</svg>`
@@ -133,7 +170,7 @@ export class GenEncounter {
       () => {
         if (!this.active) return
         this.dialogue.open(y ? `${y.name}との会話` : 'ましろの話')
-        this.onBeat(runner.start())
+        this.onBeat(runner.start(opts.entry))
       },
       form === 'none' ? APPEAR_NOFIG_MS : APPEAR_MS,
     )
@@ -168,8 +205,19 @@ export class GenEncounter {
       if (this.active) return
       this.el.classList.remove('on', 'appeared', 'parting')
       this.fig.innerHTML = ''
+      // 背景を、作ったときのものに戻す（次にページの出会いで開いたとき、夜の和紙のままにしない）
+      this.setTone(this.d.backdrop ?? 'scene')
     }, how === 'stopped' ? 50 : 900)
     this.d.onEnd(a.spotId, how)
+  }
+
+  /** 背景を敷き替える（同じなら描き直さない）。夜の和紙では、白描の姿を少し沈める（CSS の tone-night） */
+  private setTone(tone: Tone): void {
+    this.el.classList.toggle('tone-dusk', tone === 'dusk')
+    this.el.classList.toggle('tone-night', tone === 'night')
+    if (tone === this.tone) return
+    this.tone = tone
+    this.bg.innerHTML = toneSvg(tone, this.uid)
   }
 
   // ---------------------------------------------------------------- AR 段階1（カメラ＋向き）
@@ -262,39 +310,79 @@ export class GenEncounter {
   }
 }
 
+/** 背景の SVG（tone ごと。グラデーションの id は出会いごとに分ける） */
+function toneSvg(tone: Tone, n: number): string {
+  return tone === 'scene' ? backdropSvg(n) : tone === 'paper' ? paperSvg(n) : tone === 'dusk' ? duskSvg(n) : nightSvg(n)
+}
+
 /** AR 段階0 の背景（昼の金色の午後。06「光と霞」）。立山の連なりは形をなぞった仮の切り絵（本番の絵は段階5） */
-function backdropSvg(): string {
+function backdropSvg(n: number): string {
   return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
     <defs>
-      <linearGradient id="ueSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bcd6ea"/><stop offset="0.55" stop-color="#e9e6dc"/><stop offset="0.8" stop-color="#f7e6c8"/></linearGradient>
-      <linearGradient id="ueGround" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7e3cc"/><stop offset="1" stop-color="#d8d6b8"/></linearGradient>
-      <linearGradient id="ueMist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf0" stop-opacity="0"/><stop offset="0.5" stop-color="#fffaf0" stop-opacity="0.9"/><stop offset="1" stop-color="#fffaf0" stop-opacity="0"/></linearGradient>
+      <linearGradient id="ueSky${n}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bcd6ea"/><stop offset="0.55" stop-color="#e9e6dc"/><stop offset="0.8" stop-color="#f7e6c8"/></linearGradient>
+      <linearGradient id="ueGround${n}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7e3cc"/><stop offset="1" stop-color="#d8d6b8"/></linearGradient>
+      <linearGradient id="ueMist${n}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf0" stop-opacity="0"/><stop offset="0.5" stop-color="#fffaf0" stop-opacity="0.9"/><stop offset="1" stop-color="#fffaf0" stop-opacity="0"/></linearGradient>
     </defs>
-    <rect width="400" height="700" fill="url(#ueSky)"/>
+    <rect width="400" height="700" fill="url(#ueSky${n})"/>
     <path d="M-20,420 L30,372 L62,386 L104,330 L128,348 L150,318 L176,340 L214,300 L240,326 L268,316 L300,348 L336,330 L372,362 L420,350 L420,460 L-20,460 Z" fill="#aebfd4"/>
     <path d="M104,330 L114,339 L121,336 M150,318 L158,327 L166,324 M214,300 L223,311 L232,309 L240,326" fill="none" stroke="#f8f8f4" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
     <path d="M-20,446 L40,420 L96,432 L160,404 L230,424 L300,398 L360,420 L420,410 L420,480 L-20,480 Z" fill="#c4cfd8"/>
-    <rect x="-20" y="410" width="440" height="90" fill="url(#ueMist)"/>
-    <path d="M-20,478 C80,468 160,486 240,474 C320,464 380,472 420,468 L420,700 L-20,700 Z" fill="url(#ueGround)"/>
+    <rect x="-20" y="410" width="440" height="90" fill="url(#ueMist${n})"/>
+    <path d="M-20,478 C80,468 160,486 240,474 C320,464 380,472 420,468 L420,700 L-20,700 Z" fill="url(#ueGround${n})"/>
     <path d="M150,700 C176,620 190,560 198,486 L204,486 C214,560 236,620 270,700 Z" fill="#efe8d4"/>
     <path d="M-20,560 C40,548 90,556 140,546" fill="none" stroke="#c9c4a6" stroke-width="2" stroke-linecap="round"/>
     <path d="M280,580 C320,570 360,576 420,566" fill="none" stroke="#c9c4a6" stroke-width="2" stroke-linecap="round"/>
   </svg>`
 }
 
+/** 和紙の繊維（無地の和紙・夕暮れの和紙・夜の和紙に重ねる） */
+const fiber = (id: string, color: string, opacity: number): string => `<pattern id="${id}" width="97" height="71" patternUnits="userSpaceOnUse">
+        <path d="M6,9 C13,7 19,10 24,6 M58,22 C62,26 67,27 73,31 M31,47 C36,45 40,49 47,48 M80,58 C84,55 88,57 93,52 M14,63 C18,60 21,62 23,58" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="0.6" stroke-linecap="round"/>
+      </pattern>`
+
 /** 家の白描の地図で使う背景（無地の和紙。景色は描かない） */
-function paperSvg(): string {
+function paperSvg(n: number): string {
   return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <defs>
-      <linearGradient id="uePaper" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fbf7ec"/><stop offset="1" stop-color="#f1e8d4"/></linearGradient>
-      <pattern id="ueFiber" width="97" height="71" patternUnits="userSpaceOnUse">
-        <path d="M6,9 C13,7 19,10 24,6 M58,22 C62,26 67,27 73,31 M31,47 C36,45 40,49 47,48 M80,58 C84,55 88,57 93,52 M14,63 C18,60 21,62 23,58" fill="none" stroke="#c8bb9c" stroke-opacity="0.22" stroke-width="0.6" stroke-linecap="round"/>
-      </pattern>
+      <linearGradient id="uePaper${n}" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fbf7ec"/><stop offset="1" stop-color="#f1e8d4"/></linearGradient>
+      ${fiber(`ueFiber${n}`, '#c8bb9c', 0.22)}
     </defs>
-    <rect width="400" height="700" fill="url(#uePaper)"/>
-    <rect width="400" height="700" fill="url(#ueFiber)"/>
+    <rect width="400" height="700" fill="url(#uePaper${n})"/>
+    <rect width="400" height="700" fill="url(#ueFiber${n})"/>
   </svg>`
 }
+
+/**
+ * 夕暮れの和紙（便りの画面の帳の影。上は藍、下へばら色）。景色は描かない。
+ * 墨の影の姿は、下のばら色の明るい所に立つ。会話の枠は自分の和紙の地を持つので、字の濃さは変わらない
+ */
+function duskSvg(n: number): string {
+  return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="ueDusk${n}" x1="0" y1="0" x2="0.15" y2="1"><stop offset="0" stop-color="#3d4670"/><stop offset="0.3" stop-color="#7d6f93"/><stop offset="0.56" stop-color="#d6abae"/><stop offset="0.78" stop-color="#f0d6cb"/><stop offset="1" stop-color="#f6e8dc"/></linearGradient>
+      ${fiber(`ueFiber${n}`, '#fff6ee', 0.2)}
+    </defs>
+    <rect width="400" height="700" fill="url(#ueDusk${n})"/>
+    <rect width="400" height="700" fill="url(#ueFiber${n})"/>
+  </svg>`
+}
+
+/**
+ * 夜の和紙（夜話。藍 #2b3148）。灯籠や行灯の形にはしない、ぼんやりした暖かい光をひとつ。
+ * 夜の外の景色は描かない（家で聞く話。夜の外出に誘わない）
+ */
+function nightSvg(n: number): string {
+  return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <radialGradient id="ueGlow${n}" cx="0.5" cy="0.58" r="0.55"><stop offset="0" stop-color="#e9c98f" stop-opacity="0.4"/><stop offset="0.45" stop-color="#b9946a" stop-opacity="0.13"/><stop offset="1" stop-color="#2b3148" stop-opacity="0"/></radialGradient>
+      ${fiber(`ueFiber${n}`, '#c9cde4', 0.12)}
+    </defs>
+    <rect width="400" height="700" fill="#2b3148"/>
+    <rect width="400" height="700" fill="url(#ueGlow${n})"/>
+    <rect width="400" height="700" fill="url(#ueFiber${n})"/>
+  </svg>`
+}
+
 
 const CSS = /* css */ `
 .ue { position: absolute; inset: 0; z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.5s; overflow: hidden; }
@@ -320,6 +408,11 @@ const CSS = /* css */ `
 .ue.nofig.appeared .ue-veil { opacity: 0.55; }
 .ue-note { position: absolute; top: calc(60px + var(--sat)); left: 50%; transform: translateX(-50%); font-size: 12.5px; color: var(--ink); background: var(--washi); border-radius: 8px; padding: 0 10px; width: max-content; max-width: calc(100vw - 32px); text-align: center; }
 .ue-note:empty { display: none; }
+/* 夕暮れ・夜の和紙（便りの画面の帳の影と夜話）。霞は、白でなく紙の色で晴れる（暗い画面を白く光らせない） */
+.ue.tone-dusk .ue-veil { background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(236, 206, 200, 0.85), rgba(125, 111, 147, 0.97)); }
+.ue.tone-night .ue-veil { background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(70, 76, 108, 0.88), rgba(43, 49, 72, 0.98)); }
+/* 夜の和紙では、白描の姿を少し沈める（0.85） */
+.ue.tone-night .ue-fig { opacity: 0.85; filter: drop-shadow(0 10px 14px rgba(0, 0, 10, 0.35)); }
 /* 動きを減らす設定: 浮かび上がる動きをやめ、薄く切り替えるだけにする */
 @media (prefers-reduced-motion: reduce) {
   .ue-fig .line { transform: none; transition: opacity 0.4s; }

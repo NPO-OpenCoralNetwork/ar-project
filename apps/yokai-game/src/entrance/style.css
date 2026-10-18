@@ -3,6 +3,9 @@
 :root {
   --paper: #f3eee2;
   --washi-solid: #faf7f0;
+  /* 便りの画面の会話（GenEncounter）の小さなボタンの地 */
+  --washi: rgba(250, 247, 240, 0.9);
+  --ink-soft-2: rgba(42, 38, 34, 0.72);
   --ink: #2a2622;
   --ink-soft: rgba(42, 38, 34, 0.66);
   --line: rgba(42, 38, 34, 0.22);
@@ -61,10 +64,29 @@ a { color: inherit; }
 .en-cont b { font-family: var(--title-font); font-weight: 600; letter-spacing: 0.1em; margin-right: 10px; }
 .en-cont small { display: block; font-size: 11.5px; color: var(--ink-soft); }
 
+/* 便りの入り口（旅と引き継ぎのあいだ）。「新」は字だけ（数は出さない） */
+.en-tayori { margin: 16px 0 0; min-height: 56px; background: rgba(255, 253, 247, 0.85); }
+.en-tayori-t { display: inline-flex; align-items: center; gap: 8px; font-family: var(--title-font); font-size: 16px; font-weight: 600; letter-spacing: 0.14em; }
+.en-new { display: inline-block; min-width: 18px; padding: 0 5px; font-family: var(--ui-font); font-size: 11px; font-weight: 400; line-height: 18px; letter-spacing: 0; text-align: center; color: #fff; background: #b5523b; border-radius: 9px; }
+.en-new[hidden] { display: none; }
+/* 読み上げだけの言葉 */
+.en-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* 引き継ぎの入り口（旅の下に小さく。札は ui/transfer-sheet.css） */
-.en-hiki { margin: 16px 0 0; }
-/* 引き継ぎの札を開いているとき（入口の地に、札を置くだけ） */
+.en-hiki { margin: 8px 0 0; }
+/* 引き継ぎの札・便りの画面を開いているとき（入口の地に、札を置くだけ） */
 .en-sheet { padding-bottom: calc(40px + var(--sab)); }
+/* 便りの画面（#tayori。中身は ui/tayori.ts） */
+.en-ty-h { margin: 4px 0 12px; font-family: var(--title-font); font-weight: 600; font-size: 22px; letter-spacing: 0.2em; text-align: center; }
+.en-ty-h:focus { outline: none; }
+.en-ty-host { min-height: 120px; }
+.en-back { display: flex; align-items: center; justify-content: center; width: max-content; margin: 12px auto 0; min-height: 44px; padding: 0 14px; font: inherit; font-size: 13.5px;
+  color: var(--ink-soft-2); background: none; border: 0; border-radius: 10px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
+.en-back-top { margin: -8px 0 0 -12px; }
+/* 会話・札の重ね（全面。ページは送らない） */
+.en-stage { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+.en-lock, .en-lock body { overflow: hidden; }
+/* テスト用の時計（?debug のときだけ。左下） */
+.en-clock { position: fixed; left: calc(8px + var(--sal)); bottom: calc(8px + var(--sab)); z-index: 60; margin: 0; padding: 3px 8px; font: 11.5px/1.5 ui-monospace, Menlo, monospace; color: var(--ink); background: rgba(250, 247, 240, 0.92); border: 1px dashed rgba(42, 38, 34, 0.45); border-radius: 6px; pointer-events: none; }
 
 /* チームのテスト用（控えめに） */
 .en-test { margin: 30px 0 0; padding: 14px 14px 12px; border: 1px dashed rgba(42, 38, 34, 0.28); border-radius: 12px; background: rgba(255, 255, 255, 0.35); }

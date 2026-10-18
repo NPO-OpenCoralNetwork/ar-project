@@ -12,25 +12,39 @@
 // - チームのテスト用: 白描の絵地図（ezu.html）と、この端末にテスト用の土地があるか（日付だけ。位置は出さない）。
 //   ?debug のときだけ GPS の検証へも。
 // - three.js も箱庭の板（yume/hud.ts）も読み込まない（最初の読み込みを軽くする。ページはふつうにスクロール・拡大できる）。
-// URL: ?debug と ?sim は、旅のページへそのまま渡す。#hikitsugi は引き継ぎの札。
+// - 便り（段階4b。04 §3.8）: 旅と引き継ぎのあいだに「便り」の入り口。#tayori で便りの画面（ui/tayori.ts。立山のふもとの保存）を、
+//   引き継ぎと同じく入口の地のまま開く（夜、箱庭も位置も使わずに夜話を聞ける所）。便りの画面と物語のデータは、はじめの絵が出たあとに
+//   import() で読む（入口を軽く保つ）。そのとき立山のふもとの便りを届け（deliverDue）、「新」の字と、ましろのあいさつを決める
+//   （逢魔が時 → 夜話が来ている → 夜 → 読んでいない便り → ふだん）。1分ごとに見直す。「新」は字だけ（数は出さない）。
+// - 立山の時刻（core/story/clock.ts）と、テスト用の時計（?debug&clock=。core/debug-clock.ts）。時計は旅のページへも渡し、
+//   ?debug のときは左下に「時計: …（テスト）」を出す。
+// URL: ?debug と ?sim と clock は、旅のページへそのまま渡す。#hikitsugi は引き継ぎの札、#tayori は便りの画面。
 
 import './style.css'
+import { appClock, appNow, clockTag } from '../core/debug-clock'
 import { STORY_KEY } from '../core/storage-keys'
+import { storyClock } from '../core/story/clock'
+import type { MemoStore } from '../core/story/memo'
 import { browserStorage, ProgressStore } from '../core/story/progress'
+import type { StoryPack } from '../data/story-pack'
 import { phrases, promisesRead, withPromises } from '../ui/promise-sheet'
 import { persistOnce } from '../ui/persist'
 import { showTransfer } from '../ui/transfer-sheet'
 import { mashiroSvg } from '../utsutsu/mashiro'
 import { loadTestLand, testLandIsOld } from '../utsutsu/test-land'
+import type { TayoriPanel } from '../ui/tayori'
+import { Sound } from '../yume/encounter/sound'
 import { stampDate } from '../yume/encounter/stamp'
 
 const params = new URLSearchParams(window.location.search)
 const DEBUG = params.has('debug')
 /** 引き継ぎの札の印（URL の #） */
 const HIKITSUGI = '#hikitsugi'
+/** 便りの画面の印（URL の #） */
+const TAYORI = '#tayori'
 
-/** 旅のページへ、URL の印（?debug・?sim）をそのまま渡す */
-function pass(href: string, keys: string[] = ['debug', 'sim']): string {
+/** 旅のページへ、URL の印（?debug・?sim・clock）をそのまま渡す */
+function pass(href: string, keys: string[] = ['debug', 'sim', 'clock']): string {
   const q = keys.filter((k) => params.has(k)).map((k) => (params.get(k) ? `${k}=${encodeURIComponent(params.get(k)!)}` : k))
   return q.length ? `${href}?${q.join('&')}` : href
 }
@@ -79,9 +93,9 @@ const JOURNEYS: Journey[] = [
 
 const app = document.getElementById('app')!
 
-/** 進み具合の数（会った妖怪・開いた札・旅印）。描画に依存しない ProgressStore で読むだけ（書かない） */
+/** 進み具合の数（会った妖怪・開いた札・旅印）。描画に依存しない ProgressStore で読むだけ（書かない。便りを届けるのは下の tayoriKit） */
 function progressCounts(): { met: number; cards: number; stamps: number } {
-  const p = new ProgressStore(browserStorage(), STORY_KEY).get()
+  const p = new ProgressStore(browserStorage(), STORY_KEY, () => new Date(appNow())).get()
   return {
     met: Object.values(p.yokai).filter((y) => y.met).length,
     cards: Object.keys(p.cards).length,
@@ -99,6 +113,16 @@ function testLandStatus(): string {
 
 // ---------------------------------------------------------------- 入口
 
+/** ましろのあいさつ（【創作】）。逢魔が時 → 夜話が来ている → 夜 → 読んでいない便り → ふだん。st は便りの様子（読み込む前は無し） */
+function greeting(back: boolean, st?: { waiting: boolean; unread: boolean }): string {
+  const phase = storyClock(appNow()).phase
+  if (phase === 'oumagatoki') return '逢魔が時。……帳のすみが、暗い。'
+  if (st?.waiting) return 'こんばんは。夜話に、だれか来ているよ。'
+  if (phase === 'night') return 'こんばんは。夜は、外を歩かずに遊ぼうね。'
+  if (st?.unread) return '便りが、届いているよ。'
+  return back ? 'おかえり。きょうは、どちらの旅にする？' : 'どちらの旅にする？'
+}
+
 function showHome(): void {
   const c = progressCounts()
   const back = c.met + c.cards > 0
@@ -110,7 +134,7 @@ function showHome(): void {
       </header>
       <div class="en-mashiro">
         ${mashiroSvg(false)}
-        <p class="en-say"><span class="who">ましろ<span class="tag">台本・創作</span></span>${phrases(back ? 'おかえり。きょうは、どちらの旅にする？' : 'どちらの旅にする？')}</p>
+        <p class="en-say"><span class="who">ましろ<span class="tag">台本・創作</span></span><span class="en-say-t" data-back="${back ? '1' : ''}">${phrases(greeting(back))}</span></p>
       </div>
       <nav class="en-choices" aria-label="旅をえらぶ">
         ${JOURNEYS.map(
@@ -125,10 +149,11 @@ function showHome(): void {
           ? `<p class="en-cont"><b>つづき</b>会った妖怪 ${c.met}・開いた札 ${c.cards}${c.stamps ? `・旅印 ${c.stamps}` : ''}<small>この端末の中の記録です。二つの旅で共通です。</small></p>`
           : ''
       }
+      <a class="en-link en-tayori" href="${TAYORI}" data-tayori><span class="en-tayori-t">便り<span class="en-new" aria-hidden="true" hidden>新</span><span class="en-vh"></span></span><small>${phrases('ましろの便りと、夜話')}</small></a>
       <a class="en-link en-hiki" href="${HIKITSUGI}" data-hikitsugi>引き継ぎ（試作）<small>${phrases('別の端末で、続きを遊ぶ')}</small></a>
       <section class="en-test" aria-labelledby="en-test-h">
         <h2 id="en-test-h">チームのテスト用</h2>
-        <a class="en-link" href="${pass('./ezu.html', ['debug'])}">白描の絵地図<small>テスト用の土地を、家で</small></a>
+        <a class="en-link" href="${pass('./ezu.html', ['debug', 'clock'])}">白描の絵地図<small>テスト用の土地を、家で</small></a>
         <p class="en-status"><span class="k">テスト用の土地</span>${phrases(testLandStatus())}</p>
         ${DEBUG ? `<a class="en-link" href="./gps-test.html">GPS の検証<small>開発用</small></a>` : ''}
       </section>
@@ -150,6 +175,8 @@ function showHome(): void {
       if (e.button === 1) guard(e)
     })
   })
+  // 便りの様子（あいさつ・「新」）は、はじめの絵が出たあとで
+  void refreshHome()
 }
 
 // ---------------------------------------------------------------- 三つの約束（初回だけ・飛ばせない。札は ui/promise-sheet.ts）
@@ -171,51 +198,200 @@ function showPromises(j: Journey): void {
   })
 }
 
+// ---------------------------------------------------------------- 便り（段階4b。画面は ui/tayori.ts）
+
+/**
+ * 便りの画面の道具（はじめて要るときに import() で読む。入口を軽く保つ）。立山のふもとの保存と覚え書きは、このページに1つずつ
+ * （開き直すたびに作ると、古い写しが保存を書き戻してしまう）。ほかのタブで進めた・読み込んだ分は follow で入れ替える
+ */
+interface TayoriKit {
+  mod: typeof import('../ui/tayori')
+  story: StoryPack
+  progress: ProgressStore
+  memo: MemoStore
+  panel: TayoriPanel | null
+}
+let kitLoading: Promise<TayoriKit> | null = null
+function tayoriKit(): Promise<TayoriKit> {
+  kitLoading ??= (async () => {
+    const [mod, pack, memoMod] = await Promise.all([import('../ui/tayori'), import('../data/story-pack'), import('../core/story/memo')])
+    const storage = browserStorage()
+    const progress = new ProgressStore(storage, STORY_KEY, () => new Date(appNow()))
+    progress.follow()
+    const memo = new memoMod.MemoStore(storage, () => new Date(appNow()))
+    memo.follow()
+    return { mod, story: pack.loadStoryPack(), progress, memo, panel: null }
+  })()
+  return kitLoading
+}
+
+/** 会話・札の重ね（入口の上に全面で。ページは送らない） */
+let stage: HTMLDivElement | null = null
+function stageEl(): HTMLDivElement {
+  if (stage) return stage
+  stage = document.createElement('div')
+  stage.className = 'en-stage'
+  document.body.appendChild(stage)
+  return stage
+}
+
+/** 入口の、ましろのあいさつと「便り」の「新」を、便りの様子で見直す（届けてから） */
+async function refreshHome(): Promise<void> {
+  let kit: TayoriKit
+  try {
+    kit = await tayoriKit()
+  } catch {
+    // 読めなければ、ふだんのあいさつのまま
+    return
+  }
+  const say = app.querySelector<HTMLElement>('.en-say-t')
+  const link = app.querySelector<HTMLElement>('[data-tayori]')
+  if (!say || !link) return
+  const st = kit.mod.homeTayoriStatus({ story: kit.story, progress: kit.progress, memo: kit.memo, now: appNow })
+  say.innerHTML = phrases(greeting(!!say.dataset.back, st))
+  ;(link.querySelector('.en-new') as HTMLElement).hidden = !st.news
+  ;(link.querySelector('.en-vh') as HTMLElement).textContent = st.news ? '（新しい便りがある）' : ''
+}
+
+function showTayori(): void {
+  app.innerHTML = `
+    <main class="en en-sheet en-ty" data-route="tayori">
+      <button class="en-back en-back-top" type="button" data-act="back">入口へもどる</button>
+      <h1 class="en-ty-h" tabindex="-1">便り</h1>
+      <div class="en-ty-host" aria-busy="true"></div>
+      <button class="en-back" type="button" data-act="back">入口へもどる</button>
+    </main>`
+  window.scrollTo(0, 0)
+  app.querySelectorAll<HTMLButtonElement>('[data-act="back"]').forEach((b) => b.addEventListener('click', () => leaveSheet()))
+  ;(app.querySelector('.en-ty-h') as HTMLElement).focus({ preventScroll: true })
+  void tayoriKit().then((kit) => {
+    const host = app.querySelector<HTMLElement>('.en-ty-host')
+    if (!host) return
+    kit.panel ??= kit.mod.createTayoriPanel({
+      root: stageEl(),
+      story: kit.story,
+      progress: kit.progress,
+      memo: kit.memo,
+      sound: new Sound(true, false),
+      mode: 'home',
+      travel: 'yume',
+      now: appNow,
+      // 入口には帳のボタンが無い（ピースは、夢の旅の帳で見る）
+      choHint: '夢の旅の「帳」で見られる。',
+      onBusy: (busy) => {
+        // 会話・札の間は、入口の地を止める（Tab で入らない・送らない）
+        app.inert = busy
+        document.documentElement.classList.toggle('en-lock', busy)
+      },
+    })
+    kit.panel.el.classList.add('page')
+    host.replaceChildren(kit.panel.el)
+    host.removeAttribute('aria-busy')
+    kit.panel.render()
+  })
+}
+
+/** 便りの画面から出る（会話・札は閉じる） */
+function closeTayori(): void {
+  void kitLoading?.then((kit) => {
+    kit.panel?.stop()
+    kit.panel?.el.remove()
+  })
+}
+
 // ---------------------------------------------------------------- 引き継ぎ（試作。札は ui/transfer-sheet.ts）
 
-/** 入口から #hikitsugi へ来たか（それなら「入口へもどる」は、ブラウザの「戻る」と同じにする） */
+/** 入口から #hikitsugi・#tayori へ来たか（それなら「入口へもどる」は、ブラウザの「戻る」と同じにする） */
 let fromHome = false
 
 function showHikitsugi(): void {
-  app.innerHTML = '<main class="en en-sheet"></main>'
+  app.innerHTML = '<main class="en en-sheet" data-route="hikitsugi"></main>'
   window.scrollTo(0, 0)
-  showTransfer({ host: app.querySelector('main') as HTMLElement, back: { label: '入口へもどる', go: leaveHikitsugi } })
+  showTransfer({ host: app.querySelector('main') as HTMLElement, back: { label: '入口へもどる', go: leaveSheet } })
 }
 
-function leaveHikitsugi(): void {
+function leaveSheet(): void {
   if (fromHome) {
     // hashchange で入口を描き直す
     window.history.back()
     return
   }
+  const from = sheetRoute()
   window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  backHome()
+  backHome(from)
 }
 
-/** 札から入口へ戻ったとき（キーボードの位置を、引き継ぎの入り口へ） */
-function backHome(): void {
+/** いま開いている札（引き継ぎ・便り。無ければ null） */
+const sheetRoute = (): string | null => app.querySelector<HTMLElement>('.en-sheet')?.dataset.route ?? null
+
+/** 札から入口へ戻ったとき（キーボードの位置を、その札の入り口へ） */
+function backHome(from: string | null): void {
+  if (from === 'tayori') closeTayori()
   showHome()
-  ;(app.querySelector('[data-hikitsugi]') as HTMLElement | null)?.focus()
+  ;(app.querySelector(from === 'tayori' ? '[data-tayori]' : '[data-hikitsugi]') as HTMLElement | null)?.focus()
 }
 
 function route(): void {
+  if (sheetRoute() === 'tayori' && window.location.hash !== TAYORI) closeTayori()
   if (window.location.hash === HIKITSUGI) showHikitsugi()
+  else if (window.location.hash === TAYORI) showTayori()
   else showHome()
 }
 
 window.addEventListener('hashchange', () => {
-  const inSheet = !!app.querySelector('.en-sheet')
-  if (window.location.hash === HIKITSUGI) {
-    fromHome = !inSheet
-    if (!inSheet) showHikitsugi()
+  const from = sheetRoute()
+  const hash = window.location.hash
+  if (hash === HIKITSUGI || hash === TAYORI) {
+    fromHome = !from
+    const want = hash === HIKITSUGI ? 'hikitsugi' : 'tayori'
+    if (from === want) return
+    if (from === 'tayori') closeTayori()
+    if (want === 'hikitsugi') showHikitsugi()
+    else showTayori()
   } else {
     fromHome = false
-    if (inSheet) backHome()
+    if (from) backHome(from)
     else showHome()
   }
 })
 
+// ---------------------------------------------------------------- 時計
+
+/** ?debug のときだけ、左下に「時計: 1月16日 16:40（テスト）」（合わせていなければ出さない） */
+function showClockTag(): void {
+  if (!DEBUG) return
+  const text = clockTag()
+  let tag = document.querySelector<HTMLElement>('.en-clock')
+  if (!text) {
+    tag?.remove()
+    return
+  }
+  if (!tag) {
+    tag = document.createElement('p')
+    tag.className = 'en-clock'
+    document.body.appendChild(tag)
+  }
+  tag.textContent = text
+}
+
+/** 1分ごと・ページに戻ったとき・時計を合わせたとき: 入口なら、あいさつと「新」を、便りの画面なら便りを見直す */
+function tick(): void {
+  showClockTag()
+  if (sheetRoute() === 'tayori') void kitLoading?.then((kit) => kit.panel?.tick())
+  else if (!sheetRoute() && app.querySelector('.en-say-t')) {
+    const say = app.querySelector<HTMLElement>('.en-say-t')!
+    say.innerHTML = phrases(greeting(!!say.dataset.back))
+    void refreshHome()
+  }
+}
+window.setInterval(tick, 60_000)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') tick()
+})
+appClock().onChange(tick)
+
 route()
+showClockTag()
 // 旅のページから「戻る」で帰ってきたとき（ページがそのまま残っていた場合）は、入口を描き直す（約束の途中の画面や古い数を見せない）
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) route()

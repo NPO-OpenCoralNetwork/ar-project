@@ -201,6 +201,8 @@ const CSS = /* css */ `
 .yc-badge { display: inline-block; font-size: 11.5px; padding: 0 7px; border: 1px solid currentColor; border-radius: 3px; }
 .yc-badge.ok { color: #2f5a3a; }
 .yc-badge.draft { color: #8a5a2a; }
+/* 了承待ち（02 F-71。?debug のときだけ見える。字で分かる） */
+.yc-badge.pending { color: #6a3d78; border-style: dashed; }
 .yc-foot { margin: 12px 0 0; font-size: 11.5px; color: var(--csoft); line-height: 1.6; }
 .yc-btn { display: block; width: 100%; margin-top: 12px; font: inherit; font-size: 14px; min-height: 44px; color: var(--cink); background: rgba(255, 255, 255, 0.55); border: 1px solid var(--cline); border-radius: 8px; cursor: pointer; }
 .yc-btn:hover, .yc-btn:focus-visible { background: rgba(255, 255, 255, 0.85); outline: none; }
@@ -481,7 +483,7 @@ export function cardHtml(card: LoreCard, opts: { first?: boolean; button?: strin
       <dt>出典</dt><dd>${work}</dd>
       <dt>確度</dt><dd><span class="yc-badge ok">${escapeHtml(card.confidence)}</span></dd>
       <dt>調べ</dt><dd>${escapeHtml(card.researchRef)}${checked ? `（${checked}）` : ''}</dd>
-      <dt>監修</dt><dd><span class="yc-badge draft">${escapeHtml(card.review)}</span></dd>
+      <dt>監修</dt><dd><span class="yc-badge draft">${escapeHtml(card.review)}</span>${card.needsConsent ? ' <span class="yc-badge pending">了承待ち</span>' : ''}</dd>
     </dl>`
     : `
     <p class="yc-source">出典 ${work}</p>`
@@ -523,8 +525,11 @@ export class DialogueView {
   constructor(
     root: HTMLElement,
     private readonly hooks: DialogueHooks,
-    /** お知らせに出す妖怪の名前と、遊びの中で鳴らす鈴（なければ鳴らさない） */
-    private readonly deps: { yokaiName(id: string): string; sound?: { bell(v?: number): void } },
+    /**
+     * お知らせに出す妖怪の名前と、遊びの中で鳴らす鈴（なければ鳴らさない）。
+     * choHint: ピースのお知らせで帳のある所を言う一言（既定「右上の「帳」で見られる。」。帳のボタンの無い入口の便りで変える）
+     */
+    private readonly deps: { yokaiName(id: string): string; sound?: { bell(v?: number): void }; choHint?: string },
   ) {
     injectStyle()
     this.root = root
@@ -671,7 +676,7 @@ export class DialogueView {
       this.tagEl.textContent = 'おしらせ'
       this.tagEl.title = ''
       this.textEl.className = 'yd-text notice'
-      this.textEl.innerHTML = noticeHtml(beat.notice, this.deps.yokaiName)
+      this.textEl.innerHTML = noticeHtml(beat.notice, this.deps.yokaiName, this.deps.choHint)
       this.nextEl.style.display = ''
     }
   }
@@ -685,7 +690,12 @@ const BOND_THREAD: Record<string, string> = {
   enishi: '糸に、ほどけない結び目ができた。',
 }
 
-function noticeHtml(n: Notice, yokaiName: (id: string) => string): string {
+/**
+ * お知らせの中身。choHint は帳のある所の一言（既定「右上の「帳」で見られる。」）。
+ * ピース: 時間のピース（time。ほんとうの逢魔が時に会った）は、家でも色が入ったことを言う。夢の旅のほかのピースは、色は現地で、とだけ
+ * （「この地点に立つと」とは言わない。絵解きのピースのように、地点の無いピースもある）
+ */
+function noticeHtml(n: Notice, yokaiName: (id: string) => string, choHint = '右上の「帳」で見られる。'): string {
   if (n.type === 'bond') {
     return `<b>${escapeHtml(yokaiName(n.yokai))}と「${escapeHtml(n.label)}」になった</b><span>${escapeHtml(BOND_THREAD[n.level] ?? '')}</span>`
   }
@@ -694,8 +704,9 @@ function noticeHtml(n: Notice, yokaiName: (id: string) => string): string {
       ? `<b>${escapeHtml(n.name)}を受け取った</b><span>持ち物は、帳の「縁帳」で見られる。</span>`
       : `<b>${escapeHtml(n.name)}を渡した</b><span>喜んでもらえたみたい。</span>`
   }
-  const where = n.travel === 'yume' ? '夢の旅では線（白描）まで。色は、現地でこの地点に立つと入る。' : ''
-  return `<b>曼荼羅帳に、${escapeHtml(n.label)}のピースが一つ入った</b><span>${where}右上の「帳」で見られる。</span>`
+  if (n.time) return `<b>曼荼羅帳に、時間のピースの色が入った</b><span>ほんとうの夕暮れに会ったから、家でも色が入る。${escapeHtml(choHint)}</span>`
+  const where = n.travel === 'yume' ? '夢の旅では線（白描）まで。色は、現地で入る。' : ''
+  return `<b>曼荼羅帳に、${escapeHtml(n.label)}のピースが一つ入った</b><span>${where}${escapeHtml(choHint)}</span>`
 }
 
 // ---------------------------------------------------------------- 払わずに待つ（ミノモシ番外）
@@ -1236,9 +1247,11 @@ export interface MandalaState {
   keiko?(id: string): KeikoState
   /** 保存が家と現地の二つの旅で共通か（やり直しの確認に書く）。位置シミュレーターの写しなら false。省くと共通 */
   sharedSave?: boolean
+  /** 便りの頁と、ましろの覚え書き（呼び名）のある帳か（段階4b。やり直しの確認に、便り・絵解きも消えることと、呼び名は消えないことを書く） */
+  tayori?: boolean
 }
 
-/** 帳のほかの頁（タブ。いまは縁帳）。panel は中身の要素で、帳が見せたり隠したりする */
+/** 帳のほかの頁（タブ。縁帳と、段階4b の便り）。panel は中身の要素で、帳が見せたり隠したりする */
 export interface ChoTab {
   id: string
   label: string
@@ -1332,13 +1345,18 @@ export class MandalaView {
     const side = el('div', 'ym-side')
     // 括弧の中（「（話を聞いた）」など）は、行の途中で分けない。断り書きは、終わりの4字を分けない（最後の行に「ん。」だけ残さない）
     const note = [...def.note]
+    // 彩色は現地で入る。時間のピース（くらがり）だけは、ほんとうの逢魔が時に会えば家でも入る（04 §3.6 の例外。段階4b）
+    const timeLabel = def.tiers.flatMap((t) => t.pieces).find((p) => p.time && p.label)?.label
+    const saishiki = timeLabel
+      ? `<span class="ym-nw">（現地で。</span><span class="ym-nw">${escapeHtml(timeLabel)}は逢魔が時に）</span>`
+      : '<span class="ym-nw">（現地で）</span>'
     side.innerHTML = `
       <div class="ym-legend">
         <p>ピースの状態</p>
         <ul>
           <li><i></i><span>空白<span class="ym-nw">（まだ）</span></span></li>
           <li><i class="hakubyo"></i><span>白描<span class="ym-nw">（話を聞いた）</span></span></li>
-          <li><i class="saishiki"></i><span>彩色<span class="ym-nw">（現地で）</span></span></li>
+          <li><i class="saishiki"></i><span>彩色${saishiki}</span></li>
           <li><i class="kin"></i><span>金の縁取り</span></li>
         </ul>
       </div>
@@ -1381,9 +1399,17 @@ export class MandalaView {
     return this.openFlag
   }
 
-  /** tab: 開く頁（省くと、前に開いていた頁） */
-  open(tab?: string): void {
-    this.lastFocus = document.activeElement as HTMLElement | null
+  /** 閉じたときにキーボードの位置を戻す所（開いたときの位置） */
+  get returnTarget(): HTMLElement | null {
+    return this.lastFocus
+  }
+
+  /**
+   * tab: 開く頁（省くと、前に開いていた頁）。returnTo: 閉じたときにキーボードの位置を戻す所（省くと、いまの位置。
+   * 便りの頁から始めた会話のあとに開き直すときは、はじめに帳を開いたボタンへ戻す）
+   */
+  open(tab?: string, returnTo?: HTMLElement | null): void {
+    this.lastFocus = returnTo ?? (document.activeElement as HTMLElement | null)
     this.openFlag = true
     if (this.tabs.length) this.selectTab(tab ?? this.current)
     else this.render()
@@ -1576,17 +1602,22 @@ export class MandalaView {
       : ''
     const cards = (p.cardIds ?? []).map((c) => this.state.card(c)).filter((c): c is LoreCard => !!c)
     const keiko = this.state.keiko?.(id) ?? 'none'
+    // ピースの一言は、データ（MandalaPieceDef.hint）にあれば、それを使う（時間のピース・絵解きのピース。段階4b）
+    const own = p.hint?.[st]
     const hints = [
-      st === 'hakubyo'
-        ? '夢で話を聞いて、線（白描）が入った。現地でこの地点に立つと、色が入る（現の旅）。'
-        : st === 'saishiki'
-          ? '現地で色が入った。'
-          : // 稽古のすぐあと（上の一言で言った）は、くり返さない
-            notice
-            ? ''
-            : '語り返して、金の縁取りが入った。',
+      // 稽古のすぐあと（上の一言で言った）は、金の一言をくり返さない
+      st === 'kin' && notice
+        ? ''
+        : (own ??
+          (st === 'hakubyo'
+            ? '夢で話を聞いて、線（白描）が入った。現地でこの地点に立つと、色が入る（現の旅）。'
+            : st === 'saishiki'
+              ? '現地で色が入った。'
+              : '語り返して、金の縁取りが入った。')),
     ].filter(Boolean)
-    if (keiko !== 'none' && st === 'hakubyo') hints.push('現地で色が入ったピースを、ここで語り返すと金の縁取りになる。')
+    // 時間のピースは、家でも（ほんとうの逢魔が時に）色が入るので「現地で」とは言わない
+    if (keiko !== 'none' && st === 'hakubyo')
+      hints.push(p.time ? '色が入ったピースを、ここで語り返すと金の縁取りになる。' : '現地で色が入ったピースを、ここで語り返すと金の縁取りになる。')
     if (keiko === 'few' && st !== 'hakubyo') hints.push('話の札がもう少しそろうと、ここで語り返せる（稽古）。')
     const keikoBtn =
       keiko === 'ready' && st !== 'hakubyo'
@@ -1647,11 +1678,11 @@ export class MandalaView {
     this.showPop(`
       <div class="yc-kind"><span>確認</span></div>
       <h3 class="yc-title">最初からやり直しますか</h3>
-      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物・旅印が、すべて消えます。${
+      <p class="yc-body" style="font-size:14px">会った妖怪・開いた札・曼荼羅のピース・縁・持ち物・旅印${this.state.tayori ? '・便り・絵解き' : ''}が、すべて消えます。${
         this.state.sharedSave === false
           ? '消えるのはシミュレーターの写しだけで、家と現地の記録は残ります。'
           : 'この記録は家と現地の二つの旅で共通なので、どちらからも消えます。元には戻せません。'
-      }</p>
+      }${this.state.tayori ? '呼び名（ましろの覚え書き）は消えません。縁帳の覚え書きから消せます。' : ''}</p>
       <div class="row">
         <button class="yc-btn" type="button" data-act="close">やめる</button>
         <button class="yc-btn" type="button" data-act="reset">やり直す</button>

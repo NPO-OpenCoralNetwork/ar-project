@@ -8,6 +8,8 @@
 // - テスト用の土地そのもの（家の近くの地図と地点）は、コードに入らない（transfer.ts の TRANSFER_SAVES）。そのことを札に書いておく。
 // - コードは人に渡さない（旅印や進み具合が、その人の端末にも写る。旅印は人に譲るものではない。02 §4.5）。
 // - 縁は数で見せない。読み込んだあとに出すのは、会った妖怪と開いた札の数だけ（入口の「つづき」と同じ）。
+// - 段階4b: コードには、便り・夜話の記録・今日の絵解き（土地ごとの進み具合の中）と、ましろの覚え書き（呼び名。端末に1つ）も入る。
+//   作るところで一行そう書き、読み込んで覚え書きも合わせたときは、そう言う（04 §3.3「引き継ぎのときだけ」）。
 // - 端末の保存を長く残すよう、ここで読み込めたときに一度だけ静かに頼む（ui/persist.ts の persistOnce。押したあとで、ページはそのまま）。
 //   iPhone の Safari は、7日ほど開かないでいると、そのサイトの保存を消すことがある。確かなのは引き継ぎコードなので、札に一行だけ書く。
 // three.js は読み込まない。
@@ -124,12 +126,13 @@ export function showTransfer(flow: TransferFlow): void {
       <h1>引き継ぎ<span class="kari">（試作）</span></h1>
       <p class="tf-lead">${phrases('PC とスマホ、別の端末で続きを遊ぶための、引き継ぎコードです。いまはサーバーを使わず、コードを自分で写します。')}</p>
       <ul class="tf-notes">
-        <li>${phrases('運ぶのは、旅の進み具合（立山のふもと・テスト用の土地）だけです。')}</li>
+        <li>${phrases('運ぶのは、旅の進み具合（立山のふもと・テスト用の土地）と、ましろの覚え書き（呼び名）だけです。')}</li>
         <li>${phrases('テスト用の土地の、場所（家の近くの地図と地点）は、コードに入りません。')}</li>
       </ul>
       <section class="tf-part" aria-labelledby="tf-out-h">
         <h2 id="tf-out-h">コードを作る<small>この端末から</small></h2>
         <p class="tf-soft">${phrases('いまの進み具合を、コードにします。')}</p>
+        <p class="tf-soft">${phrases('コードには、便り・夜話の記録・絵解き、ましろの覚え書き（呼び名）も入ります。人に渡さないでください。')}</p>
         <div class="tf-row"><button class="tf-btn main" type="button" data-act="make">コードを作る</button></div>
         <div class="tf-made" hidden>
           <label class="tf-label" for="tf-code">引き継ぎコード</label>
@@ -270,8 +273,9 @@ export function showTransfer(flow: TransferFlow): void {
         return
       }
       const r = await importTransferCode(text, storage)
+      const memoLine = r.memo ? `<p>${phrases('覚え書き（呼び名）も合わせました。')}</p>` : ''
       if (!r.merged.length) {
-        say(inMsg, `<p><b>読み込みました。</b>${phrases('ただ、このコードには進み具合が入っていませんでした。')}</p>`, 'plain')
+        say(inMsg, `<p><b>読み込みました。</b>${phrases('ただ、このコードには進み具合が入っていませんでした。')}</p>${memoLine}`, 'plain')
         return
       }
       const at = when(r.exportedAt)
@@ -283,6 +287,7 @@ export function showTransfer(flow: TransferFlow): void {
         `<p><b>読み込みました。</b>${at ? `${phrases(`${at} に`)}${phrases('作ったコードです。')}` : ''}</p>
         <p>${phrases('この端末の進み具合と、合わせました。縁やピースは下がりません。いまの進み具合は、')}</p>
         <ul class="tf-lands">${rows}</ul>
+        ${memoLine}
         ${noLand ? `<p>${phrases('テスト用の土地は、進み具合だけが入りました。土地は、この端末の現の旅で、現地で作ると続きを遊べます。')}</p>` : ''}
         <p class="tf-tabs">${phrases('ほかのタブの画面は、開き直すまで、前の進み具合のままかもしれません。')}</p>`,
         'ok',

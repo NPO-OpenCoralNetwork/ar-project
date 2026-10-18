@@ -15,16 +15,23 @@
 // - 「新」の印: 見たピース・縁を、状態ごとにフラグで覚える（seen:<ピース>@<状態>、seen:en:<妖怪>@<縁>）。
 //   白描 → 彩色 → 金と上がると、また「新」になる（前の seen:<ピース> は白描を見た印として読む）。数は出さない。
 //   帳のボタンの「新」はページが付ける（onNew）。連続の記録や、未読の数は作らない（04 §5.1）。
+// - 便り（段階4b。ChoOptions.tayori があるときだけ）: 3つ目のタブ「便り」（画面は ui/tayori.ts）。「新」は便りの「新」も含む（news().tayori）。
+//   便りの画面から会話（夜話・帳の影）や今日の絵解きの札を始めるときは、帳をいったん閉じ、終わったら便りのタブで開き直す。
+//   その間も isOpen は true（ページは時間の切り替え・お知らせを待つ）。tick（1分ごと・会話のあと・ページに戻ったとき）で便りを届ける。
+// - 縁帳の「ましろの覚え書き」の行（呼び名を見る・書きなおす・消す。04 §3.3）。呼び名は遊ぶ人の字なので escapeHtml して出す。
+// - 了承待ちの札（02 F-71）は、開いていても曼荼羅帳・縁帳に出さない。縁帳の妖怪の頁の札は、その妖怪の札と、その妖怪のピースの札。
 
 import { sheenStep } from '../core/story/bond'
-import { checkConditions, etokiHand } from '../core/story/dialogue'
+import { checkConditions, etokiHand, isPendingConsent } from '../core/story/dialogue'
 import type { MemoStore } from '../core/story/memo'
 import type { Gained, ProgressStore } from '../core/story/progress'
-import { BOND_LABEL, type BondLevel, type EtokiSpec, type MandalaPieceDef, type PieceState, type Travel } from '../core/story/types'
+import { BOND_LABEL, type BondLevel, type EtokiSpec, type LoreCard, type MandalaPieceDef, type PieceState, type Travel } from '../core/story/types'
 import type { StoryPack } from '../data/story-pack'
 import { ARTS, artToSvg } from '../yume/encounter/art'
 import type { Sound } from '../yume/encounter/sound'
-import { cardHtml, EtokiGame, escapeHtml, type KeikoState, MandalaView } from '../yume/encounter/ui'
+import { cardHtml, type ChoTab, EtokiGame, escapeHtml, type KeikoState, MandalaView } from '../yume/encounter/ui'
+import { openMemoSheet } from './memo-sheet'
+import { createTayoriPanel, type TayoriPanel } from './tayori'
 
 const STYLE = /* css */ `
 /* 縁帳: 罫の入った帳面（懸場帳） */
@@ -95,6 +102,17 @@ const STYLE = /* css */ `
 .en-cards .yc-card { width: 100%; max-height: none; overflow: visible; transform: none; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 4px 12px rgba(30, 20, 10, 0.16); }
 .en-cards .yc-card .yc-title { font-size: 17px; margin: 6px 0 8px; }
 .en-cards .yc-card .yc-body { font-size: 15px; }
+/* ましろの覚え書き（呼び名）。呼び名は遊ぶ人の字（escapeHtml して出す） */
+.en-memo { padding-bottom: 10px; border-bottom: 1px solid rgba(42, 38, 34, 0.18); margin-bottom: 8px; }
+.en-memo-v { margin: 0; font-size: 15px; line-height: 1.6; }
+.en-memo-v b { font-family: var(--title-font); font-weight: 600; letter-spacing: 0.06em; overflow-wrap: anywhere; }
+.en-memo-v .none { color: rgba(42, 38, 34, 0.7); font-size: 14px; }
+.en-memo-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.en-btn { min-height: 44px; min-width: 44px; padding: 0 14px; font: inherit; font-size: 13.5px; color: #2a2622; background: #fffdf7; border: 1px solid rgba(42, 38, 34, 0.35); border-radius: 9px; cursor: pointer; }
+.en-btn:hover { background: #fff; }
+.en-confirm { margin: 8px 0 0; padding: 8px 10px; font-size: 14px; line-height: 1.6; background: #fff; border: 1px solid rgba(42, 38, 34, 0.25); border-radius: 8px; text-wrap: pretty; word-break: auto-phrase; }
+.en-memo .en-small { text-wrap: pretty; word-break: auto-phrase; }
+.en-confirm:focus { outline: none; }
 @media (max-width: 420px) {
   .en { padding: 10px 12px 18px; }
   .en-bond { grid-template-columns: 120px 1fr; }
@@ -305,6 +323,11 @@ export function createCho(o: ChoOptions): Cho {
   const { story, progress, travel } = o
   const pieces = new Map<string, MandalaPieceDef>()
   for (const t of story.mandala.tiers) for (const p of t.pieces) pieces.set(p.id, p)
+  /** 了承待ちでない、開いた札（了承待ちの札は、開いていても見せない。02 F-71） */
+  const shownCard = (id: string): LoreCard | undefined => {
+    const c = story.cards[id]
+    return c && !isPendingConsent(c) && progress.isCardOpened(id) ? c : undefined
+  }
 
   // ---- 「新」の印（状態ごと）
   const pieceSeenKey = (id: string, st: PieceState) => `seen:${id}@${st}`
@@ -320,13 +343,14 @@ export function createCho(o: ChoOptions): Cho {
   const news = () => ({
     mandala: [...pieces.keys()].some(pieceIsNew),
     en: met().some((y) => bondIsNew(y.id)),
+    tayori: panel?.news() ?? false,
   })
 
   // ---- 稽古
   const keikoState = (id: string): KeikoState => {
     const keys = pieces.get(id)?.keiko
     if (!keys?.length) return 'none'
-    const held = keys.filter((k) => !k.startsWith('pending:') && !!story.cards[k] && progress.isCardOpened(k)).length
+    const held = keys.filter((k) => !k.startsWith('pending:') && !!shownCard(k)).length
     return held >= 2 ? 'ready' : 'few'
   }
   let game: EtokiGame | null = null
@@ -369,8 +393,63 @@ export function createCho(o: ChoOptions): Cho {
       { kicker: '語り返しの稽古', quitLabel: '稽古をやめる' },
     )
   }
+
+  // ---- 便り（段階4b）。会話・絵解きの札の間は帳を閉じ、終わったら便りのタブで開き直す
+  const t = o.tayori
+  /** 便りの画面から会話を始めるときに閉じた帳（開き直すときに、はじめに帳を開いたボタンへキーボードの位置を戻す） */
+  let reopen: { ret: HTMLElement | null } | null = null
+  const panel: TayoriPanel | null = t
+    ? createTayoriPanel({
+        root: o.root,
+        story,
+        progress,
+        memo: t.memo,
+        sound: t.sound,
+        mode: t.mode,
+        travel,
+        now: t.now,
+        beforeTalk: () => {
+          if (!view.isOpen) return
+          reopen = { ret: view.returnTarget }
+          view.close()
+        },
+        afterTalk: () => {
+          const r = reopen
+          reopen = null
+          if (r && !game) view.open('tayori', r.ret)
+        },
+        onNews: () => refreshNew(),
+      })
+    : null
+  if (t) {
+    // ほかのタブで覚え書きを書いた・消した（引き継ぎの読み込みなど）ときも、いまの呼び名で出す
+    if (!followed.has(t.memo)) {
+      followed.add(t.memo)
+      t.memo.follow()
+    }
+    t.memo.onChange(() => {
+      if (view.isOpen) en.refreshMemo()
+    })
+  }
+
   // ---- 縁帳
-  const en = new EnchoView(o.story, progress, travel, bondSeenKey, bondIsNew)
+  /** 縁帳から開いた覚え書きの札（帳を閉じるときに一緒に閉じる） */
+  let memoSheet: { close(): void } | null = null
+  const openMemo = (done: () => void) => {
+    if (!t || memoSheet) return
+    memoSheet = openMemoSheet({
+      root: o.root,
+      memo: t.memo,
+      onDone: () => {
+        memoSheet = null
+        done()
+      },
+    })
+  }
+  const en = new EnchoView(o.story, progress, travel, bondSeenKey, bondIsNew, shownCard, t ? { memo: t.memo, open: openMemo } : null)
+
+  const tabs: ChoTab[] = [{ id: 'en', label: '縁帳', panel: en.el, show: () => en.render(), isNew: () => news().en, newLabel: '新しい縁がある' }]
+  if (panel) tabs.push({ id: 'tayori', label: '便り', panel: panel.el, show: () => panel.render(), isNew: () => panel.news(), newLabel: '新しい便りがある' })
 
   const view = new MandalaView(
     o.root,
@@ -378,8 +457,8 @@ export function createCho(o: ChoOptions): Cho {
     {
       piece: (id) => progress.pieceOf(id),
       isNew: pieceIsNew,
-      // 開いた札だけ（ピースだけ先に入っても、札の本文は会話で開くまで見せない）
-      card: (id) => (progress.isCardOpened(id) ? story.cards[id] : undefined),
+      // 開いた札だけ（ピースだけ先に入っても、札の本文は会話で開くまで見せない）。了承待ちの札は見せない
+      card: shownCard,
       // 家では枠だけ見える（旅印は現地で節を終えたときだけ。02 F-45）
       stamps: () =>
         story.sections
@@ -387,6 +466,7 @@ export function createCho(o: ChoOptions): Cho {
           .map((s) => ({ id: s.id, title: s.title, stampTitle: s.stampTitle, motif: s.stampMotif, at: progress.stampOf(s.id)?.at ?? null })),
       keiko: keikoState,
       sharedSave: o.sharedSave,
+      tayori: !!t,
     },
     {
       close: () => cho.close(),
@@ -402,7 +482,7 @@ export function createCho(o: ChoOptions): Cho {
       },
       keiko: startKeiko,
     },
-    [{ id: 'en', label: '縁帳', panel: en.el, show: () => en.render(), isNew: () => news().en, newLabel: '新しい縁がある' }],
+    tabs,
   )
 
   // 稽古の間の Escape は、稽古をやめてピースの表示へ戻る（帳は閉じない。帳の側は、遊びの間と defaultPrevented の Escape を受けない）
@@ -415,14 +495,14 @@ export function createCho(o: ChoOptions): Cho {
 
   // 「新」の印: 進み具合が変わるたびに見直す（変わったときだけページへ知らせる）
   let last: boolean | null = null
-  const refreshNew = () => {
+  function refreshNew(): void {
     const n = news()
-    const any = n.mandala || n.en
+    const any = n.mandala || n.en || n.tayori
     if (any !== last) {
       last = any
       o.onNew?.(any)
     }
-    if (view.isOpen) view.refreshMarks()
+    if (view?.isOpen) view.refreshMarks()
   }
   progress.onChange(refreshNew)
   refreshNew()
@@ -439,37 +519,54 @@ export function createCho(o: ChoOptions): Cho {
       view.render()
       return
     }
+    const ret = view.returnTarget
     view.close()
-    view.open()
+    view.open(undefined, ret)
   })
 
   const cho: Cho = {
     open(tab) {
-      if (view.isOpen || game) return
-      // 便りのタブは段階4b の画面（ui/tayori.ts）で足す。それまでは前に開いていた頁
-      view.open(tab === 'tayori' ? undefined : tab)
+      if (view.isOpen || game || panel?.busy) return
+      // 便りのタブは、便りのある帳だけ（無ければ前に開いていた頁）
+      view.open(tab === 'tayori' && !panel ? undefined : tab)
     },
     close() {
-      // 稽古の途中なら、遊びも閉じる（道中に入ったときなど）
+      // 稽古の途中なら、遊びも閉じる（道中に入ったときなど）。便りの画面の会話・札も閉じる（帳を開き直さない）
       if (game) {
         game.dispose()
         game = null
       }
+      reopen = null
+      memoSheet?.close()
+      panel?.stop()
       if (!view.isOpen) return
       view.close()
       // 次に開いたときの縁帳は、一覧から（新しい縁が、すぐ見えるように）
       en.reset()
     },
     get isOpen() {
-      return view.isOpen || !!game
+      return view.isOpen || !!game || !!panel?.busy
     },
-    news: () => ({ ...news(), tayori: false }),
-    // 今日の絵解き・便りの見直しは、段階4b の画面（ui/etoki-sheet.ts・ui/tayori.ts）で足す
-    etoki() {},
-    tick() {},
+    news,
+    etoki() {
+      // 会話・札・稽古の間は受けない。帳が開いていれば閉じてから（開き直さない）
+      if (!panel || panel.busy || game) return
+      if (view.isOpen) {
+        view.close()
+        en.reset()
+      }
+      panel.openEtoki()
+    },
+    tick() {
+      panel?.tick()
+      refreshNew()
+    },
   }
   return cho
 }
+
+/** follow() を呼んだ覚え書き（1つの覚え書きで、ほかのタブの書き込みを2回受けない） */
+const followed = new WeakSet<MemoStore>()
 
 // ---------------------------------------------------------------- 縁帳
 
@@ -479,6 +576,8 @@ class EnchoView {
   private readonly box: HTMLDivElement
   /** いま開いている妖怪の頁（null なら一覧） */
   private yokai: string | null = null
+  /** 覚え書きの［消す］の確かめを出しているか */
+  private confirming = false
 
   constructor(
     private readonly story: StoryPack,
@@ -486,22 +585,76 @@ class EnchoView {
     private readonly travel: Travel,
     private readonly seenKey: (id: string, lv: BondLevel) => string,
     private readonly isNew: (id: string) => boolean,
+    /** 見せてよい開いた札（了承待ちを除く） */
+    private readonly shownCard: (id: string) => LoreCard | undefined,
+    /** ましろの覚え書き（便りのある帳だけ）。open は覚え書きの札を開く（閉じたら done） */
+    private readonly memo: { memo: MemoStore; open(done: () => void): void } | null,
   ) {
     this.el = document.createElement('div')
     this.box = document.createElement('div')
     this.box.className = 'en'
     this.el.appendChild(this.box)
     this.box.addEventListener('click', (e) => {
-      const t = (e.target as HTMLElement).closest<HTMLElement>('[data-yokai], [data-act="back"]')
+      const t = (e.target as HTMLElement).closest<HTMLElement>('[data-yokai], [data-act]')
       if (!t) return
-      if (t.dataset.act === 'back') this.showList(this.yokai)
-      else if (t.dataset.yokai) this.showYokai(t.dataset.yokai)
+      const act = t.dataset.act
+      if (act === 'back') this.showList(this.yokai)
+      else if (act === 'memo-write') this.writeMemo()
+      else if (act === 'memo-erase') this.memoConfirm(true)
+      else if (act === 'memo-no') this.memoConfirm(false)
+      else if (act === 'memo-yes') {
+        this.confirming = false
+        this.memo?.memo.eraseYobina()
+        this.refreshMemo('[data-act="memo-write"]')
+      } else if (t.dataset.yokai) this.showYokai(t.dataset.yokai)
     })
   }
 
   /** やり直したら、一覧から */
   reset(): void {
     this.yokai = null
+    this.confirming = false
+  }
+
+  // ---- ましろの覚え書き（一覧の、持ち物のあと）
+
+  private memoHtml(): string {
+    if (!this.memo) return ''
+    const name = this.memo.memo.yobina
+    const row = this.confirming
+      ? `<p class="en-confirm" tabindex="-1">呼び名を消しますか。ましろは「きみ」と呼びます。</p>
+        <div class="en-memo-row"><button class="en-btn" type="button" data-act="memo-yes">消す</button><button class="en-btn" type="button" data-act="memo-no">やめる</button></div>`
+      : `<div class="en-memo-row">${
+          name
+            ? '<button class="en-btn" type="button" data-act="memo-write">書きなおす</button><button class="en-btn" type="button" data-act="memo-erase">消す</button>'
+            : '<button class="en-btn" type="button" data-act="memo-write">書く</button>'
+        }</div>`
+    return `<section class="en-memo" aria-labelledby="en-memo-h">
+        <h3 class="en-sec-h" id="en-memo-h">ましろの覚え書き</h3>
+        <p class="en-memo-v">呼び名：${name ? `<b>${escapeHtml(name)}</b>` : '<span class="none">まだ書いていない</span>'}</p>
+        ${row}
+        <p class="en-small">ましろが、便りで使う呼び名です。この端末と、引き継ぎコードの中にだけ残ります。</p>
+      </section>`
+  }
+
+  /** 覚え書きの行だけ描き直す（一覧を出しているとき）。focus はキーボードの位置を移す所 */
+  refreshMemo(focus?: string): void {
+    const sec = this.box.querySelector('.en-memo')
+    if (!sec || this.yokai) return
+    const tmp = document.createElement('div')
+    tmp.innerHTML = this.memoHtml()
+    const next = tmp.firstElementChild
+    if (next) sec.replaceWith(next)
+    if (focus) this.box.querySelector<HTMLElement>(focus)?.focus({ preventScroll: true })
+  }
+
+  private memoConfirm(on: boolean): void {
+    this.confirming = on
+    this.refreshMemo(on ? '.en-confirm' : '[data-act="memo-erase"]')
+  }
+
+  private writeMemo(): void {
+    this.memo?.open(() => this.refreshMemo('[data-act="memo-write"]'))
   }
 
   /** 頁を開いたとき（タブを選んだとき・帳を開いたとき） */
@@ -513,6 +666,7 @@ class EnchoView {
   /** 一覧。from は戻ってきた妖怪の頁（その行へキーボードの位置を戻す） */
   private showList(from: string | null, focus = true): void {
     this.yokai = null
+    this.confirming = false
     const p = this.progress
     const items = Object.values(this.story.items).filter((it) => p.itemState(it.id) === 'held')
     const met = Object.values(this.story.yokai).filter((y) => p.hasMet(y.id))
@@ -548,6 +702,7 @@ class EnchoView {
         <h3 class="en-sec-h" id="en-items-h">持ち物</h3>
         ${items.length ? `<ul class="en-chips">${items.map((it) => `<li class="en-chip">${escapeHtml(it.name)}</li>`).join('')}</ul><p class="en-small">持ち物は、会った相手との話の中で渡せる。</p>` : '<p class="en-small">いまは、何も持っていない。</p>'}
       </section>
+      ${this.memoHtml()}
       <section aria-labelledby="en-list-h">
         <h3 class="en-sec-h" id="en-list-h">縁を結んだ妖怪</h3>
         ${met.length ? '' : '<p class="en-small">まだ、誰とも縁を結んでいない。耳を澄ますと、誰かに会えるかもしれない。</p>'}
@@ -580,7 +735,10 @@ class EnchoView {
     const art = y.art ? ARTS[y.art] : undefined
     const artSvg = art ? `<svg class="en-art" viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1, 1, w.site)}</svg>` : ''
     // 伝承の札（開いた札だけ。この妖怪の札。了承待ちの札は開かないので出ない。名産の札は伝承の札の欄に入れない）
-    const cards = Object.values(this.story.cards).filter((c) => c.yokaiId === id && c.kind !== '名産' && p.isCardOpened(c.id))
+    // 伝承の札: この妖怪の札と、この妖怪のピースの札（くらがりは #4 の2枚）。名産の札・了承待ちの札・まだ開いていない札は出さない
+    const pieceCards = this.story.mandala.tiers.flatMap((t) => t.pieces).filter((pc) => pc.yokaiId === id).flatMap((pc) => pc.cardIds ?? [])
+    const ids = [...Object.values(this.story.cards).filter((c) => c.yokaiId === id).map((c) => c.id), ...pieceCards]
+    const cards = [...new Set(ids)].map((c) => this.shownCard(c)).filter((c): c is LoreCard => !!c && c.kind !== '名産')
     // 好物（渡したあとで分かる。好物のない妖怪は、行ごと出さない）
     const likes = y.likes && p.itemState(y.likes) === 'given' ? this.story.items[y.likes]?.name : undefined
     // 悩み（この妖怪がかかわる、始まった悩み）。字は「抱えている」「解けた」だけ
@@ -593,6 +751,8 @@ class EnchoView {
       })
       .filter((q): q is { title: string; done: boolean } => !!q)
     const homeCap = this.travel === 'yume' && lv === 'najimi'
+    // 時間のピースの妖怪（くらがり）は、段階4b では現地に出ない。「この先は、現地で。」とは言わない
+    const onlyHome = this.story.mandala.tiers.some((t) => t.pieces.some((pc) => pc.time && pc.yokaiId === id))
     this.box.innerHTML = `
       <button class="en-back" type="button" data-act="back"><span aria-hidden="true">‹ </span>縁帳の一覧へ</button>
       <div class="en-hd">
@@ -606,7 +766,7 @@ class EnchoView {
         <span class="en-th">${threadSvg(lv, step)}</span>
         <p class="en-bond-l"><b>${escapeHtml(BOND_LABEL[lv])}</b><span>${escapeHtml(THREAD_NAME[lv])}</span></p>
         <p class="en-sheen-l">${sheenLine(step)}</p>
-        <p class="en-small">${y.likes ? '縁は、悩みを解いたり好物を渡したりすると深まることがある。' : '縁は、悩みを解くと深まることがある。'}話した数では深まらず、糸の艶だけが増える。${homeCap ? '<span class="en-nw">家（夢の旅）</span>で結べる縁は<span class="en-nw">「なじみ」</span>まで。この先は、現地で。' : ''}</p>
+        <p class="en-small">${y.likes ? '縁は、悩みを解いたり好物を渡したりすると深まることがある。' : '縁は、悩みを解くと深まることがある。'}話した数では深まらず、糸の艶だけが増える。${homeCap ? `<span class="en-nw">家（夢の旅）</span>で結べる縁は<span class="en-nw">「なじみ」</span>まで。${onlyHome ? '' : 'この先は、現地で。'}` : ''}</p>
       </section>
       <section class="en-sec en-sosaku" aria-labelledby="en-sosaku-h">
         <h4 class="en-sec-h" id="en-sosaku-h">本作の創作</h4>
