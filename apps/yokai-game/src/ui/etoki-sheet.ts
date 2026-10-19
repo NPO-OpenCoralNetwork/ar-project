@@ -66,7 +66,7 @@ const STYLE = /* css */ `
 .et-cards { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; }
 .et-c { flex: 1 1 0; min-width: 0; padding: 10px 12px 11px; background: rgba(255, 253, 247, 0.85); border: 1px solid rgba(43, 36, 32, 0.38); border-radius: 3px; }
 .et-c b { display: block; font-family: var(--ts-title); font-size: 15px; line-height: 1.5; letter-spacing: 0.04em; text-wrap: pretty; word-break: auto-phrase; }
-.et-c span { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.5; color: rgba(43, 36, 32, 0.72); }
+.et-c span { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.5; color: rgba(43, 36, 32, 0.72); text-wrap: pretty; word-break: auto-phrase; }
 .et-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; margin-top: 14px; }
 .et-cap { margin: 0; font-family: var(--ts-title); font-size: 15.5px; line-height: 1.7; text-wrap: pretty; word-break: auto-phrase; }
 .et-cap small { margin-right: 6px; font-family: var(--ts-ui); font-size: 10.5px; letter-spacing: 0.04em; color: rgba(43, 36, 32, 0.7); border: 1px solid rgba(43, 36, 32, 0.28); border-radius: 999px; padding: 0 7px; vertical-align: 0.1em; }
@@ -173,22 +173,19 @@ export function openEtokiSheet(o: EtokiSheetOptions): { close(): void } {
     const r = etokiRecap(env())
     let i = 0
     render(`<h2 class="ts-h">今日はここまで</h2><p class="ts-sub">きょうの話を、絵解きにして残す</p>
-      <div class="et-say">${sayHtml(true)}</div>
+      <div class="et-say">${sayHtml()}</div>
       <div class="ts-row"><button class="ts-btn main" type="button" data-act="next">つぎへ</button></div>`)
     const bubble = card.querySelector('.ts-bubble') as HTMLElement
     const first = card.querySelector('.ts-line') as HTMLElement
     const btn = card.querySelector('[data-act="next"]') as HTMLButtonElement
     const show = () => {
-      // 前の言葉は薄く残し、新しい言葉だけを読み上げる
-      bubble.querySelectorAll('.ts-line').forEach((p) => {
-        p.classList.add('old')
-        p.removeAttribute('aria-live')
-      })
+      // 前の言葉は薄く残し、新しい言葉だけを読み上げる（重ねの読み上げの欄で。キーボードの位置は［つぎへ］のまま）
+      bubble.querySelectorAll('.ts-line').forEach((p) => p.classList.add('old'))
       const p = i === 0 ? first : document.createElement('p')
       p.className = 'ts-line'
-      p.setAttribute('aria-live', 'polite')
       p.textContent = r.lines[i]
       if (i > 0) bubble.appendChild(p)
+      layer.say(r.lines[i])
       const last = i >= r.lines.length - 1
       btn.textContent = !last ? 'つぎへ' : r.canMake ? '札をえらぶ' : 'とじる'
     }
@@ -322,14 +319,16 @@ export function openEtokiSheet(o: EtokiSheetOptions): { close(): void } {
     const rec = progress.etokiOf(day)
     render(`<h2 class="ts-h">きょうの絵解き</h2>
       ${rec ? etokiCardHtml(rec, day, story, memo) : ''}
-      ${sayHtml(true)}
+      ${sayHtml()}
       <div class="ts-row"><button class="ts-btn main" type="button" data-act="close">とじる</button></div>`)
     ;(card.querySelector('.ts-line') as HTMLElement).textContent = story.etoki.lines.saved
+    layer.say(story.etoki.lines.saved)
     on('[data-act="close"]', () => bye())
   }
   const bye = () => {
-    render(`<h2 class="ts-h">今日はここまで</h2>${sayHtml(true)}`)
+    render(`<h2 class="ts-h">今日はここまで</h2>${sayHtml()}`)
     ;(card.querySelector('.ts-line') as HTMLElement).textContent = story.etoki.lines.bye
+    layer.say(story.etoki.lines.bye)
     // ひと言だけ見せて閉じる（Escape・［やめる］でもすぐ閉じる）
     byeTimer = window.setTimeout(() => layer.close(), 1800)
   }

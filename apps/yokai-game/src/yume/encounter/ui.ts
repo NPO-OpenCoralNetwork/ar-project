@@ -215,11 +215,11 @@ const CSS = /* css */ `
 .ym-head h2 { margin: 0; font-family: var(--title-font); font-size: 17px; font-weight: 600; letter-spacing: 0.2em; }
 .ym-btn { font: inherit; font-size: 13px; color: #2a2622; background: rgba(250, 247, 240, 0.92); border: 1px solid rgba(42, 38, 34, 0.25); border-radius: 9px; min-height: 44px; padding: 0 12px; cursor: pointer; }
 .ym-btn:focus-visible { outline: 2px solid #f4efe4; outline-offset: 2px; }
-.ym-btn.close { margin-left: auto; }
+.ym-btn.close { margin-left: auto; white-space: nowrap; }
 /* 帳の頁（曼荼羅帳・縁帳）。タブは本物のボタン（aria-selected）。選んだ頁は、地の色だけでなく下線と字の太さでも分かる */
 .ym-tabs { display: flex; gap: 4px; }
 .ym-tab { position: relative; font: inherit; font-family: var(--title-font); font-size: 14.5px; letter-spacing: 0.1em; color: #f4efe4; background: transparent; border: 1px solid rgba(244, 239, 228, 0.35);
-  border-radius: 9px 9px 0 0; border-bottom-width: 3px; border-bottom-color: transparent; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  border-radius: 9px 9px 0 0; border-bottom-width: 3px; border-bottom-color: transparent; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; white-space: nowrap; }
 .ym-tab[aria-selected="true"] { color: #2a2622; background: rgba(250, 247, 240, 0.94); border-color: rgba(250, 247, 240, 0.94); border-bottom-color: #b5523b; font-weight: 600; }
 .ym-tab:focus-visible { outline: 2px solid #f4efe4; outline-offset: 2px; }
 .ym-tab .ym-tab-new { display: none; position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: #b5523b; color: #fff; font-size: 10px; line-height: 16px; letter-spacing: 0; text-align: center; padding: 0 4px; font-family: var(--ui-font); font-weight: 400; }
@@ -273,6 +273,13 @@ const CSS = /* css */ `
 /* 狭い幅では、状態の見本を1列に（2列だと「白描（話を聞いた）」が1行に収まらない。右のボタン2つの高さに収まる） */
 @media (max-width: 460px) {
   .ym-legend ul { grid-template-columns: 1fr; }
+}
+/* 頁が3つ（曼荼羅帳・縁帳・便り）のとき、狭い幅でもタブと［とじる］を1行に（字を「便／り」と割らない）。間と字の間隔を詰める */
+@media (max-width: 380px) {
+  .ym-head { gap: 6px; }
+  .ym-tabs { gap: 3px; }
+  .ym-tab { padding: 0 8px; letter-spacing: 0.04em; }
+  .ym-head .ym-btn.close { padding: 0 9px; }
 }
 /* ピースの詳しい表示・確認 */
 .ym-pop { position: absolute; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; padding: 16px 16px calc(56px + var(--sab)); background: rgba(24, 22, 30, 0.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; }

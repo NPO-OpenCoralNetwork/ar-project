@@ -25,7 +25,7 @@ import { appClock, appNow, clockTag } from '../core/debug-clock'
 import { STORY_KEY } from '../core/storage-keys'
 import { storyClock } from '../core/story/clock'
 import type { MemoStore } from '../core/story/memo'
-import { browserStorage, ProgressStore } from '../core/story/progress'
+import { browserStorage, type KeyValueStore, ProgressStore } from '../core/story/progress'
 import type { StoryPack } from '../data/story-pack'
 import { phrases, promisesRead, withPromises } from '../ui/promise-sheet'
 import { persistOnce } from '../ui/persist'
@@ -202,7 +202,8 @@ function showPromises(j: Journey): void {
 
 /**
  * 便りの画面の道具（はじめて要るときに import() で読む。入口を軽く保つ）。立山のふもとの保存と覚え書きは、このページに1つずつ
- * （開き直すたびに作ると、古い写しが保存を書き戻してしまう）。ほかのタブで進めた・読み込んだ分は follow で入れ替える
+ * （開き直すたびに作ると、古い写しが保存を書き戻してしまう）。ほかのタブで進めた・読み込んだ分は follow で入れ替える。
+ * このタブの引き継ぎで読み込んだ分と、「戻る」でページがそのまま戻ったとき（その間の storage イベントは来ない）は、reread で入れ替える
  */
 interface TayoriKit {
   mod: typeof import('../ui/tayori')
@@ -210,19 +211,46 @@ interface TayoriKit {
   progress: ProgressStore
   memo: MemoStore
   panel: TayoriPanel | null
+  /** 保存を読み直す（ほかのタブで書かれたときと同じく、合わせずに入れ替える） */
+  reread(): void
 }
 let kitLoading: Promise<TayoriKit> | null = null
 function tayoriKit(): Promise<TayoriKit> {
   kitLoading ??= (async () => {
     const [mod, pack, memoMod] = await Promise.all([import('../ui/tayori'), import('../data/story-pack'), import('../core/story/memo')])
-    const storage = browserStorage()
+    const base = browserStorage()
+    // follow が聞く鍵と知らせ先を覚えておき、reread で、いまの保存の値をそのまま渡す
+    const followers = new Set<{ key: string; fn: (value: string | null) => void }>()
+    const storage: KeyValueStore | null = base && {
+      ...base,
+      subscribe: (key, fn) => {
+        const f = { key, fn }
+        followers.add(f)
+        const stop = base.subscribe?.(key, fn)
+        return () => {
+          followers.delete(f)
+          stop?.()
+        }
+      },
+    }
     const progress = new ProgressStore(storage, STORY_KEY, () => new Date(appNow()))
     progress.follow()
     const memo = new memoMod.MemoStore(storage, () => new Date(appNow()))
     memo.follow()
-    return { mod, story: pack.loadStoryPack(), progress, memo, panel: null }
+    const reread = () => {
+      for (const f of followers) f.fn(base?.getItem(f.key) ?? null)
+    }
+    return { mod, story: pack.loadStoryPack(), progress, memo, panel: null, reread }
   })()
   return kitLoading
+}
+
+/** 便りの道具を作ってあれば、保存を読み直させる（引き継ぎで読み込んだあと・「戻る」でページが戻ったとき） */
+function rereadKit(): void {
+  void kitLoading?.then(
+    (kit) => kit.reread(),
+    () => {},
+  )
 }
 
 /** 会話・札の重ね（入口の上に全面で。ページは送らない） */
@@ -307,7 +335,8 @@ let fromHome = false
 function showHikitsugi(): void {
   app.innerHTML = '<main class="en en-sheet" data-route="hikitsugi"></main>'
   window.scrollTo(0, 0)
-  showTransfer({ host: app.querySelector('main') as HTMLElement, back: { label: '入口へもどる', go: leaveSheet } })
+  // 読み込んだら、便りの道具の保存の写しを読み直させる（このタブで書いたので storage イベントは来ない。古い写しで書き戻さない）
+  showTransfer({ host: app.querySelector('main') as HTMLElement, back: { label: '入口へもどる', go: leaveSheet }, onImport: rereadKit })
 }
 
 function leaveSheet(): void {
@@ -392,7 +421,11 @@ appClock().onChange(tick)
 
 route()
 showClockTag()
-// 旅のページから「戻る」で帰ってきたとき（ページがそのまま残っていた場合）は、入口を描き直す（約束の途中の画面や古い数を見せない）
+// 旅のページから「戻る」で帰ってきたとき（ページがそのまま残っていた場合）は、入口を描き直す（約束の途中の画面や古い数を見せない）。
+// 残っていた間に旅のページが書いた保存は storage イベントで届かないので、便りの道具に読み直させる（道具を使う所は、どれも
+// kitLoading の then で待つので、読み直しが先に済む）
 window.addEventListener('pageshow', (e) => {
-  if (e.persisted) route()
+  if (!e.persisted) return
+  rereadKit()
+  route()
 })

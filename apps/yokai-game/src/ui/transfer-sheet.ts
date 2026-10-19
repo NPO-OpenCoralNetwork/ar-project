@@ -5,6 +5,8 @@
 // - コードを読み込む: 貼りつけるか、ファイルから。いまの端末の保存と合わせる（上書きしない。縁やピースは下がらない）。
 //   開いたままのほかのタブは、保存が書き換わったのを見て進み具合を入れ替える（ProgressStore.follow。古い進み具合で書き戻さない）。
 //   ただ、そのタブで開いている画面（話の途中など）は、開き直すまで前のままのことがあるので、そう短く一言書く。
+//   このタブで開いたままの写し（入口の便りの ProgressStore・MemoStore）には storage イベントが来ないので、読み込んだら onImport で
+//   ページに知らせ、読み直させる。
 // - テスト用の土地そのもの（家の近くの地図と地点）は、コードに入らない（transfer.ts の TRANSFER_SAVES）。そのことを札に書いておく。
 // - コードは人に渡さない（旅印や進み具合が、その人の端末にも写る。旅印は人に譲るものではない。02 §4.5）。
 // - 縁は数で見せない。読み込んだあとに出すのは、会った妖怪と開いた札の数だけ（入口の「つづき」と同じ）。
@@ -32,6 +34,11 @@ export interface TransferFlow {
   host: HTMLElement
   /** もどる（入口へ など） */
   back: { label: string; go: () => void }
+  /**
+   * コードを読み込んで、このタブから保存へ直に書いたあと（書きかけで止まったときも）。このタブで開いたままの ProgressStore・MemoStore は
+   * storage イベントを受けない（書いたタブには来ない）ので、ページはここで読み直させる（古い写しで書き戻さないように）
+   */
+  onImport?(): void
 }
 
 /**
@@ -263,6 +270,8 @@ export function showTransfer(flow: TransferFlow): void {
       return
     }
     busy(true)
+    /** 保存へ書きはじめたか（そうなら、終わり方にかかわらず、このタブの保存の写しを読み直させる） */
+    let wrote = false
     try {
       // 先に読むだけ試す（読めないコードなら、端末には何も書かない）
       try {
@@ -272,6 +281,7 @@ export function showTransfer(flow: TransferFlow): void {
         say(inMsg, `<p><b>読み込めませんでした。</b>${phrases(m)}</p><p>${phrases('この端末の進み具合は、そのままです。')}</p>`, 'err')
         return
       }
+      wrote = true
       const r = await importTransferCode(text, storage)
       const memoLine = r.memo ? `<p>${phrases('覚え書き（呼び名）も合わせました。')}</p>` : ''
       if (!r.merged.length) {
@@ -304,6 +314,7 @@ export function showTransfer(flow: TransferFlow): void {
       say(inMsg, `<p><b>保存できませんでした。</b>${phrases('端末の空きが足りないのかもしれません。')}</p>`, 'err')
     } finally {
       busy(false)
+      if (wrote) flow.onImport?.()
     }
   }
   loadBtn.addEventListener('click', () => void load(paste.value))

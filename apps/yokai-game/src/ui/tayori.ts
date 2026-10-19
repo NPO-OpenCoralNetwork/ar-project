@@ -93,10 +93,11 @@ const STYLE = /* css */ `
 .ty-ink h3 { display: flex; align-items: center; gap: 8px; font-size: 18px; letter-spacing: 0.24em; }
 .ty-ink p { margin: 6px 0 10px; font-family: var(--title-font, serif); font-size: 15px; line-height: 1.7; }
 .ty-ink svg { flex: none; width: 40px; height: 60px; opacity: 0.75; }
-/* 3. 夜話 */
-.ty-visit { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(255, 253, 247, 0.75); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; }
+/* 3. 夜話。狭い幅では［聞く］を次の行へ送る（字の欄を 9 字より細くしない。「る。」だけを次の行に残さない） */
+.ty-visit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 10px; background: rgba(255, 253, 247, 0.75); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 10px; }
 .ty-thumb { flex: none; width: 40px; height: 60px; background: #fffdf7; border: 1px solid rgba(42, 38, 34, 0.2); border-radius: 3px; }
-.ty-visit p { flex: 1; min-width: 0; margin: 0; font-family: var(--title-font, serif); font-size: 15px; line-height: 1.6; }
+.ty-visit p { flex: 1 1 9em; min-width: 0; margin: 0; font-family: var(--title-font, serif); font-size: 15px; line-height: 1.6; }
+.ty-visit .ty-btn { margin-left: auto; }
 .ty-kehai { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .ty-kehai li { font-family: var(--title-font, serif); font-size: 14px; line-height: 1.7; color: rgba(42, 38, 34, 0.82); padding-left: 1em; text-indent: -1em; }
 .ty-kehai li::before { content: "・"; }
@@ -104,7 +105,9 @@ const STYLE = /* css */ `
 .ty-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .ty-row p { flex: 1; min-width: 12em; margin: 0; font-size: 13.5px; line-height: 1.6; color: rgba(42, 38, 34, 0.8); }
 .ty-sub { margin: 14px 0 6px; font-size: 12.5px; letter-spacing: 0.16em; color: rgba(42, 38, 34, 0.72); font-family: var(--ui-font, sans-serif); font-weight: 600; }
-.ty-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+/* 一列の幅は箱に合わせる（中の札や白描の頁の、折り返さない字の幅で広がらないように） */
+.ty-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.ty-list > li { min-width: 0; }
 .ty-fold-e { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 12px; font: inherit; font-size: 14px; text-align: left; color: inherit; background: rgba(255, 253, 247, 0.7); border: 1px solid rgba(42, 38, 34, 0.22); border-radius: 8px; cursor: pointer; }
 .ty-fold-e::after, .ty-fold::after { content: "▾"; content: "▾" / ""; margin-left: auto; font-size: 12px; color: rgba(42, 38, 34, 0.6); transition: transform 0.2s; }
 .ty-fold-e[aria-expanded="true"]::after, .ty-fold[aria-expanded="true"]::after { transform: rotate(180deg); }
@@ -118,7 +121,7 @@ const STYLE = /* css */ `
 .ty-band { position: absolute; left: 9px; top: 6px; bottom: 6px; width: 3px; background: #a8473a; border-radius: 2px; }
 .ty-shime { flex: none; font-family: var(--title-font, serif); font-size: 20px; line-height: 1; color: #2a2622; }
 .ty-lt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.ty-lt b { font-family: var(--title-font, serif); font-size: 16px; font-weight: 600; letter-spacing: 0.06em; line-height: 1.45; }
+.ty-lt b { font-family: var(--title-font, serif); font-size: 16px; font-weight: 600; letter-spacing: 0.06em; line-height: 1.45; text-wrap: balance; word-break: auto-phrase; }
 .ty-lt small { font-size: 12px; color: rgba(42, 38, 34, 0.72); }
 .ty-paper { margin: -1px 0 0; padding: 14px 16px 12px; background: linear-gradient(178deg, #fffdf6, #f8f0de); border: 1px solid rgba(43, 36, 32, 0.3); border-top-style: dashed; border-radius: 0 0 4px 4px;
   font-family: var(--title-font, serif); font-size: 15.5px; line-height: 1.95; transform-origin: top center; }
@@ -133,7 +136,7 @@ const STYLE = /* css */ `
 .ty-quote { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 12px; padding: 10px 12px; background: #fffdf7; border: 1px solid rgba(58, 51, 45, 0.55); border-radius: 2px; }
 .ty-quote figcaption { flex: none; min-width: 46px; max-width: 76px; text-align: center; font-family: var(--ui-font, sans-serif); font-size: 10.5px; line-height: 1.3; white-space: nowrap; color: rgba(42, 38, 34, 0.75); }
 .ty-quote figcaption svg { display: block; width: 40px; height: 60px; margin: 0 auto 2px; }
-.ty-quote blockquote { flex: 1; min-width: 0; margin: 0; font-size: 15.5px; line-height: 1.9; text-wrap: pretty; word-break: auto-phrase; }
+.ty-quote blockquote { flex: 1; min-width: 0; margin: 0; font-size: 15.5px; line-height: 1.9; text-wrap: pretty; word-break: auto-phrase; overflow-wrap: anywhere; }
 .ty-lead { margin: 4px 0 6px !important; font-family: var(--ui-font, sans-serif); font-size: 12.5px !important; line-height: 1.6; color: rgba(42, 38, 34, 0.78); }
 .ty-paper .yc-card { width: 100%; max-height: none; overflow: visible; transform: none; margin: 0 0 12px; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 4px 12px rgba(30, 20, 10, 0.16); font-family: var(--ui-font, sans-serif); }
 .ty-paper .yc-card .yc-title { font-size: 17px; margin: 6px 0 8px; }
@@ -148,6 +151,10 @@ const STYLE = /* css */ `
 .ty-dump { margin: 8px 0 0; font: 11.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
 @media (max-width: 420px) {
   .ty { padding: 10px 12px 18px; }
+  /* 白描の頁は、姿と名前を上に並べ、言葉に幅いっぱいを使う（横に並べると、1行が7字ほどになり「なっ／た。」と割れる） */
+  .ty-quote { flex-direction: column; gap: 4px; }
+  .ty-quote figcaption { display: flex; align-items: center; gap: 8px; max-width: none; text-align: left; }
+  .ty-quote figcaption svg { margin: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ty-paper.unfold { animation: none; }
@@ -241,7 +248,8 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
   let openId: string | null = null
   let justOpened: string | null = null
   const openDays = new Set<string>()
-  let notice = ''
+  /** 「影は、もう薄くなった。」（ボタンを押した日・時間帯の印つき）。出した描き直しの1回だけ見せる（次に描くときには消す） */
+  let notice: { text: string; at: string } | null = null
   let lastSig = ''
   let lastNews: boolean | null = null
 
@@ -305,7 +313,6 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
       Object.keys(p.cards).length,
       memo.yobina,
       memo.hasYobinaField,
-      notice,
       openId,
       [...openDays],
       DEBUG ? Math.floor(clock.now / 60_000) : 0,
@@ -314,13 +321,13 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
 
   // ---------------------------------------------------------------- 描く
 
-  const sectionMashiro = (clock: StoryClock): string => {
+  const sectionMashiro = (clock: StoryClock, note: string): string => {
     const mode = d.mode
     const night = clock.phase === 'night'
     return `<section class="ty-sec" aria-label="ましろの一言">
       <div class="ty-say">${mashiroSvg(false)}<p class="ty-line"><span class="ty-who">ましろ<span class="ty-tag" title="本作の創作の台詞">台本・創作</span></span>${phrases(MASHIRO[mode][clock.phase])}</p></div>
       ${night ? `<p class="ty-plain">${phrases(NIGHT_PLAIN[mode])}</p>` : ''}
-      ${notice ? `<p class="ty-notice" role="status">${phrases(notice)}</p>` : ''}
+      ${note ? `<p class="ty-notice" role="status" tabindex="-1" data-k="notice">${phrases(note)}</p>` : ''}
     </section>`
   }
 
@@ -437,7 +444,7 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
         const view = open ? letterView(l.id, progress, story, memo) : null
         const date = jstDateLabel(l.got)
         return `<li class="ty-letter${l.read ? '' : ' unread'}">
-          <button class="ty-fold" type="button" data-act="letter" data-id="${escapeHtml(l.id)}" data-k="l:${escapeHtml(l.id)}" aria-expanded="${open}" aria-controls="ty-l-${i}">
+          <button class="ty-fold" type="button" data-act="letter" data-id="${escapeHtml(l.id)}" data-k="l:${escapeHtml(l.id)}" aria-expanded="${open}"${view ? ` aria-controls="ty-l-${i}"` : ''}>
             ${l.read ? '' : '<span class="ty-band" aria-hidden="true"></span><span class="ty-shime" aria-hidden="true">〆</span>'}
             <span class="ty-lt"><b>${escapeHtml(l.title)}</b><small>${escapeHtml(date)}</small></span>
             ${l.read ? '' : '<span class="ty-new" aria-hidden="true">新</span><span class="ty-vh">（まだ読んでいない便り）</span>'}
@@ -518,6 +525,9 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
     if (openId && !progress.letter(openId)) openId = null
     const clock = clockNow()
     const t = d.mode === 'home' ? tonight(clock, progress, story) : null
+    // 「影は、もう薄くなった。」は、押した日・時間帯のうちの、この1回だけ（次に描くとき・帳や入口から開き直したときには消えている）
+    const note = notice && notice.at === `${clock.day}:${clock.phase}` ? notice.text : ''
+    notice = null
     // キーボードの位置（描き直しても、同じボタンへ戻す）と、送りの位置
     const active = document.activeElement as HTMLElement | null
     const key = active && box.contains(active) ? active.closest<HTMLElement>('[data-k]')?.dataset.k : undefined
@@ -526,19 +536,24 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
     const night = sectionNight(clock, t)
     const etoki = sectionEtoki(clock)
     const letters = sectionLetters()
-    const interactive = d.mode === 'home' && (!!ouma || (!!t && t.state !== 'none'))
+    // 2〜5 のどれにも中身が無いときだけ「まだ、なにも届いていない。」（現の旅の「家に着いてから」「宿や家で」も中身に数える）
+    const any = !!ouma || !!night || etoki.has || letters.has
     box.innerHTML = [
-      sectionMashiro(clock),
+      sectionMashiro(clock, note),
       ouma,
       night,
       etoki.html,
       letters.html,
-      interactive || etoki.has || letters.has ? '' : `<p class="ty-empty">${phrases('まだ、なにも届いていない。')}</p>`,
+      any ? '' : `<p class="ty-empty">${phrases('まだ、なにも届いていない。')}</p>`,
       sectionDebug(clock, t),
     ].join('')
     justOpened = null
     box.scrollTop = top
-    if (key) box.querySelector<HTMLElement>(`[data-k="${CSS.escape(key)}"]`)?.focus({ preventScroll: true })
+    if (key) {
+      // 同じボタンへ。無くなっていれば（逢魔が時が過ぎた・お知らせが消えた）、欄の見出しへ（キーボードの位置を失くさない）
+      const back = box.querySelector<HTMLElement>(`[data-k="${CSS.escape(key)}"]`) ?? box.querySelector<HTMLElement>('h3[tabindex="-1"]')
+      back?.focus({ preventScroll: true })
+    }
     lastSig = signature()
     reportNews()
   }
@@ -637,12 +652,12 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
     // 会話を始めた時の時計で話す（17:12 に始めて 17:13 をまたいでも、時間のピースに色が入る）
     const clock = clockNow()
     if (clock.phase !== 'oumagatoki' || !kuragariReady()) {
-      notice = '影は、もう薄くなった。'
+      notice = { text: '影は、もう薄くなった。', at: `${clock.day}:${clock.phase}` }
       render()
-      focusLater('.ty-notice')
+      // ボタンは消えたので、お知らせへ（tabindex=-1。読み上げもここで）
+      box.querySelector<HTMLElement>('.ty-notice')?.focus({ preventScroll: false })
       return
     }
-    notice = ''
     talkFromPanel('tayori:kuragari', { script: story.yokai[KURAGARI]?.script ?? KURAGARI, yokaiId: KURAGARI, form: 'dream', travel: 'yume', tone: 'dusk', clock, memo }, '#ty-ouma-h')
   }
 
@@ -686,8 +701,10 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
         sheet = null
         setBusy()
         render()
-        // 呼び名を書いたら、便りの頭（「〜へ」）へ。書かなければ［呼び名を教える］へ戻る（札がもう戻してある）
-        if (memo.hasYobinaField) box.querySelector<HTMLElement>('.ty-paper .ty-head')?.focus({ preventScroll: true })
+        // 呼び名を書いたら、便りの頭（「〜へ」）へ。書かなければ［呼び名を教える］へ戻す（入口では、札が閉じた時はまだ
+        // 入口の地が inert で、札が戻せないので、ここで戻す。setBusy で inert を外したあと）
+        const to = memo.hasYobinaField ? '.ty-paper .ty-head' : '[data-k="ask"]'
+        box.querySelector<HTMLElement>(to)?.focus({ preventScroll: true })
       },
     })
     setBusy()
@@ -763,7 +780,6 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
 
   const tick = () => {
     deliver()
-    if (notice && clockNow().phase === 'oumagatoki') notice = ''
     if (signature() !== lastSig && el.isConnected) render(false)
     reportNews()
   }

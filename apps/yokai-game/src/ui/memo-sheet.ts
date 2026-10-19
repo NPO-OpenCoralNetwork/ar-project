@@ -9,6 +9,7 @@
 // このファイルには、便りの画面の札（覚え書き・今日の絵解き）が共に使う「重ね」（openLayer）も置く。
 // 重ねはページの層（帳・会話の層）の上に置き、開いている間は、同じ root のほかの層を inert にする（Tab が札の中に留まる）。
 // Escape は捕まえる段階で受けて、帳（MandalaView）の Escape より先に札を閉じる（帳は defaultPrevented の Escape を受けない）。
+// 札の中身を入れ替えたあとの言葉は、重ねに1つだけ置いた polite の欄（say）で読み上げる（字の入った欄を差し込んでも読まれないことがあるため）。
 // three.js は読み込まない。
 
 import type { MemoStore } from '../core/story/memo'
@@ -40,7 +41,7 @@ const STYLE = /* css */ `
 .ts-label { display: block; margin: 16px 0 6px; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; }
 .ts-soft { margin: 6px 0 0; font-size: 13px; line-height: 1.7; color: var(--ts-soft); text-wrap: pretty; word-break: auto-phrase; }
 /* 断りの文（色だけにしない: 文そのものが断りの言葉。左に茜の線を添える） */
-.ts-err { margin: 8px 0 0; padding: 6px 10px; font-size: 14px; line-height: 1.6; background: #fff; border: 1px solid var(--ts-line); border-left: 4px solid var(--ts-akane); border-radius: 8px; }
+.ts-err { margin: 8px 0 0; padding: 6px 10px; font-size: 14px; line-height: 1.6; background: #fff; border: 1px solid var(--ts-line); border-left: 4px solid var(--ts-akane); border-radius: 8px; text-wrap: pretty; word-break: auto-phrase; }
 .ts-err:empty { display: none; }
 .ts-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .ts-btn { min-width: 44px; min-height: 44px; padding: 0 18px; font: inherit; font-size: 15px; letter-spacing: 0.06em; color: var(--ts-ink); background: #fff;
@@ -58,6 +59,11 @@ const STYLE = /* css */ `
 /* 読み上げだけの言葉 */
 .ts-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (min-width: 640px) { .ts-card { padding: 22px 26px 16px; } }
+/* 狭い幅では、ましろを少し小さくし、言葉の枠を広げる（「ふりかえってみよう。」のような長い句を、その中で割らない） */
+@media (max-width: 360px) {
+  .ts-card { padding: 16px 14px 12px; }
+  .ts-say svg.mashiro { width: 52px; height: 39px; }
+}
 `
 
 let styled = false
@@ -85,6 +91,8 @@ export interface Layer {
   close(): void
   /** 一時だけ隠す（札の途中で会話を出す間。隠している間は inert） */
   hide(on: boolean): void
+  /** 読み上げる（重ねを開いたときからある polite の欄。札の中身を入れ替えても残る） */
+  say(text: string): void
   readonly closed: boolean
 }
 
@@ -103,7 +111,12 @@ export function openLayer(root: HTMLElement, o: { label: string; onEscape?(): vo
   el.setAttribute('aria-label', o.label)
   const card = document.createElement('div')
   card.className = 'ts-card'
-  el.appendChild(card)
+  // 読み上げの欄（開いたときから空で置いておき、あとで字を入れる）
+  const live = document.createElement('p')
+  live.className = 'ts-vh'
+  live.setAttribute('aria-live', 'polite')
+  el.append(card, live)
+  let sayTimer = 0
   const changed: HTMLElement[] = []
   for (const c of Array.from(root.children) as HTMLElement[]) {
     if (c.inert || c.classList.contains('yh-credit')) continue
@@ -129,6 +142,7 @@ export function openLayer(root: HTMLElement, o: { label: string; onEscape?(): vo
     close() {
       if (closed) return
       closed = true
+      window.clearTimeout(sayTimer)
       window.removeEventListener('keydown', onKey, true)
       const i = stack.indexOf(layer)
       if (i >= 0) stack.splice(i, 1)
@@ -140,6 +154,12 @@ export function openLayer(root: HTMLElement, o: { label: string; onEscape?(): vo
     hide(on) {
       el.hidden = on
       el.inert = on
+    },
+    say(text) {
+      // いったん空にしてから入れる（同じ言葉が続いても読む）
+      live.textContent = ''
+      window.clearTimeout(sayTimer)
+      sayTimer = window.setTimeout(() => (live.textContent = text), 60)
     },
   }
   stack.push(layer)
