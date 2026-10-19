@@ -52,10 +52,10 @@ for (const bad of ['xyz', '2027-02-30T10:00', '2027-01-16T25:00', '2027-01-16', 
   plus.setTarget(jst('2027-01-17T17:40'))
   ok(plus.now() === jst('2027-01-17T17:40') && told === 1 && s.mem.get(CLOCK_SESSION_KEY) === String(jst('2027-01-17T17:40') - REAL), 'setTarget で合わせ、知らせ、残す')
   plus.setTarget(null)
-  ok(plus.now() === REAL && plus.offsetMs === 0 && !s.mem.has(CLOCK_SESSION_KEY) && told === 2 && clockTag(plus) === null, 'setTarget(null) で実時刻へ（セッションからも消す）')
+  ok(plus.now() === REAL && plus.offsetMs === 0 && s.mem.get(CLOCK_SESSION_KEY) === '0' && told === 2 && clockTag(plus) === null, 'setTarget(null) で実時刻へ（セッションには差 0 を残す）')
   s.setItem(CLOCK_SESSION_KEY, '7200000')
   const off = createAppClock('?debug&clock=off', s, real)
-  ok(off.now() === REAL && !s.mem.has(CLOCK_SESSION_KEY), '?debug&clock=off で戻す')
+  ok(off.now() === REAL && s.mem.get(CLOCK_SESSION_KEY) === '0', '?debug&clock=off で戻す')
   s.setItem(CLOCK_SESSION_KEY, 'garbage')
   ok(createAppClock('?debug', s, real).offsetMs === 0, '読めない差は無視')
   ok(createAppClock('?debug&clock=nonsense', s, real).offsetMs === 0, '読めない clock は、セッションの差（無ければ実時刻）')
@@ -74,6 +74,39 @@ for (const bad of ['xyz', '2027-02-30T10:00', '2027-01-16T25:00', '2027-01-16', 
   a.setTarget(jst('2027-01-16T19:05'))
   const next = createAppClock(`?debug&clock=${encodeURIComponent(clockParam(a.offsetMs)!)}`, s, real)
   ok(next.now() === jst('2027-01-16T19:05'), '合わせ直した時刻が、次のページでも続く（URL の clock で戻らない）')
+}
+// ブラウザの「戻る」「進む」（履歴で読み込んだとき）: ほかのページで合わせ直したセッションの差が、前の URL の clock より先
+{
+  const s = session()
+  const entrance = '?debug&clock=2027-01-16T16:40'
+  createAppClock(entrance, s, real)
+  const yume = createAppClock(`?debug&clock=${encodeURIComponent(clockParam(jst('2027-01-16T16:40') - REAL)!)}`, s, real)
+  yume.setTarget(jst('2027-01-17T16:40'))
+  const back = createAppClock(entrance, s, real, { preferSession: true })
+  ok(back.now() === jst('2027-01-17T16:40'), '「戻る」: 入口の URL の clock（1月16日）でなく、旅のページで合わせた 1月17日')
+  ok(createAppClock(entrance, s, real).now() === jst('2027-01-16T16:40'), 'ふつうに開いたときは、URL の clock が先（これまでどおり）')
+  yume.setTarget(null)
+  ok(createAppClock(entrance, s, real, { preferSession: true }).now() === REAL, '「戻る」: 旅のページで「いま」に戻したら、実時刻のまま')
+  ok(createAppClock(entrance, session(), real, { preferSession: true }).now() === jst('2027-01-16T16:40'), '「戻る」でもセッションに差が無ければ、URL の clock')
+  const garbage = session()
+  garbage.setItem(CLOCK_SESSION_KEY, 'garbage')
+  ok(createAppClock(entrance, garbage, real, { preferSession: true }).now() === jst('2027-01-16T16:40'), '「戻る」でもセッションの差が読めなければ、URL の clock')
+  ok(createAppClock('?clock=2027-01-16T16:40', s, real, { preferSession: true }).now() === REAL, '?debug が無ければ「戻る」でも実時刻')
+}
+// そのまま残っていたページに「戻る」で帰ったとき（resync）
+{
+  const s = session()
+  const entrance = createAppClock('?debug&clock=2027-01-16T16:40', s, real)
+  let told = 0
+  entrance.onChange(() => told++)
+  ok(!entrance.resync() && told === 0, 'セッションの差が同じなら、何もしない')
+  createAppClock(`?debug&clock=${encodeURIComponent(clockParam(entrance.offsetMs)!)}`, s, real).setTarget(jst('2027-01-17T12:00'))
+  ok(entrance.resync() && entrance.now() === jst('2027-01-17T12:00') && told === 1, '旅のページで合わせ直した差を読み直し、知らせる')
+  s.mem.delete(CLOCK_SESSION_KEY)
+  ok(!entrance.resync() && entrance.now() === jst('2027-01-17T12:00'), 'セッションに差が無ければ、そのまま')
+  const plain = createAppClock('', s, real)
+  s.setItem(CLOCK_SESSION_KEY, '3600000')
+  ok(!plain.resync() && plain.now() === REAL, '?debug が無ければ読み直さない')
 }
 snap('parsed', [parseClockParam('2027-01-16T16:40', REAL), rel('+90m'), rel('-2h')])
 done()

@@ -5,7 +5,9 @@
 // - 合わせた差（ms）は、そのタブの sessionStorage に残す（CLOCK_SESSION_KEY）。同じタブで別のページへ移っても続く。入口の pass() は、
 //   いまの差を相対の clock=+…m で渡す（clockParam。分に切り上げるので、次のページで時刻が巻き戻らない。新しいタブでも続く）。
 // - 便りの「時計」のボタン（setTarget）で合わせ直したら、ページの URL の clock も書き換える（読み込み直しても、合わせた時刻のまま。
-//   そのあと「戻る」で前の URL に戻ったときも書き直す）。
+//   そのあと「戻る」で前の URL に戻ったときも書き直す）。「いま」（実時刻）も、差 0 としてセッションに残す。
+// - ブラウザの「戻る」「進む」で別のページへ移ったとき（履歴で読み込んだとき・ページがそのまま残っていたとき）は、URL の clock より
+//   セッションの差を使い、URL も書き直す（ほかのページで合わせ直した時刻が、前の URL の clock で巻き戻らないように）。
 // - 相対の指定（+1d など）は、いつも実時刻からの差（読み込み直しても、同じ時刻のまま。重ねて進めない）。
 // - 物語の時計（core/story/clock.ts）と進み具合の時刻（ProgressStore の now）は、この時計の now() で動く。
 //   テストの時刻は保存にも書かれるので、テストは使い捨てのブラウザのプロフィールで（README）。
@@ -25,7 +27,14 @@ export interface AppClock {
   readonly offsetMs: number
   /** 合わせたい時刻（ms）。null で実時刻へ。sessionStorage に差を残し、onChange を呼ぶ */
   setTarget(targetMs: number | null): void
+  /** セッションの差を読み直す（「戻る」で、そのまま残っていたページに帰ったとき）。変わったら onChange を呼び、true */
+  resync(): boolean
   onChange(fn: () => void): () => void
+}
+
+export interface AppClockOptions {
+  /** 履歴で読み込んだとき（ブラウザの「戻る」「進む」）: セッションに差が残っていれば、URL の clock よりそちらを使う */
+  preferSession?: boolean
 }
 
 const UNIT_MS: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 }
@@ -56,22 +65,35 @@ export function parseClockParam(value: string, realNow: number): { targetMs: num
 }
 
 /** ?debug が無ければ、いつも実時刻（セッションの差も読まない） */
-export function createAppClock(search: string, session: SessionLike | null, real: () => number = () => Date.now()): AppClock {
+export function createAppClock(search: string, session: SessionLike | null, real: () => number = () => Date.now(), opts: AppClockOptions = {}): AppClock {
   const params = new URLSearchParams(search)
   const debug = params.has('debug')
   const listeners = new Set<() => void>()
   let offset = 0
+  // 実時刻に戻したときも 0 を残す（消すと、「戻る」で前の URL の clock が勝ってしまう）
   const save = () => {
     try {
-      if (offset) session?.setItem(CLOCK_SESSION_KEY, String(offset))
-      else session?.removeItem(CLOCK_SESSION_KEY)
+      session?.setItem(CLOCK_SESSION_KEY, String(offset))
     } catch {
       // 残せなくても、このページの間は合わせたまま
     }
   }
+  /** セッションに残した差（無い・読めなければ null） */
+  const stored = (): number | null => {
+    try {
+      const raw = session?.getItem(CLOCK_SESSION_KEY)
+      const n = raw === null || raw === undefined ? NaN : Number(raw)
+      return Number.isFinite(n) && Math.abs(n) <= MAX_SPAN_MS ? Math.round(n) : null
+    } catch {
+      return null
+    }
+  }
   if (debug) {
     const p = params.has('clock') ? parseClockParam(params.get('clock') ?? '', real()) : null
-    if (p === 'off') {
+    const kept = opts.preferSession ? stored() : null
+    if (kept !== null) {
+      offset = kept
+    } else if (p === 'off') {
       offset = 0
       save()
     } else if (p && 'targetMs' in p) {
@@ -81,13 +103,8 @@ export function createAppClock(search: string, session: SessionLike | null, real
       offset = p.offsetMs
       save()
     } else {
-      try {
-        const raw = session?.getItem(CLOCK_SESSION_KEY)
-        const n = raw === null || raw === undefined ? NaN : Number(raw)
-        if (Number.isFinite(n) && Math.abs(n) <= MAX_SPAN_MS) offset = Math.round(n)
-      } catch {
-        // 読めなければ実時刻
-      }
+      // 読めなければ実時刻
+      offset = stored() ?? 0
     }
   }
   return {
@@ -100,6 +117,13 @@ export function createAppClock(search: string, session: SessionLike | null, real
       offset = targetMs === null || !Number.isFinite(targetMs) ? 0 : Math.round(targetMs - real())
       save()
       for (const fn of listeners) fn()
+    },
+    resync() {
+      const kept = debug ? stored() : null
+      if (kept === null || kept === offset) return false
+      offset = kept
+      for (const fn of listeners) fn()
+      return true
     },
     onChange(fn) {
       listeners.add(fn)
@@ -148,12 +172,24 @@ export function appClock(): AppClock {
   } catch {
     session = null
   }
-  const c = createAppClock(search, session)
+  // ブラウザの「戻る」「進む」で読み込んだか（それなら、ほかのページで合わせ直したセッションの差を、URL の clock より先に）
+  let traversed = false
+  try {
+    traversed = (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward'
+  } catch {
+    traversed = false
+  }
+  const c = createAppClock(search, session, undefined, { preferSession: traversed })
   let moved = false
   c.onChange(() => {
     moved = true
     keepInUrl(c)
   })
+  // 履歴で読み込んだら、URL の clock も、いまの差に書き直す（読み込み直しても、巻き戻らないように）
+  if (traversed && new URLSearchParams(search).has('debug')) {
+    moved = true
+    keepInUrl(c)
+  }
   // 合わせ直したあと「戻る」で、前の URL（古い clock）に戻ったときも、いまの差に書き直す（読み込み直して巻き戻らないように）。
   // URL の clock が変わると、# だけの「戻る」でも hashchange は来ない（# で画面を切り替える入口は popstate も聞く）
   try {

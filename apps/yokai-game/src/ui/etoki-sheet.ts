@@ -35,8 +35,8 @@ const STYLE = /* css */ `
 .et-pick { position: relative; display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 64px; padding: 9px 12px 10px; text-align: left; font: inherit; color: var(--ts-ink);
   background: linear-gradient(170deg, #fbf6e9, #f3ead6); border: 1px solid rgba(43, 36, 32, 0.3); border-radius: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .et-pick b { font-family: var(--ts-title); font-size: 15.5px; line-height: 1.45; letter-spacing: 0.04em; text-wrap: pretty; word-break: auto-phrase; }
-/* 出典は2行まで（1行で切ると、どの札も「観光庁 …」で終わる） */
-.et-src { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 12px; line-height: 1.5; color: var(--ts-soft); }
+/* 出典は3行まで、文節で折り返す（2行で切ると、立山博物館の出典が「観光庁 多言語解説文デー…」で切れる。語の途中で割らない） */
+.et-src { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; font-size: 12px; line-height: 1.5; color: var(--ts-soft); word-break: auto-phrase; }
 /* 「今日」は題の上の行に（題の右を空けると、広い画面でも題が「描かれた／もの」と割れる） */
 .et-today { align-self: flex-start; margin-bottom: 1px; font-size: 11px; line-height: 1.4; padding: 0 6px; border: 1px solid rgba(43, 36, 32, 0.4); border-radius: 3px; background: #fffdf7; }
 /* えらんだ札: 太い墨の枠と「えらんだ」の字（色だけにしない） */

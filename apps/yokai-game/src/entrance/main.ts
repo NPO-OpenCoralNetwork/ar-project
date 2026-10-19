@@ -432,9 +432,11 @@ route()
 showClockTag()
 // 旅のページから「戻る」で帰ってきたとき（ページがそのまま残っていた場合）は、入口を描き直す（約束の途中の画面や古い数を見せない）。
 // 残っていた間に旅のページが書いた保存は storage イベントで届かないので、便りの道具に読み直させる（道具を使う所は、どれも
-// kitLoading の then で待つので、読み直しが先に済む）
+// kitLoading の then で待つので、読み直しが先に済む）。テスト用の時計も、旅のページで合わせ直した差を読み直してから、旅への道を描く
+// （時計が変わると tick が便りの道具を使うので、道具の読み直しのあとで）
 window.addEventListener('pageshow', (e) => {
   if (!e.persisted) return
   rereadKit()
+  appClock().resync()
   route()
 })
