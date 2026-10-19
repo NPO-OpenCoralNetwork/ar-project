@@ -285,6 +285,7 @@ export interface ChoOptions {
   onReset?(): void
   /** 便り（段階4b）。あれば3つ目のタブ「便り」 */
   tayori?: {
+    /** ましろの覚え書き（ほかのタブの書き込みを聞く follow は、作ったページが呼ぶ） */
     memo: MemoStore
     /** home: 夜話・帳の影あり。site（現の旅）: 便りと絵解きだけ */
     mode: 'home' | 'site'
@@ -423,10 +424,7 @@ export function createCho(o: ChoOptions): Cho {
     : null
   if (t) {
     // ほかのタブで覚え書きを書いた・消した（引き継ぎの読み込みなど）ときも、いまの呼び名で出す
-    if (!followed.has(t.memo)) {
-      followed.add(t.memo)
-      t.memo.follow()
-    }
+    // （follow は覚え書きを作ったページが一度だけ呼ぶ。進み具合の follow と同じ。ここで重ねて聞かない）
     t.memo.onChange(() => {
       if (view.isOpen) en.refreshMemo()
     })
@@ -564,9 +562,6 @@ export function createCho(o: ChoOptions): Cho {
   }
   return cho
 }
-
-/** follow() を呼んだ覚え書き（1つの覚え書きで、ほかのタブの書き込みを2回受けない） */
-const followed = new WeakSet<MemoStore>()
 
 // ---------------------------------------------------------------- 縁帳
 
