@@ -427,22 +427,22 @@ function startMap(t: TestLand): void {
       spotLayer.querySelector<HTMLButtonElement>('.ez-spot:not([hidden])')?.focus({ preventScroll: true })
   })
 
-  /** 名所の役目で、台本と姿の出し方が変わる。会えないときは、気配だけの言葉 */
+  /** 名所の役目で、台本と姿の出し方が変わる。会えないときは、気配だけの言葉。ましろの台詞の呼び名は覚え書きから */
   const openTalk = (sp: EzuSpot): boolean => {
     if (sp.role === 'yokai') {
       const script = sp.yokaiId ? story.yokai[sp.yokaiId]?.script : undefined
-      if (script && encounter.open(sp.id, { script, yokaiId: sp.yokaiId, form: 'dream', travel: 'yume' })) return true
+      if (script && encounter.open(sp.id, { script, yokaiId: sp.yokaiId, form: 'dream', travel: 'yume', memo })) return true
       toast('……誰かいる。でも、まだ姿は見えないね。')
       return false
     }
     if (sp.role === 'clue') {
       // 姿は無く、ましろだけが話す（霞と会話の枠。札はふだんどおり）
       const clue = sp.clueId ? story.clues[sp.clueId] : undefined
-      return !!clue && clueActive(clue, progress, 'yume') && encounter.open(sp.id, { script: clue.script, form: 'none', travel: 'yume' })
+      return !!clue && clueActive(clue, progress, 'yume') && encounter.open(sp.id, { script: clue.script, form: 'none', travel: 'yume', memo })
     }
     // 寄り道: 出現の表の台本（雑談）で話す。決まった地点の台本は使わない（悩みを始めない・縁も上げない。04 §3.1）
     const a = sp.placeKind ? resolveAppearance(story.appearance, sp.placeKind, timeSlotOfDiorama(time), progress, 'yume') : null
-    if (a?.mode === 'appear' && encounter.open(sp.id, { script: a.script, yokaiId: a.yokaiId, form: 'dream', travel: 'yume' })) return true
+    if (a?.mode === 'appear' && encounter.open(sp.id, { script: a.script, yokaiId: a.yokaiId, form: 'dream', travel: 'yume', memo })) return true
     toast(WANDER_FAINT)
     return false
   }

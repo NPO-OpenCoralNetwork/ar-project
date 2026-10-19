@@ -628,20 +628,20 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       if (ev.phase === 'oumagatoki') toast('暗くなる前に、帰ろう。')
     }
   }
-  /** 澄んだ地点で会話を始める。地点の役目で、台本と姿の出し方が変わる */
+  /** 澄んだ地点で会話を始める。地点の役目で、台本と姿の出し方が変わる。ましろの台詞の呼び名は覚え書きから */
   const openTalk = (sp: LandSpot): boolean => {
     if (sp.role === 'yokai') {
       const script = sp.yokaiId ? story.yokai[sp.yokaiId]?.script : undefined
-      return !!script && encounter.open(sp.id, { script, yokaiId: sp.yokaiId })
+      return !!script && encounter.open(sp.id, { script, yokaiId: sp.yokaiId, memo })
     }
     if (sp.role === 'clue') {
       // 姿は無く、ましろだけが話す（霞と会話の枠。札はふだんどおり）
       const clue = sp.clueId ? story.clues[sp.clueId] : undefined
-      return !!clue && encounter.open(sp.id, { script: clue.script, form: 'none' })
+      return !!clue && encounter.open(sp.id, { script: clue.script, form: 'none', memo })
     }
     // 寄り道: 出現の表の台本（雑談）で話す。決まった地点の台本は使わない（悩みを始めない・縁も上げない。04 §3.1）
     const a = wanderOf(sp)
-    if (a?.mode === 'appear' && encounter.open(sp.id, { script: a.script, yokaiId: a.yokaiId })) return true
+    if (a?.mode === 'appear' && encounter.open(sp.id, { script: a.script, yokaiId: a.yokaiId, memo })) return true
     toast(WANDER_FAINT)
     return false
   }
