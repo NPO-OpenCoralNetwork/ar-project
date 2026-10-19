@@ -480,7 +480,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   refreshSpots()
 
   // 帳（この土地の保存。巻末の旅印は、この土地の節）。まだ見ていないピース・縁・便りがあれば、ボタンに「新」の字。
-  // 便りは現地の側（site）: 便りと今日の絵解きだけ（夜話・くらがりは始めない）
+  // 便りは現地の側（site）: 便りと今日の絵解きだけ（夜話・くらがりは始めない）。夜話は土地ごとなので、夜に言う聞ける所も土地で変える
+  // （入口の便りは立山のふもとだけ。テスト用の土地の夜話は、白描の絵地図の帳の便りで）
   const cho = createCho({
     root,
     story,
@@ -495,7 +496,7 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
       choBtn.setAttribute('aria-label', on ? '帳をひらく（新しいものがある。曼荼羅帳・縁帳・便り）' : '帳をひらく（曼荼羅帳・縁帳・便り）')
     },
     onReset: () => refreshSpots(),
-    tayori: { memo, mode: 'site', now: appNow, sound },
+    tayori: { memo, mode: 'site', now: appNow, sound, nightWhere: land.id === 'test' ? '夜話は、家で。白描の絵地図の「帳」の「便り」から聞けます。' : undefined },
   })
   choBtn.addEventListener('click', () => cho.open())
   etokiBtn.addEventListener('click', () => {

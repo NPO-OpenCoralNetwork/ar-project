@@ -289,6 +289,8 @@ export interface ChoOptions {
     memo: MemoStore
     /** home: 夜話・帳の影あり。site（現の旅）: 便りと絵解きだけ */
     mode: 'home' | 'site'
+    /** 現の旅（site）の夜に、夜話を聞ける所を言う一文（ui/tayori.ts。省くと立山のふもと） */
+    nightWhere?: string
     /** 物語の時計の「いま」（appNow） */
     now: () => number
     sound: Sound
@@ -407,6 +409,7 @@ export function createCho(o: ChoOptions): Cho {
         memo: t.memo,
         sound: t.sound,
         mode: t.mode,
+        nightWhere: t.nightWhere,
         travel,
         now: t.now,
         beforeTalk: () => {

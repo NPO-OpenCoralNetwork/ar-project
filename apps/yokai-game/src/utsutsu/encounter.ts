@@ -411,6 +411,9 @@ const CSS = /* css */ `
 /* 夕暮れ・夜の和紙（便りの画面の帳の影と夜話）。霞は、白でなく紙の色で晴れる（暗い画面を白く光らせない） */
 .ue.tone-dusk .ue-veil { background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(236, 206, 200, 0.85), rgba(125, 111, 147, 0.97)); }
 .ue.tone-night .ue-veil { background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(70, 76, 108, 0.88), rgba(43, 49, 72, 0.98)); }
+/* 会話の枠（この出会いの層の後ろに置く。yume/encounter/ui.ts）の薄い字（台本・創作の印・「タップで次へ」・お知らせの文）は、
+   夕暮れ・夜の和紙の上では濃く（--dsoft-paper。4.5:1 より上に。04 §5.6） */
+.ue.tone-dusk ~ .yd .yd-box, .ue.tone-night ~ .yd .yd-box { --dsoft: var(--dsoft-paper); }
 /* 夜の和紙では、白描の姿を少し沈める（0.85） */
 .ue.tone-night .ue-fig { opacity: 0.85; filter: drop-shadow(0 10px 14px rgba(0, 0, 10, 0.35)); }
 /* 動きを減らす設定: 浮かび上がる動きをやめ、薄く切り替えるだけにする */

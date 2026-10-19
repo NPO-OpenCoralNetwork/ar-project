@@ -18,10 +18,11 @@
 //   （逢魔が時 → 夜話が来ている → 夜 → 読んでいない便り → ふだん）。1分ごとに見直す。「新」は字だけ（数は出さない）。
 // - 立山の時刻（core/story/clock.ts）と、テスト用の時計（?debug&clock=。core/debug-clock.ts）。時計は旅のページへも渡し、
 //   ?debug のときは左下に「時計: …（テスト）」を出す。
-// URL: ?debug と ?sim と clock は、旅のページへそのまま渡す。#hikitsugi は引き継ぎの札、#tayori は便りの画面。
+// URL: ?debug と ?sim は、旅のページへそのまま渡す。テストの時計は、いまの差を相対の clock= で渡す（URL の clock をそのまま渡すと、
+//   便りで合わせ直した時刻や、入口で過ぎた時間が、次のページで巻き戻る）。#hikitsugi は引き継ぎの札、#tayori は便りの画面。
 
 import './style.css'
-import { appClock, appNow, clockTag } from '../core/debug-clock'
+import { appClock, appNow, clockParam, clockTag } from '../core/debug-clock'
 import { STORY_KEY } from '../core/storage-keys'
 import { storyClock } from '../core/story/clock'
 import type { MemoStore } from '../core/story/memo'
@@ -43,9 +44,11 @@ const HIKITSUGI = '#hikitsugi'
 /** 便りの画面の印（URL の #） */
 const TAYORI = '#tayori'
 
-/** 旅のページへ、URL の印（?debug・?sim・clock）をそのまま渡す */
-function pass(href: string, keys: string[] = ['debug', 'sim', 'clock']): string {
+/** 旅のページへ、URL の印（?debug・?sim）をそのまま渡す。テストの時計は、いまの差を相対で（clock=+…m。描くとき・移るときに） */
+function pass(href: string, keys: string[] = ['debug', 'sim']): string {
   const q = keys.filter((k) => params.has(k)).map((k) => (params.get(k) ? `${k}=${encodeURIComponent(params.get(k)!)}` : k))
+  const clock = DEBUG ? clockParam(appClock().offsetMs) : null
+  if (clock) q.push(`clock=${encodeURIComponent(clock)}`)
   return q.length ? `${href}?${q.join('&')}` : href
 }
 
@@ -54,6 +57,7 @@ interface Journey {
   name: string
   lead: string
   note: string
+  /** 旅のページ（URL の印は、描くとき・移るときに pass() で付ける） */
   href: string
   /** 小さな印の絵（夢は白描と金の霞、現は色。01-app-ux §0-3） */
   art: string
@@ -65,7 +69,7 @@ const JOURNEYS: Journey[] = [
     name: '夢の旅',
     lead: '家で、箱庭を歩く',
     note: '位置もカメラも使いません',
-    href: pass('./yume.html'),
+    href: './yume.html',
     art: `<svg class="en-art" viewBox="0 0 64 64" aria-hidden="true">
       <ellipse cx="32" cy="46" rx="30" ry="10" fill="#efd9a0" opacity="0.5"/>
       <path d="M8,40 L32,30 L56,40 L32,50 Z" fill="#fffdf7" stroke="#3a332d" stroke-width="1.3" stroke-linejoin="round"/>
@@ -81,7 +85,7 @@ const JOURNEYS: Journey[] = [
     name: '現の旅',
     lead: '現地を、自分の足で歩く',
     note: '位置を使います。歩いた道は記録しません',
-    href: pass('./utsutsu.html'),
+    href: './utsutsu.html',
     art: `<svg class="en-art" viewBox="0 0 64 64" aria-hidden="true">
       <circle cx="46" cy="18" r="6" fill="#e3a55a"/>
       <path d="M4,46 C14,30 22,26 30,32 C36,24 44,22 60,36 L60,54 L4,54 Z" fill="#8fae78"/>
@@ -138,7 +142,7 @@ function showHome(): void {
       </div>
       <nav class="en-choices" aria-label="旅をえらぶ">
         ${JOURNEYS.map(
-          (j) => `<a class="en-choice ${j.id}" href="${j.href}" data-journey="${j.id}">
+          (j) => `<a class="en-choice ${j.id}" href="${pass(j.href)}" data-journey="${j.id}">
             ${j.art}
             <span class="txt"><span class="name">${j.name}</span><span class="lead">${phrases(j.lead)}</span><span class="note">${phrases(j.note)}</span></span>
           </a>`,
@@ -153,7 +157,7 @@ function showHome(): void {
       <a class="en-link en-hiki" href="${HIKITSUGI}" data-hikitsugi>引き継ぎ（試作）<small>${phrases('別の端末で、続きを遊ぶ')}</small></a>
       <section class="en-test" aria-labelledby="en-test-h">
         <h2 id="en-test-h">チームのテスト用</h2>
-        <a class="en-link" href="${pass('./ezu.html', ['debug', 'clock'])}">白描の絵地図<small>テスト用の土地を、家で</small></a>
+        <a class="en-link" href="${pass('./ezu.html', ['debug'])}">白描の絵地図<small>テスト用の土地を、家で</small></a>
         <p class="en-status"><span class="k">テスト用の土地</span>${phrases(testLandStatus())}</p>
         ${DEBUG ? `<a class="en-link" href="./gps-test.html">GPS の検証<small>開発用</small></a>` : ''}
       </section>
@@ -194,7 +198,7 @@ function showPromises(j: Journey): void {
         ;(app.querySelector(`[data-journey="${j.id}"]`) as HTMLElement | null)?.focus()
       },
     },
-    done: () => window.location.assign(j.href),
+    done: () => window.location.assign(pass(j.href)),
   })
 }
 
@@ -341,7 +345,7 @@ function showHikitsugi(): void {
 
 function leaveSheet(): void {
   if (fromHome) {
-    // hashchange で入口を描き直す
+    // hashchange（か popstate）で入口を描き直す
     window.history.back()
     return
   }
@@ -367,22 +371,27 @@ function route(): void {
   else showHome()
 }
 
-window.addEventListener('hashchange', () => {
+/**
+ * # が変わったとき（いまの画面と同じなら何もしない）。hashchange と popstate の両方で呼ぶ: テスト用の時計を便りで合わせ直すと
+ * URL の clock が書き換わり、「戻る」で # だけ戻っても hashchange が来ないため（core/debug-clock.ts）
+ */
+function onHash(): void {
   const from = sheetRoute()
   const hash = window.location.hash
   if (hash === HIKITSUGI || hash === TAYORI) {
-    fromHome = !from
     const want = hash === HIKITSUGI ? 'hikitsugi' : 'tayori'
     if (from === want) return
+    fromHome = !from
     if (from === 'tayori') closeTayori()
     if (want === 'hikitsugi') showHikitsugi()
     else showTayori()
-  } else {
+  } else if (from) {
     fromHome = false
-    if (from) backHome(from)
-    else showHome()
+    backHome(from)
   }
-})
+}
+window.addEventListener('hashchange', onHash)
+window.addEventListener('popstate', onHash)
 
 // ---------------------------------------------------------------- 時計
 

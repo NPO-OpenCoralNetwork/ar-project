@@ -1,5 +1,5 @@
 // テスト用の時計（core/debug-clock.ts）: ?debug&clock= の読み方・セッションに残す差・?debug が無ければ実時刻・時計の札
-import { CLOCK_SESSION_KEY, clockTag, createAppClock, parseClockParam, type SessionLike } from '../src/core/debug-clock'
+import { CLOCK_SESSION_KEY, clockParam, clockTag, createAppClock, parseClockParam, type SessionLike } from '../src/core/debug-clock'
 import { done, jst, ok, snap } from './helpers'
 
 const REAL = jst('2026-10-18T12:00')
@@ -21,7 +21,7 @@ const rel = (v: string) => {
 ok(rel('+90m') === 90 * 60_000 && rel('-2h') === -2 * 3_600_000 && rel('+1d') === 86_400_000, '相対（+90m・-2h・+1d）')
 ok(rel(' 90m') === 90 * 60_000, 'URL で空白になった「+」も読む')
 ok(parseClockParam('off', REAL) === 'off', 'off')
-for (const bad of ['xyz', '2027-02-30T10:00', '2027-01-16T25:00', '2027-01-16', '+5x', '', '2300-01-01T00:00'])
+for (const bad of ['xyz', '2027-02-30T10:00', '2027-01-16T25:00', '2027-01-16', '+5x', '', '2300-01-01T00:00', '+99999999m'])
   ok(parseClockParam(bad, REAL) === null, `読めない: ${JSON.stringify(bad)}`)
 
 // ?debug が無ければ、いつも実時刻（セッションの差も読まない・書かない）
@@ -60,6 +60,20 @@ for (const bad of ['xyz', '2027-02-30T10:00', '2027-01-16T25:00', '2027-01-16', 
   ok(createAppClock('?debug', s, real).offsetMs === 0, '読めない差は無視')
   ok(createAppClock('?debug&clock=nonsense', s, real).offsetMs === 0, '読めない clock は、セッションの差（無ければ実時刻）')
   ok(createAppClock('?debug', null, real).now() === REAL, 'セッションが無くても動く')
+}
+// 入口から旅のページへ渡す差（相対の clock。分に切り上げ: 渡した先で、時刻が巻き戻らない）
+{
+  ok(clockParam(0) === null && clockParam(-20_000) === null, '差が無い（1分に満たない遅れ）なら渡さない')
+  ok(clockParam(90 * 60_000) === '+90m' && clockParam(-2 * 3_600_000) === '-120m', `相対の形（${clockParam(-2 * 3_600_000)}）`)
+  for (const off of [jst('2027-01-16T16:40') - REAL + 12_345, -(3 * 86_400_000) - 45_000, 99 * 365 * 86_400_000]) {
+    const back = rel(clockParam(off)!)
+    ok(back !== null && back >= off && back - off < 60_000, `渡した差を読み直すと、前にならない（${off} → ${back}）`)
+  }
+  const s = session()
+  const a = createAppClock('?debug&clock=2027-01-16T16:40', s, real)
+  a.setTarget(jst('2027-01-16T19:05'))
+  const next = createAppClock(`?debug&clock=${encodeURIComponent(clockParam(a.offsetMs)!)}`, s, real)
+  ok(next.now() === jst('2027-01-16T19:05'), '合わせ直した時刻が、次のページでも続く（URL の clock で戻らない）')
 }
 snap('parsed', [parseClockParam('2027-01-16T16:40', REAL), rel('+90m'), rel('-2h')])
 done()

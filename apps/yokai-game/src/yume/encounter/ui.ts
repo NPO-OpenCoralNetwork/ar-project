@@ -41,10 +41,11 @@ const CSS = /* css */ `
 .yd { position: absolute; left: 50%; bottom: calc(14px + var(--sab)); transform: translate(-50%, 12px); width: min(660px, calc(100vw - 24px - var(--sal) - var(--sar))); opacity: 0; pointer-events: none; transition: opacity 0.4s, transform 0.4s; z-index: 30; }
 .yd.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 @media (max-width: 1120px) { .yd { bottom: calc(50px + var(--sab)); } }
-.yd-box { --dbg: rgba(251, 248, 241, 0.95); --dink: #2a2622; --dsoft: rgba(42, 38, 34, 0.6); --dline: rgba(42, 38, 34, 0.2); --dchoice: rgba(255, 253, 248, 0.9);
+/* --dsoft-paper: 夕暮れ・夜の和紙の上（便りの画面の会話。utsutsu/encounter.ts）で使う薄い字。紙が暗いぶん濃くして 4.5:1 より上に（04 §5.6） */
+.yd-box { --dbg: rgba(251, 248, 241, 0.95); --dink: #2a2622; --dsoft: rgba(42, 38, 34, 0.6); --dsoft-paper: rgba(42, 38, 34, 0.74); --dline: rgba(42, 38, 34, 0.2); --dchoice: rgba(255, 253, 248, 0.9);
   position: relative; background: var(--dbg); color: var(--dink); border: 1px solid var(--dline); border-radius: 14px; padding: 12px 16px 12px; box-shadow: 0 10px 34px rgba(40, 30, 30, 0.16); cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.yh[data-time="night"] .yd-box { --dbg: rgba(20, 24, 48, 0.92); --dink: #e8e4f2; --dsoft: rgba(232, 228, 242, 0.64); --dline: rgba(232, 228, 242, 0.2); --dchoice: rgba(40, 46, 82, 0.9); box-shadow: 0 10px 34px rgba(0, 0, 10, 0.4); }
-.yh[data-time="dusk"] .yd-box { --dbg: rgba(252, 244, 241, 0.95); --dink: #3e3240; --dsoft: rgba(62, 50, 64, 0.62); --dline: rgba(62, 50, 64, 0.2); }
+.yh[data-time="night"] .yd-box { --dbg: rgba(20, 24, 48, 0.92); --dink: #e8e4f2; --dsoft: rgba(232, 228, 242, 0.64); --dsoft-paper: rgba(232, 228, 242, 0.74); --dline: rgba(232, 228, 242, 0.2); --dchoice: rgba(40, 46, 82, 0.9); box-shadow: 0 10px 34px rgba(0, 0, 10, 0.4); }
+.yh[data-time="dusk"] .yd-box { --dbg: rgba(252, 244, 241, 0.95); --dink: #3e3240; --dsoft: rgba(62, 50, 64, 0.74); --dsoft-paper: rgba(62, 50, 64, 0.74); --dline: rgba(62, 50, 64, 0.2); }
 .yd-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; min-height: 22px; }
 .yd-name { font-family: var(--title-font); font-weight: 600; font-size: 15px; letter-spacing: 0.12em; }
 .yd-name.companion { font-weight: 500; }

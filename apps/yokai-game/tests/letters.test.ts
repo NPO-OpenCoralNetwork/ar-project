@@ -102,26 +102,27 @@ const daily = (p: ProgressStore) => Object.keys(p.get().letters).filter((id) => 
   ok(named.length === 1 && !p.letter(named[0])!.parts.includes('ask'), '呼び名を消した（消した印がある）なら聞かない')
   // 艶2段（5回）から b
   for (let i = 0; i < 5; i++) p.noteTalk('tengu', 'yume')
-  const snips: string[] = []
-  for (const d of ['13', '14', '15', '16']) {
-    c.set(`2027-01-${d}T07:00`)
+  // 一日おきに開いて、届いたあとで遊ぶ（届いた便りを比べる）。合う言い回しは tb1・tb3 の2つで、一日おきの日は日の番号の偶奇が
+  // 同じなので、前の便りの言い回しを避けなければ、毎回同じ言い回しになる
+  const got: string[] = []
+  for (const d of ['13', '15', '17', '19']) {
+    got.push(...deliverDue(envAt(p, c, `2027-01-${d}T08:00`)))
+    c.set(`2027-01-${d}T09:00`)
     p.noteSeen('tengu', 'yume')
-    c.set(`2027-01-${d}T07:30`)
-    const parts = composeDaily({ progress: p, story, clock: c.story() })
-    snips.push(parts.find((x) => x.startsWith('snip:'))!)
-    deliverDue({ progress: p, story, clock: c.story() })
   }
+  ok(got.join() === 'fumi:2027-01-13,fumi:2027-01-15,fumi:2027-01-17,fumi:2027-01-19', `一日おきに、ましろの便りが1通ずつ（${got.join(' ')}）`)
+  const snips = got.map((id) => p.letter(id)?.parts.find((x) => x.startsWith('snip:')) ?? '')
   ok(snips.every((s) => /^snip:tb[13]$/.test(s)), `艶2段からは b の言い回し（条件の合うものだけ。${snips.join(' ')}）`)
-  ok(snips.every((s, i) => i === 0 || s !== snips[i - 1]), '続けて同じ言い回しにしない')
+  ok(snips.every((s, i) => i === 0 || s !== snips[i - 1]), `続けて同じ言い回しにしない（届いた便りの部品: ${snips.join(' ')}）`)
   p.setFlag('qa-done', true)
-  c.set('2027-01-17T07:00')
+  c.set('2027-01-20T07:00')
   const withGate = composeDaily({ progress: p, story, clock: c.story() })
   ok(withGate.some((x) => /^snip:tb[123]$/.test(x)), '条件つきの言い回しも候補に入る')
   // また聞きの部品（言い回しの段）は届いた時のまま
   const q = store(undefined, c)
   q.meet('tengu', 'yume')
   q.setFlag('qa-done', true)
-  deliverDue(envAt(q, c, '2027-01-18T08:00'))
+  deliverDue(envAt(q, c, '2027-01-21T08:00'))
   const before = q.letter('mg-tengu')!.parts.join()
   ok(before === 'p1,q1,c1,s1.a', `部品（条件の合わない p2 は入れない。艶0段は s1.a）: ${before}`)
   for (let i = 0; i < 10; i++) q.noteTalk('tengu', 'yume')

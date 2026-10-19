@@ -58,8 +58,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-prompt { position: absolute; left: 50%; bottom: calc(64px + var(--sab)); transform: translate(-50%, 6px); opacity: 0; transition: opacity 0.6s, transform 0.6s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.06em; padding: 8px 16px; background: var(--washi); border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
 .yh-prompt small { font-family: var(--ui-font); font-size: 11px; color: var(--ink-soft); margin-left: 6px; letter-spacing: 0; }
 .yh-prompt.on { opacity: 1; transform: translate(-50%, 0); }
-.yh-toast { position: absolute; left: 50%; top: calc(64px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.8s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.05em; padding: 8px 16px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; }
+.yh-toast { position: absolute; left: 50%; top: calc(64px + var(--sat)); transform: translateX(-50%); opacity: 0; transition: opacity 0.8s; font-family: var(--title-font); font-size: 14px; letter-spacing: 0.05em; padding: 8px 16px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; width: max-content; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; word-break: auto-phrase; }
 .yh-toast.on { opacity: 1; }
+/* 文ごとに区切り、2行になるときは文の切れ目（。）で折り返す（白描の絵地図のお知らせと同じ） */
+.yh-toast .s { display: inline-block; }
 .yh-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; touch-action: none; background: rgba(241, 236, 226, 0.35); transition: opacity 0.5s; }
 .yh-hint.off { opacity: 0; pointer-events: none; }
 .yh-card { --ink: #2a2622; --ink-soft: rgba(42, 38, 34, 0.62); --line: rgba(42, 38, 34, 0.22); --washi-hover: #faf7f0; color: var(--ink); max-width: 360px; width: 100%; background: var(--washi-solid); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 16px; box-shadow: 0 8px 30px rgba(60, 50, 40, 0.12); }
@@ -89,8 +91,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
   .yh-panel .yh-btn { line-height: 1.12; padding: 2px 8px; }
   .yh-panel .yh-btn small { display: block; font-size: 9px; line-height: 1.1; margin: 0 0 1px; }
   .yh-credit { font-size: 9.5px; }
-  /* お知らせは、右上の板（3段）の下に出す（板と重ならないように） */
-  .yh-toast { top: calc(132px + var(--sat)); font-size: 13.5px; }
+  /* お知らせは、右上の板（3段。下の端は 134px）の下に、少しあけて出す（板と重ならないように） */
+  .yh-toast { top: calc(140px + var(--sat)); font-size: 13.5px; }
   /* 開いた性能表示が、右下の出典と重ならないように（行は折り返す） */
   .yh-perf { max-width: calc(100vw - 215px - var(--sal) - var(--sar)); white-space: pre-wrap; word-break: break-all; }
 }
@@ -378,7 +380,7 @@ export class Hud {
   }
 
   toast(text: string, ms = 3200): void {
-    this.toastEl.textContent = text
+    this.toastEl.innerHTML = (text.match(/[^。]+。?|。/g) ?? [text]).map((s) => `<span class="s">${escapeHtml(s)}</span>`).join('')
     this.toastEl.classList.add('on')
     window.clearTimeout(this.toastTimer)
     this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('on'), ms)

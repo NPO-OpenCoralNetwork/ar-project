@@ -10,7 +10,8 @@
 // 2. 逢魔が時（家で、ほんとうの逢魔が時のあいだだけ）: 墨のにじんだ札「逢魔が時」と［話を聞く］（帳の影＝くらがり。夕暮れの和紙で話す）。
 //    現の旅では、家に着いてから、とだけ言う（ボタンは出さない。外にいることへのご褒美にしない。04 §3.6）。
 // 3. 今夜の夜話（家で）: 一晩に一人（tonight）。ほかに来られる妖怪は、ボタンの無い気配の一行だけ。開かなかった夜には触れない。
-//    現の旅では始めない（「宿や家で。入口の「便り」から」とだけ言う。02 F-62）。
+//    現の旅では始めない（「宿や家で。入口の「便り」から」とだけ言う。02 F-62）。夜話は土地ごとなので、テスト用の土地では
+//    白描の絵地図の帳の便りを言う（nightWhere。入口の便りは立山のふもとだけ）。
 // 4. きょうの絵解き: ［つくる］か［見る］。「これまでの絵解き」（新しい14日分。たたんである）。
 // 5. 届いた便り: 新しい順に、たたんだ和紙。まだ読んでいない便りだけ、墨の「〆」と細い茜の帯、「新」の字（数は出さない）。
 //    押すと、その場でひらく（紙をめくる動き。動きを減らす設定では切り替えるだけ）。読んだ便りも残り、何度でも読める。
@@ -63,6 +64,8 @@ const STYLE = /* css */ `
 .ty-wrap.page { flex: none; width: 100%; }
 .ty-wrap.page .ty { margin-top: 0; overflow: visible; box-shadow: 0 6px 22px rgba(60, 50, 40, 0.1); border: 1px solid rgba(42, 38, 34, 0.18); border-radius: 16px; }
 .ty :focus-visible { outline: 2px solid #2f4a7a; outline-offset: 2px; }
+/* 会話のあと、戻す欄が無いときだけ、画面そのものへ（見出しと同じく枠は出さない） */
+.ty:focus { outline: none; }
 .ty h3, .ty h4 { margin: 0; font-family: var(--title-font, serif); font-weight: 600; }
 .ty-sec { margin-top: 16px; }
 .ty-sec:first-child { margin-top: 2px; }
@@ -70,7 +73,8 @@ const STYLE = /* css */ `
 .ty-h:focus { outline: none; }
 .ty-small { margin: 6px 0 0; font-size: 13px; line-height: 1.7; color: rgba(42, 38, 34, 0.74); text-wrap: pretty; word-break: auto-phrase; }
 .ty-plain { margin: 8px 0 0; font-size: 14px; line-height: 1.7; text-wrap: pretty; word-break: auto-phrase; }
-.ty-ph { display: inline-block; }
+/* 句の中では字下げしない（気配の行の、ぶら下げの字下げを受け継ぐと、句が前の句の上に重なる） */
+.ty-ph { display: inline-block; text-indent: 0; }
 .ty-btn { flex: none; min-width: 44px; min-height: 44px; padding: 0 16px; font: inherit; font-size: 14.5px; letter-spacing: 0.06em; color: #2a2622; background: #fffdf7;
   border: 1px solid rgba(42, 38, 34, 0.4); border-radius: 10px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .ty-btn:hover { background: #fff; border-color: rgba(42, 38, 34, 0.6); }
@@ -175,6 +179,17 @@ function injectStyle(): void {
 /** 句読点のあとで折り返す（語の途中で行を分けない。長い句は、その中で折り返す） */
 const phrases = (s: string): string => (s.match(/[^、。]+[、。]*/g) ?? [s]).map((p) => `<span class="ty-ph">${escapeHtml(p)}</span>`).join('')
 
+/**
+ * 便りの段落。終わりの問いかけ（「？」で終わる、10字までの句）だけは、途中で折り返さない（「きみに、まか／せてもいい？」と割らない）。
+ * ほかの終わりの句までまとめると、短い最後の行を避ける折り返し（text-wrap: pretty）が、前の句の途中で行を分けることがある（「は／ずかしい」）
+ */
+const letterPara = (s: string): string => {
+  const parts = s.match(/[^、。]+[、。]*/g) ?? []
+  const last = parts[parts.length - 1]
+  if (parts.length < 2 || parts.join('') !== s || !/？$/.test(last) || [...last].length > 10) return escapeHtml(s)
+  return `${escapeHtml(parts.slice(0, -1).join(''))}<span class="ty-ph">${escapeHtml(last)}</span>`
+}
+
 /** ましろの一言（時間帯ごと。【創作】）と、夜に添える普通の字 */
 const MASHIRO: Record<'home' | 'site', Record<StoryClock['phase'], string>> = {
   home: {
@@ -199,6 +214,8 @@ export interface TayoriDeps {
   sound: Sound
   /** home: 夜話・帳の影あり。site（現の旅）: 便りと絵解きだけ */
   mode: 'home' | 'site'
+  /** 現の旅（site）の夜に、夜話を聞ける所を言う一文（夜話は土地ごと）。省くと立山のふもと（入口の「便り」） */
+  nightWhere?: string
   /** このページの旅（絵解きを残す旅。現の旅は utsutsu） */
   travel: Travel
   /** 物語の時計の「いま」（appNow） */
@@ -363,7 +380,7 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
   const sectionNight = (clock: StoryClock, t: Tonight | null): string => {
     if (d.mode === 'site') {
       if (clock.phase !== 'night') return ''
-      return `<section class="ty-sec" aria-labelledby="ty-night-h"><h3 class="ty-h" id="ty-night-h" tabindex="-1">今夜の夜話</h3><p class="ty-plain">${phrases('夜話は、宿や家で。入口の「便り」から聞けます。')}</p></section>`
+      return `<section class="ty-sec" aria-labelledby="ty-night-h"><h3 class="ty-h" id="ty-night-h" tabindex="-1">今夜の夜話</h3><p class="ty-plain">${phrases(d.nightWhere ?? '夜話は、宿や家で。入口の「便り」から聞けます。')}</p></section>`
     }
     if (!t || t.state === 'none') return ''
     let body = ''
@@ -420,7 +437,7 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
       case 'head':
         return `<h4 class="ty-head" tabindex="-1">${escapeHtml(b.text)}</h4>`
       case 'p':
-        return `<p>${escapeHtml(b.text)}</p>`
+        return `<p>${letterPara(b.text)}</p>`
       case 'quote': {
         const art = ARTS[story.yokai[b.yokai]?.art ?? '']
         const svg = art ? `<svg viewBox="0 0 ${art.w} ${art.h}" aria-hidden="true">${artToSvg(art, '#fffdf7', INK, 1.1)}</svg>` : ''
@@ -575,10 +592,12 @@ export function createTayoriPanel(d: TayoriDeps): TayoriPanel {
   if (DEBUG) appClock().onChange(() => tick())
 
   const focusLater = (sel: string) =>
-    // 帳を開き直したあと（帳はタブへキーボードの位置を移す）に、この画面の中へ移す
+    // 帳を開き直したあと（帳はタブへキーボードの位置を移す）に、この画面の中へ移す。会話の間に逢魔が時が過ぎた・4時を過ぎた
+    // （その欄が無い）ときは、はじめの欄の見出しへ。それも無ければ便りの画面へ（キーボードの位置を失くさない）
     window.setTimeout(() => {
-      const t = box.querySelector<HTMLElement>(sel)
-      if (t && !t.closest('[inert]')) t.focus({ preventScroll: false })
+      const t = box.querySelector<HTMLElement>(sel) ?? box.querySelector<HTMLElement>('h3[tabindex="-1"]') ?? box
+      if (t === box && !box.hasAttribute('tabindex')) box.tabIndex = -1
+      if (!t.closest('[inert]')) t.focus({ preventScroll: false })
     }, 120)
 
   // ---------------------------------------------------------------- 会話
