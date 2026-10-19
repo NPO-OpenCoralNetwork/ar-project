@@ -44,6 +44,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f1ece2; ove
 .yh-btn:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 1px; }
 .yh-btn.icon { font-size: 17px; padding: 0; width: 38px; line-height: 1; }
 .yh-btn small { color: var(--ink-soft); font-size: 11px; margin-right: 4px; }
+/* 3段目（音・今日はここまで・帳）は、指で押せる高さ（44px。帳と同じなので、段の高さは変わらない） */
+.yh-panel .yh-row.r3 .yh-btn { min-height: 44px; }
 .yh-compass { width: 38px; height: 38px; border-radius: 50%; background: var(--washi); border: 1px solid var(--line); position: relative; flex: none; }
 .yh-compass i { position: absolute; left: 50%; top: 50%; width: 0; height: 0; font-style: normal; }
 .yh-compass b { position: absolute; transform: translate(-50%, -50%); font-family: var(--title-font); font-size: 11px; font-weight: 600; }
@@ -192,7 +194,7 @@ export class Hud {
     this.speedBtn = button('', '歩く速さを切り替える', '')
     this.speedBtn.onclick = () => hooks.toggleSpeed()
     row2.append(this.speedBtn, this.lookBtn, this.timeBtn, this.qualityBtn)
-    const row3 = el('div', 'yh-row')
+    const row3 = el('div', 'yh-row r3')
     this.soundBtn = button('', '音を切り替える', '')
     this.soundBtn.onclick = () => hooks.toggleSound()
     // 今日の絵解き（ひとりでには出さない。押したときだけ。04 §3.6）
@@ -364,6 +366,15 @@ export class Hud {
   /** はじめの操作のヒントを出している */
   get hintOpen(): boolean {
     return !!this.hint
+  }
+
+  /** 右上の「時間」と「帳」のボタン（ましろの申し出が消えたとき、キーボードの位置を移す先。ui/offer.ts） */
+  get timeButton(): HTMLButtonElement {
+    return this.timeBtn
+  }
+
+  get choButton(): HTMLButtonElement {
+    return this.mandalaBtn
   }
 
   toast(text: string, ms = 3200): void {

@@ -28,7 +28,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
 .uh-btn:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 1px; }
 .uh-btn.title { font-family: var(--title-font); letter-spacing: 0.08em; }
 .uh-btn[aria-pressed="false"] { color: var(--ink-soft); }
-.uh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; gap: 6px; align-items: center; max-width: calc(100vw - 240px); }
+/* 左上の板の幅: 右上の板（音・帳・今日はここまで。およそ 228px）と、両端の 10px と、あいだの 8px を空ける */
+.uh-tl { position: absolute; top: calc(10px + var(--sat)); left: calc(10px + var(--sal)); display: flex; gap: 6px; align-items: center; max-width: calc(100vw - 256px - var(--sal) - var(--sar)); }
 .uh-tl .uh-btn { flex: none; }
 .uh-land { font-family: var(--title-font); font-size: 13px; letter-spacing: 0.08em; padding: 6px 10px; background: var(--washi); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .uh-tr { position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
@@ -112,7 +113,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #f3eee2; ove
   .uh-band span { font-size: 12px; }
   .uh-tl { max-width: calc(100vw - 190px); }
   .uh-tr { max-width: 140px; }
-  .uh-tr .etoki { order: 1; }
   .uh-btn.etoki.off { display: inline-block; visibility: hidden; }
   /* 位置シミュレーター（開発用）は、右上の下の段（今日はここまで）にかからない幅に */
   .uh-sim { width: min(300px, calc(100vw - 150px - var(--sal) - var(--sar))); }

@@ -599,12 +599,15 @@ function start(): void {
     })
   }
 
-  // ---- 立山の時刻（段階4b）。1分ごと・ページに戻ったとき・テストの時計を動かしたとき・会話や帳や札を閉じたときに見直す
+  // ---- 立山の時刻（段階4b）。1分ごと・ページに戻ったとき・テストの時計を動かしたとき・会話や帳や札を閉じたときに見直す。
+  // ページが見えていない間（ほかのタブ・画面を消したとき）は何もしない。お知らせ・風の音・申し出は、戻ったときに出す（呼び戻す音にしない）
   /** 会話・帳（稽古・便りの会話や札も）・はじめのヒントの間は、時間帯の切り替えとお知らせを待つ */
   const timeBusy = (): boolean => enc.engaged || enc.choOpen || hud.hintOpen
-  /** ましろの申し出（いまの夜に入ったとき、このページで一度だけ） */
+  /** ましろの申し出（いまの夜に入ったとき、このページで一度だけ。ボタンか × で閉じたら、おしまい）。
+   *  出している間に会話・帳が開いたら、いったんしまい（offerHeld）、閉じてまだいまの夜なら、その時の様子で出しなおす */
   let offer: { close(): void } | null = null
   let offerShown = false
+  let offerHeld = false
   /** 逢魔が時のお知らせを出した物語の日（日ごとに一度） */
   let duskDay: DayKey | null = null
   /** 夜話: 前に見た今夜の様子と、来たことを知らせた夜 */
@@ -621,9 +624,20 @@ function start(): void {
       }, 2000)
   }
 
+  /** 申し出を閉じる（夜でなくなった。出しなおさない） */
   function closeOffer(): void {
     offer?.close()
     offer = null
+    offerHeld = false
+  }
+
+  /** 会話・帳が開いた: 出ている申し出は、いったんしまう（閉じたら出しなおす） */
+  function holdOffer(): void {
+    if (!offer) return
+    offer.close()
+    offer = null
+    offerHeld = true
+    enc.log.push('offer held')
   }
 
   /** 手で昼にする（夜の申し出の［昼の夢にする］） */
@@ -637,16 +651,26 @@ function start(): void {
 
   /** いまの夜に入った（読み込んだときも）: ましろの申し出。夜話が来ていれば便りへ、ほかは昼の夢へ（夜の箱庭は気配だけ） */
   function nightOffer(): void {
-    if (offerShown || homeTime.mode !== 'auto' || homeTime.look !== 'night' || timeBusy()) return
+    if ((offerShown && !offerHeld) || homeTime.mode !== 'auto' || homeTime.look !== 'night' || timeBusy() || document.hidden) return
     offerShown = true
+    offerHeld = false
     const clock = storyClock(appNow())
+    // 遊ぶ人がボタンか × で閉じたら、このページでは、もう出さない。キーボードの位置は、便りなら帳のボタン（帳を閉じたらそこへ戻る）、昼の夢なら時間のボタンへ
+    const onClose = () => (offer = null)
     if (yobanashiNews(tonight(clock, progress, story))) {
-      // 同じ夜に「来ている」のお知らせを重ねない
+      // 同じ夜に「来ている」のお知らせを重ねない（待っていたお知らせも出さない）
       yobanashiDay = clock.day
-      offer = showOffer(hud.root, { text: '夜話に、だれか来ている。', action: '帳の「便り」をひらく', onAction: () => enc.openTayori() })
+      yobanashiPending = false
+      offer = showOffer(hud.root, {
+        text: '夜話に、だれか来ている。',
+        action: '帳の「便り」をひらく',
+        onAction: () => enc.openTayori(),
+        onClose,
+        returnFocus: hud.choButton,
+      })
       enc.log.push('offer yobanashi')
     } else {
-      offer = showOffer(hud.root, { text: '夜は、みんな気配だけ。', action: '昼の夢にする', onAction: () => dayDream() })
+      offer = showOffer(hud.root, { text: '夜は、みんな気配だけ。', action: '昼の夢にする', onAction: () => dayDream(), onClose, returnFocus: hud.timeButton })
       enc.log.push('offer day')
     }
   }
@@ -658,6 +682,8 @@ function start(): void {
   }
 
   function timeTick(): void {
+    // 見えていない間は待つ（逢魔が時のお知らせ・夜話のお知らせは、出したことにしない。戻ったときの visibilitychange で見直す）
+    if (document.hidden) return
     const busy = timeBusy()
     // いま: 立山の時刻の時間帯が変わっていたら、覆いで切り替える（会話・帳・札の間は待ち、閉じたらすぐ見直す）
     if (!busy) {
@@ -685,7 +711,8 @@ function start(): void {
     // 夜話: 会話のあとで、今夜だれかが来るようになったら、その夜に一度だけお知らせ（数は出さない）
     const st = tonight(clock, progress, story).state
     if (st === 'offer' && lastTonight !== 'offer' && lastTonight !== 'resume' && yobanashiDay !== clock.day) yobanashiPending = true
-    if (st !== 'offer') yobanashiPending = false
+    // 今夜は来なくなった・申し出で知らせた（同じ夜に二度は知らせない）
+    if (st !== 'offer' || yobanashiDay === clock.day) yobanashiPending = false
     lastTonight = st
     if (yobanashiPending && !busy) {
       if (hud.toastShowing) retrySoon()
@@ -703,13 +730,13 @@ function start(): void {
     if (!document.hidden) timeTick()
   })
   appClock().onChange(() => timeTick())
-  /** 会話・帳・札を閉じたら、待っていた切り替えとお知らせを、すぐ見直す。開いたら、申し出は閉じる */
+  /** 会話・帳・札を閉じたら、待っていた切り替えとお知らせ（としまっておいた申し出）を、すぐ見直す。開いたら、申し出はしまう */
   let wasTimeBusy = timeBusy()
   const watchBusy = () => {
     const b = timeBusy()
     if (b === wasTimeBusy) return
     wasTimeBusy = b
-    if (b) closeOffer()
+    if (b) holdOffer()
     else timeTick()
   }
 

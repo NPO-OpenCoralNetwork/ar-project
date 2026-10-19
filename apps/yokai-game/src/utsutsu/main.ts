@@ -366,7 +366,8 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
   const choBtn = el('button', 'uh-btn title cho-btn', '帳<span class="ym-badge" aria-hidden="true">新</span>') as HTMLButtonElement
   choBtn.type = 'button'
   choBtn.title = '帳（曼荼羅帳・縁帳・便り）'
-  tr.append(soundBtn, etokiBtn, choBtn)
+  // 今日はここまでは帳のあと（狭い画面では2段目に回る。見た目の順と Tab の順を合わせる）
+  tr.append(soundBtn, choBtn, etokiBtn)
   const tools = el('div', 'uh-tools')
   const zin = el('button', 'uh-btn', '＋') as HTMLButtonElement
   const zout = el('button', 'uh-btn', '－') as HTMLButtonElement
@@ -705,8 +706,11 @@ function startSession(land: Land, kind: 'gps' | 'sim'): void {
     // 「今日はここまで」（止まっているときだけ）
     const showEtoki = v.motion === 'stopped'
     if (etokiBtn.classList.contains('off') === showEtoki) {
+      // 歩きだして消えるとき、キーボードの位置がこのボタンにあれば、となりの帳へ（<body> に落とさない）
+      const had = !showEtoki && document.activeElement === etokiBtn
       etokiBtn.classList.toggle('off', !showEtoki)
       etokiBtn.inert = !showEtoki
+      if (had) choBtn.focus({ preventScroll: true })
     }
 
     // 「足を止めた」

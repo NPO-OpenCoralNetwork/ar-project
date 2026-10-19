@@ -3,9 +3,10 @@
 //
 // - いま（立山の時刻）の夜に入ったとき、ページを開くたびに一度だけ（出すかどうかはページが決める。yume/main.ts・ezu/main.ts）。
 //   「夜は、みんな気配だけ。」［昼の夢にする］、夜話が来ていれば「夜話に、だれか来ている。」［帳の「便り」をひらく］。
-// - ボタンは1つと、とじる（×）。どちらを押しても札は消える。急かす言葉・数・点滅は出さない。外へ出かけることはすすめない。
+// - ボタンは1つと、とじる（×）。どちらを押しても札は消える（onClose で、ページに知らせる）。急かす言葉・数・点滅は出さない。外へ出かけることはすすめない。
 // - ましろの言葉は【創作】なので、会話の枠の外でも「台本・創作」の印をつける。
-// - 会話・帳・遊びの間は隠す（画面の root の modal-open・talking・yg-playing）。キーボードの位置は奪わない（Tab で届く）。
+// - 会話・帳・遊びの間は隠す（画面の root の modal-open・talking・yg-playing）。ページも、そのあいだは close() でしまい、閉じたら出しなおす。
+//   キーボードの位置は奪わない（Tab で届く）。札の中にキーボードの位置があるまま消えるときは、returnFocus（時間・帳のボタン）へ移す（<body> に落とさない）。
 
 const STYLE = /* css */ `
 .yo-offer { position: absolute; left: 50%; bottom: calc(112px + var(--sab, 0px)); transform: translate(-50%, 6px); opacity: 0; transition: opacity 0.4s, transform 0.4s;
@@ -41,8 +42,15 @@ function injectStyle(): void {
   document.head.appendChild(s)
 }
 
-/** 申し出を出す。text はましろの言葉、action はボタンの字。ボタンか × を押すと消える（ボタンは onAction も呼ぶ） */
-export function showOffer(root: HTMLElement, o: { text: string; action: string; onAction(): void }): { close(): void } {
+/**
+ * 申し出を出す。text はましろの言葉、action はボタンの字。ボタンか × を押すと消える（ボタンは onAction も呼ぶ）。
+ * onClose: 遊ぶ人がボタンか × で閉じたとき（onAction より先。ページの close() では呼ばない）。
+ * returnFocus: 消えるときに札の中にキーボードの位置があれば、ここへ移す（onAction より先なので、帳はここへ戻す）
+ */
+export function showOffer(
+  root: HTMLElement,
+  o: { text: string; action: string; onAction(): void; onClose?(): void; returnFocus?: HTMLElement },
+): { close(): void } {
   injectStyle()
   const box = document.createElement('div')
   box.className = 'yo-offer'
@@ -81,12 +89,18 @@ export function showOffer(root: HTMLElement, o: { text: string; action: string; 
     if (closed) return
     closed = true
     if (raf) cancelAnimationFrame(raf)
+    const had = box.contains(document.activeElement)
     box.remove()
+    if (had) o.returnFocus?.focus({ preventScroll: true })
   }
   act.addEventListener('click', () => {
     close()
+    o.onClose?.()
     o.onAction()
   })
-  x.addEventListener('click', close)
+  x.addEventListener('click', () => {
+    close()
+    o.onClose?.()
+  })
   return { close }
 }
